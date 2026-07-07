@@ -5,8 +5,8 @@ namespace Database\Seeders;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use App\Models\User;
+use App\Models\Location;
 use Illuminate\Support\Facades\Hash;
-use App\Model\Location;
 
 class AdminUserSeeder extends Seeder
 {
@@ -29,7 +29,7 @@ class AdminUserSeeder extends Seeder
         User::updateOrCreate(
             ['email' => 'toaihimel@gmail.com'],
             [
-                'name' => 'Himel (Admin)',
+                'name' => 'Aftabul Islam',
                 'password' => Hash::make('Admin@PosBoss2026!'),
                 'email_verified_at' => now(),
                 'location_id' => $location->id,
