@@ -6,6 +6,7 @@ use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use App\Model\Location;
 
 class AdminUserSeeder extends Seeder
 {
@@ -14,10 +15,10 @@ class AdminUserSeeder extends Seeder
      */
     public function run(): void
     {
-        $location = \App\Models\Location::updateOrCreate(
+        $location = Location::updateOrCreate(
             ['id' => 1],
             [
-                'name' => 'Main Branch',
+                'name' => 'Banani Branch',
                 'type' => 'head_office',
                 'address' => 'Dhaka, Bangladesh',
                 'phone' => '+8801234567890',
