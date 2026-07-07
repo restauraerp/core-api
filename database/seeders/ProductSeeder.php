@@ -9,7 +9,7 @@ use App\Models\Image;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\File;
 
-class MenuSeeder extends Seeder
+class ProductSeeder extends Seeder
 {
     public function run(): void
     {
@@ -200,6 +200,6 @@ class MenuSeeder extends Seeder
             );
         }
 
-        $this->command->info('✅ MenuSeeder: Seeded categories, products, and linked generated food images.');
+        $this->command->info('✅ ProductSeeder: Seeded categories, products, and linked generated food images.');
     }
 }

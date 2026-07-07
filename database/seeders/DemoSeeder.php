@@ -13,7 +13,7 @@ class DemoSeeder extends Seeder
     {
         $this->call([
             LocationSeeder::class,
-            MenuSeeder::class,
+            ProductSeeder::class,
             CustomerSeeder::class,
             TableSeeder::class,
             OrderSeeder::class,
