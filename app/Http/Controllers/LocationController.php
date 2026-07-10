@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Location;
+use App\Enums\LocationType;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rules\Enum;
 
 class LocationController extends Controller
 {
@@ -12,11 +14,16 @@ class LocationController extends Controller
         return response()->json(Location::with(['halls', 'tables', 'cctvCameras'])->get());
     }
 
+    public function types()
+    {
+        return response()->json(LocationType::options());
+    }
+
     public function store(Request $request)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'type' => 'nullable|string|in:head_office,branch',
+            'type' => ['nullable', 'string', new Enum(LocationType::class)],
             'address' => 'nullable|string',
             'map_url' => 'nullable|url',
             'phone' => 'nullable|string|max:50',
@@ -37,7 +44,7 @@ class LocationController extends Controller
     {
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
-            'type' => 'nullable|string|in:head_office,branch',
+            'type' => ['nullable', 'string', new Enum(LocationType::class)],
             'address' => 'nullable|string',
             'map_url' => 'nullable|url',
             'phone' => 'nullable|string|max:50',

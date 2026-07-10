@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Enums\LocationType;
 
 class Location extends Model
 {
@@ -18,7 +19,15 @@ class Location extends Model
 
     protected $casts = [
         'is_active' => 'boolean',
+        'type' => LocationType::class,
     ];
+
+    protected $appends = ['type_title'];
+
+    public function getTypeTitleAttribute()
+    {
+        return $this->type?->title();
+    }
 
     public function halls()
     {

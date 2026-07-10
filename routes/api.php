@@ -9,6 +9,7 @@ Route::get('/user', function (Request $request) {
 
 Route::prefix('v1')->group(function () {
     // Locations API
+    Route::get('location-types', [\App\Http\Controllers\LocationController::class, 'types']);
     Route::apiResource('locations', \App\Http\Controllers\LocationController::class);
     Route::apiResource('locations.halls', \App\Http\Controllers\HallController::class)->shallow();
     Route::apiResource('locations.tables', \App\Http\Controllers\TableController::class)->shallow();
