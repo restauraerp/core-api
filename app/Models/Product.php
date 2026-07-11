@@ -12,6 +12,7 @@ class Product extends Model
         'slug',
         'description',
         'price',
+        'sale_price',
         'type',
         'is_active',
         'recipe_id',
