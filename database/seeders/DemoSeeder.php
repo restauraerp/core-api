@@ -13,6 +13,7 @@ class DemoSeeder extends Seeder
     {
         $this->call([
             LocationSeeder::class,
+            DemoUserSeeder::class,
             ProductSeeder::class,
             CustomerSeeder::class,
             TableSeeder::class,
