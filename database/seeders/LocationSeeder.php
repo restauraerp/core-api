@@ -12,34 +12,76 @@ class LocationSeeder extends Seeder
      */
     public function run(): void
     {
-        Location::updateOrCreate(
-            ['name' => 'Dhanmondi Branch'],
+        // Copy demo images to storage
+        $sourcePath = database_path('seeders/images/locations');
+        $destinationPath = storage_path('app/public/locations');
+
+        if (!\Illuminate\Support\Facades\File::exists($destinationPath)) {
+            \Illuminate\Support\Facades\File::makeDirectory($destinationPath, 0755, true);
+        }
+        if (\Illuminate\Support\Facades\File::exists($sourcePath)) {
+            \Illuminate\Support\Facades\File::copyDirectory($sourcePath, $destinationPath);
+        }
+
+        $locationsData = [
             [
+                'name' => 'Banani Branch',
+                'slug' => 'banani-branch',
+                'type' => 'branch',
+                'address' => 'Banani, Dhaka',
+                'phone' => '+8801999999999',
+                'is_active' => true,
+            ],
+            [
+                'name' => 'Dhanmondi Branch',
+                'slug' => 'dhanmondi-branch',
                 'type' => 'branch',
                 'address' => 'Dhanmondi, Dhaka',
                 'phone' => '+8801987654321',
                 'is_active' => true,
-            ]
-        );
-        
-        Location::updateOrCreate(
-            ['name' => 'Gulshan Branch'],
+            ],
             [
+                'name' => 'Gulshan Branch',
+                'slug' => 'gulshan-branch',
                 'type' => 'branch',
                 'address' => 'Gulshan, Dhaka',
                 'phone' => '+8801711223344',
                 'is_active' => true,
-            ]
-        );
-
-        Location::updateOrCreate(
-            ['name' => 'Uttara Branch'],
+            ],
             [
+                'name' => 'Uttara Branch',
+                'slug' => 'uttara-branch',
                 'type' => 'branch',
                 'address' => 'Uttara, Dhaka',
                 'phone' => '+8801611223355',
                 'is_active' => true,
             ]
-        );
+        ];
+
+        foreach ($locationsData as $data) {
+            $location = Location::updateOrCreate(['name' => $data['name']], $data);
+            
+            // Add featured image
+            \App\Models\Image::updateOrCreate(
+                ['imageable_id' => $location->id, 'imageable_type' => Location::class, 'type' => 'featured_image'],
+                ['url' => 'locations/exterior.png']
+            );
+
+            // Add featured video
+            \App\Models\Image::updateOrCreate(
+                ['imageable_id' => $location->id, 'imageable_type' => Location::class, 'type' => 'featured_video'],
+                ['url' => 'locations_videos/sample.mp4']
+            );
+
+            // Add gallery images
+            \App\Models\Image::updateOrCreate(
+                ['imageable_id' => $location->id, 'imageable_type' => Location::class, 'url' => 'locations/exterior.png', 'type' => 'image'],
+                []
+            );
+            \App\Models\Image::updateOrCreate(
+                ['imageable_id' => $location->id, 'imageable_type' => Location::class, 'url' => 'locations/interior.png', 'type' => 'image'],
+                []
+            );
+        }
     }
 }

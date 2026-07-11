@@ -9,6 +9,7 @@ class Location extends Model
 {
     protected $fillable = [
         'name',
+        'slug',
         'type',
         'address',
         'map_url',
@@ -23,6 +24,23 @@ class Location extends Model
     ];
 
     protected $appends = ['type_title'];
+
+    protected static function boot()
+    {
+        parent::boot();
+        static::creating(function ($location) {
+            if (empty($location->slug)) {
+                $location->slug = \Illuminate\Support\Str::slug($location->name);
+            }
+        });
+        static::updating(function ($location) {
+            if (empty($location->slug)) {
+                $location->slug = \Illuminate\Support\Str::slug($location->name);
+            }
+        });
+    }
+
+
 
     public function getTypeTitleAttribute()
     {
@@ -42,5 +60,24 @@ class Location extends Model
     public function cctvCameras()
     {
         return $this->hasMany(CctvCamera::class);
+    }
+
+    public function images()
+    {
+        return $this->morphMany(Image::class, 'imageable')->where('type', 'image');
+    }
+
+    public function videos()
+    {
+        return $this->morphMany(Image::class, 'imageable')->where('type', 'video');
+    }
+    public function featuredImage()
+    {
+        return $this->morphOne(Image::class, 'imageable')->where('type', 'featured_image');
+    }
+
+    public function featuredVideo()
+    {
+        return $this->morphOne(Image::class, 'imageable')->where('type', 'featured_video');
     }
 }
