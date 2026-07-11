@@ -26,7 +26,7 @@ class AdminUserSeeder extends Seeder
             ]
         );
 
-        User::updateOrCreate(
+        $user = User::updateOrCreate(
             ['email' => 'toaihimel@gmail.com'],
             [
                 'name' => 'Aftabul Islam',
@@ -35,5 +35,7 @@ class AdminUserSeeder extends Seeder
                 'location_id' => $location->id,
             ]
         );
+
+        $user->assignRole('super_admin');
     }
 }
