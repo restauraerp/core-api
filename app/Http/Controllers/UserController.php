@@ -11,7 +11,7 @@ class UserController extends Controller
 {
     public function index()
     {
-        return response()->json(User::with('location')->get());
+        return response()->json(User::with(['location', 'roles'])->get());
     }
 
     public function store(Request $request)
@@ -21,36 +21,51 @@ class UserController extends Controller
             'email' => 'required|string|email|max:255|unique:users',
             'password' => 'required|string|min:8',
             'location_id' => 'nullable|exists:locations,id',
+            'role' => 'nullable|string|exists:roles,name',
         ]);
 
         $validated['password'] = Hash::make($validated['password']);
 
         $user = User::create($validated);
-        return response()->json($user, 201);
+        
+        if (!empty($validated['role'])) {
+            $user->syncRoles([$validated['role']]);
+        }
+        
+        return response()->json($user->load('roles'), 201);
     }
 
     public function show(User $user)
     {
-        return response()->json($user->load('location'));
+        return response()->json($user->load(['location', 'roles']));
     }
 
     public function update(Request $request, User $user)
     {
-        $validated = $request->validate([
+        $validated = $request->request->all();
+        $rules = [
             'name' => 'sometimes|string|max:255',
             'email' => 'sometimes|string|email|max:255|unique:users,email,' . $user->id,
             'password' => 'nullable|string|min:8',
             'location_id' => 'nullable|exists:locations,id',
-        ]);
+            'role' => 'nullable|string|exists:roles,name',
+        ];
 
-        if (isset($validated['password'])) {
+        $request->validate($rules);
+
+        if (isset($validated['password']) && !empty($validated['password'])) {
             $validated['password'] = Hash::make($validated['password']);
         } else {
             unset($validated['password']);
         }
 
         $user->update($validated);
-        return response()->json($user);
+        
+        if (isset($validated['role'])) {
+            $user->syncRoles($validated['role'] ? [$validated['role']] : []);
+        }
+
+        return response()->json($user->load('roles'));
     }
 
     public function destroy(User $user)
