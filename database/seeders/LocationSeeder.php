@@ -12,15 +12,29 @@ class LocationSeeder extends Seeder
      */
     public function run(): void
     {
-        // Copy demo images to storage
-        $sourcePath = database_path('seeders/images/locations');
-        $destinationPath = storage_path('app/public/locations');
-
-        if (!\Illuminate\Support\Facades\File::exists($destinationPath)) {
-            \Illuminate\Support\Facades\File::makeDirectory($destinationPath, 0755, true);
+        // Define source and destination paths for seed assets
+        $assetsPath = database_path('seeders/assets');
+        $publicStoragePath = storage_path('app/public');
+        
+        // Ensure destination directories exist
+        if (!\Illuminate\Support\Facades\File::exists("$publicStoragePath/locations")) {
+            \Illuminate\Support\Facades\File::makeDirectory("$publicStoragePath/locations", 0755, true);
         }
-        if (\Illuminate\Support\Facades\File::exists($sourcePath)) {
-            \Illuminate\Support\Facades\File::copyDirectory($sourcePath, $destinationPath);
+        if (!\Illuminate\Support\Facades\File::exists("$publicStoragePath/locations_videos")) {
+            \Illuminate\Support\Facades\File::makeDirectory("$publicStoragePath/locations_videos", 0755, true);
+        }
+
+        // Copy location images
+        if (\Illuminate\Support\Facades\File::exists("$assetsPath/locations/exterior.png")) {
+            \Illuminate\Support\Facades\File::copy("$assetsPath/locations/exterior.png", "$publicStoragePath/locations/exterior.png");
+        }
+        if (\Illuminate\Support\Facades\File::exists("$assetsPath/locations/interior.png")) {
+            \Illuminate\Support\Facades\File::copy("$assetsPath/locations/interior.png", "$publicStoragePath/locations/interior.png");
+        }
+        
+        // Copy location videos
+        if (\Illuminate\Support\Facades\File::exists("$assetsPath/locations_videos/sample.mp4")) {
+            \Illuminate\Support\Facades\File::copy("$assetsPath/locations_videos/sample.mp4", "$publicStoragePath/locations_videos/sample.mp4");
         }
 
         $locationsData = [
