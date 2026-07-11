@@ -19,6 +19,7 @@ class DemoSeeder extends Seeder
             TableSeeder::class,
             OrderSeeder::class,
             RecipeSeeder::class,
+            DemoHrSeeder::class,
         ]);
     }
 }

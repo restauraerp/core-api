@@ -25,7 +25,7 @@ class RolePermissionSeeder extends Seeder
             
             'view_kitchen_kiosk', 'update_kiosk_status',
             
-            'view_hr', 'manage_employees', 'manage_attendance', 'manage_payroll', 'manage_roles_permissions',
+            'view_hr', 'manage_employees', 'manage_attendance', 'manage_leaves', 'manage_payroll', 'manage_roles_permissions',
             
             'view_delivery', 'update_delivery_status',
             
@@ -66,7 +66,7 @@ class RolePermissionSeeder extends Seeder
             'view_pos', 'create_pos_order',
             'view_orders', 'update_order_status',
             'view_inventory', 'update_inventory_item',
-            'view_hr', 'manage_attendance'
+            'view_hr', 'manage_employees', 'manage_attendance', 'manage_leaves', 'manage_payroll'
         ]);
     }
 }
