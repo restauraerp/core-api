@@ -14,18 +14,30 @@ class RolePermissionSeeder extends Seeder
 
         $permissions = [
             'view_dashboard',
-            'manage_pos',
-            'manage_orders',
-            'manage_catalog',
-            'manage_inventory',
-            'view_kitchen_kiosk',
-            'manage_hr',
-            'manage_delivery',
-            'manage_crm',
-            'manage_locations',
-            'manage_accounting',
-            'manage_website',
-            'manage_settings'
+            
+            'view_pos', 'create_pos_order',
+            
+            'view_orders', 'update_order_status', 'delete_order',
+            
+            'view_catalog', 'create_catalog_item', 'update_catalog_item', 'delete_catalog_item',
+            
+            'view_inventory', 'create_inventory_item', 'update_inventory_item', 'delete_inventory_item',
+            
+            'view_kitchen_kiosk', 'update_kiosk_status',
+            
+            'view_hr', 'manage_employees', 'manage_attendance', 'manage_payroll', 'manage_roles_permissions',
+            
+            'view_delivery', 'update_delivery_status',
+            
+            'view_crm', 'manage_customers', 'manage_loyalty_settings',
+            
+            'view_locations', 'create_location', 'update_location', 'delete_location',
+            
+            'view_accounting', 'manage_ledgers', 'manage_expenses',
+            
+            'view_website', 'manage_website_content',
+            
+            'view_settings', 'manage_system_settings'
         ];
 
         foreach ($permissions as $permission) {
@@ -39,18 +51,22 @@ class RolePermissionSeeder extends Seeder
         $admin->givePermissionTo(Permission::all());
 
         $chef = Role::firstOrCreate(['name' => 'chef']);
-        $chef->givePermissionTo(['view_kitchen_kiosk']);
+        $chef->givePermissionTo(['view_kitchen_kiosk', 'update_kiosk_status']);
 
         $posManager = Role::firstOrCreate(['name' => 'pos_manager']);
-        $posManager->givePermissionTo(['view_dashboard', 'manage_pos', 'manage_orders']);
+        $posManager->givePermissionTo([
+            'view_dashboard', 
+            'view_pos', 'create_pos_order',
+            'view_orders', 'update_order_status'
+        ]);
 
         $branchManager = Role::firstOrCreate(['name' => 'branch_manager']);
         $branchManager->givePermissionTo([
             'view_dashboard',
-            'manage_pos',
-            'manage_orders',
-            'manage_inventory',
-            'manage_hr'
+            'view_pos', 'create_pos_order',
+            'view_orders', 'update_order_status',
+            'view_inventory', 'update_inventory_item',
+            'view_hr', 'manage_attendance'
         ]);
     }
 }
