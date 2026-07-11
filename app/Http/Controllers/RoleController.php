@@ -7,9 +7,13 @@ use Illuminate\Http\Request;
 
 class RoleController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Role::with('permissions')->get());
+        $perPage = $request->input('per_page', 15);
+        if ($request->has('nopaginate')) {
+            return response()->json(Role::with('permissions')->get());
+        }
+        return response()->json(Role::with('permissions')->paginate($perPage));
     }
 
     public function store(Request $request)

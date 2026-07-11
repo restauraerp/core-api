@@ -7,9 +7,13 @@ use Illuminate\Http\Request;
 
 class AttendanceController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Attendance::with('user')->get());
+        $perPage = $request->input('per_page', 15);
+        if ($request->has('nopaginate')) {
+            return response()->json(Attendance::with('user')->get());
+        }
+        return response()->json(Attendance::with('user')->paginate($perPage));
     }
 
     public function store(Request $request)

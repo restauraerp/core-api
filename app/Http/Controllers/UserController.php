@@ -9,9 +9,13 @@ use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(User::with(['location', 'roles'])->get());
+        $perPage = $request->input('per_page', 15);
+        if ($request->has('nopaginate')) {
+            return response()->json(User::with(['location', 'roles'])->get());
+        }
+        return response()->json(User::with(['location', 'roles'])->paginate($perPage));
     }
 
     public function store(Request $request)
