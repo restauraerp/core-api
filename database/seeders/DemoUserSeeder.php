@@ -22,6 +22,7 @@ class DemoUserSeeder extends Seeder
                 'password' => $password,
                 'email_verified_at' => now(),
                 'location_id' => $locations->first()?->id,
+                'phone' => '01711000001',
             ]
         );
         $admin->assignRole('admin');
@@ -34,6 +35,7 @@ class DemoUserSeeder extends Seeder
                 'password' => $password,
                 'email_verified_at' => now(),
                 'location_id' => $locations->first()?->id,
+                'phone' => '01711000000',
             ]
         );
         $superAdmin->assignRole('super_admin');
@@ -48,6 +50,7 @@ class DemoUserSeeder extends Seeder
                     'password' => $password,
                     'email_verified_at' => now(),
                     'location_id' => $location->id,
+                    'phone' => '01711' . str_pad((string) rand(1, 999999), 6, '0', STR_PAD_LEFT),
                 ]
             );
             $branchManager->assignRole('branch_manager');
@@ -60,6 +63,7 @@ class DemoUserSeeder extends Seeder
                     'password' => $password,
                     'email_verified_at' => now(),
                     'location_id' => $location->id,
+                    'phone' => '01711' . str_pad((string) rand(1, 999999), 6, '0', STR_PAD_LEFT),
                 ]
             );
             $posManager->assignRole('pos_manager');
@@ -72,6 +76,7 @@ class DemoUserSeeder extends Seeder
                     'password' => $password,
                     'email_verified_at' => now(),
                     'location_id' => $location->id,
+                    'phone' => '01711' . str_pad((string) rand(1, 999999), 6, '0', STR_PAD_LEFT),
                 ]
             );
             $chef->assignRole('chef');
