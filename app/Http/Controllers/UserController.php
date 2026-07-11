@@ -26,7 +26,14 @@ class UserController extends Controller
             'password' => 'required|string|min:8',
             'location_id' => 'nullable|exists:locations,id',
             'role' => 'nullable|string|exists:roles,name',
+            'phone' => 'nullable|string|max:20',
+            'image' => 'nullable|image|max:5120',
         ]);
+
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('users', 'public');
+            $validated['image_url'] = $path;
+        }
 
         $validated['password'] = Hash::make($validated['password']);
 
@@ -53,9 +60,16 @@ class UserController extends Controller
             'password' => 'nullable|string|min:8',
             'location_id' => 'nullable|exists:locations,id',
             'role' => 'nullable|string|exists:roles,name',
+            'phone' => 'nullable|string|max:20',
+            'image' => 'nullable|image|max:5120',
         ];
 
         $request->validate($rules);
+
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('users', 'public');
+            $validated['image_url'] = $path;
+        }
 
         if (isset($validated['password']) && !empty($validated['password'])) {
             $validated['password'] = Hash::make($validated['password']);

@@ -31,6 +31,8 @@ return new class extends Migration
         // ---------------------------------------------------------
         Schema::table('users', function (Blueprint $table) {
             $table->foreignId('location_id')->nullable()->after('id')->constrained('locations')->nullOnDelete();
+            $table->string('phone')->nullable()->after('email');
+            $table->string('image_url')->nullable()->after('phone');
         });
 
         // ---------------------------------------------------------
