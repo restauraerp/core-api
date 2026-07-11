@@ -24,6 +24,9 @@ Route::prefix('v1')->group(function () {
     // Public Catalog API
     Route::apiResource('product-categories', \App\Http\Controllers\ProductCategoryController::class)->only(['index', 'show']);
     Route::apiResource('products', \App\Http\Controllers\ProductController::class)->only(['index', 'show']);
+    
+    // Public Order API
+    Route::post('storefront/orders', [\App\Http\Controllers\OrderController::class, 'store']);
 
     // Auth & Users API
     Route::post('auth/register', [\App\Http\Controllers\AuthController::class, 'register']);
