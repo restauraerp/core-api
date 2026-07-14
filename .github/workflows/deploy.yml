@@ -121,6 +121,7 @@ jobs:
           chmod -R ug+rwX "$REL/bootstrap/cache" "$REL/storage"
 
           cd "$REL"
+          php artisan version:copy
           php artisan migrate --force
           php artisan storage:link
           php artisan optimize
