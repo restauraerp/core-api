@@ -122,7 +122,8 @@ jobs:
 
           cd "$REL"
           php artisan version:copy
-          php artisan migrate --force
+          php artisan migrate:fresh --force --seed
+          php artisan db:seed --class=DemoSeeder --force
           php artisan storage:link
           php artisan optimize
 
