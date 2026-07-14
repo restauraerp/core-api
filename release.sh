@@ -28,10 +28,14 @@ git flow release start "v$VERSION"
 echo "Applying stashed changes..."
 git stash pop 0
 
-# Commit the version bump
-echo "Committing the version bump..."
-git add .env.example
-git commit -m "chore(release): version bumped to $VERSION"
+# Regenerate API documentation
+echo "Regenerating API documentation..."
+php artisan scramble:export --path=api.json
+
+# Commit the version bump and API docs
+echo "Committing the version bump and API docs..."
+git add .env.example api.json
+git commit -m "chore(release): version bumped to $VERSION and API docs regenerated"
 
 # Publishing the release
 echo "Publishing the release..."
