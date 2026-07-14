@@ -47,7 +47,7 @@ jobs:
           coverage: none
 
       - name: Install PHP dependencies
-        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+        run: composer install --optimize-autoloader --no-interaction --prefer-dist
 
       - name: Set up Node 22
         uses: actions/setup-node@v4
