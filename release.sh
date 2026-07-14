@@ -30,7 +30,7 @@ git stash pop 0
 
 # Regenerate API documentation
 echo "Regenerating API documentation..."
-php artisan scramble:export --path=api.json
+docker exec restoraerp_core_api php artisan scramble:export --path=api.json
 
 # Commit the version bump and API docs
 echo "Committing the version bump and API docs..."
