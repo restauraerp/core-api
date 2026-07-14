@@ -9,7 +9,7 @@ use App\Models\Image;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\File;
 
-class MenuSeeder extends Seeder
+class ProductSeeder extends Seeder
 {
     public function run(): void
     {
@@ -37,6 +37,7 @@ class MenuSeeder extends Seeder
                 'name' => 'Truffle Carbonara',
                 'description' => 'Handmade fettuccine, guanciale, pecorino romano, farm-fresh egg yolk, and shaved black truffle.',
                 'price' => 330,
+                'sale_price' => 299,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/truffle_carbonara.png'
@@ -46,6 +47,7 @@ class MenuSeeder extends Seeder
                 'name' => 'Margherita Verace',
                 'description' => 'San Marzano tomato sauce, fresh buffalo mozzarella, basil, and a drizzle of extra virgin olive oil.',
                 'price' => 220,
+                'sale_price' => 199,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/margherita_verace.png'
@@ -64,6 +66,7 @@ class MenuSeeder extends Seeder
                 'name' => 'Classic Tiramisu',
                 'description' => 'Layers of espresso-soaked ladyfingers, rich mascarpone cream, and dusted with premium cocoa powder.',
                 'price' => 1200,
+                'sale_price' => 999,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/classic_tiramisu.png'
@@ -185,6 +188,7 @@ class MenuSeeder extends Seeder
                     'category_id' => $data['category_id'],
                     'description' => $data['description'],
                     'price' => $data['price'],
+                    'sale_price' => $data['sale_price'] ?? null,
                     'type' => $data['type'],
                     'is_active' => $data['is_active'],
                 ]
@@ -200,6 +204,6 @@ class MenuSeeder extends Seeder
             );
         }
 
-        $this->command->info('✅ MenuSeeder: Seeded categories, products, and linked generated food images.');
+        $this->command->info('✅ ProductSeeder: Seeded categories, products, and linked generated food images.');
     }
 }

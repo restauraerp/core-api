@@ -18,7 +18,7 @@ class CustomerController extends Controller
                   ->orWhere('phone', 'like', "%{$search}%");
         }
         
-        $query->with('organization');
+        $query->with('organization')->latest();
 
         if ($request->has('nopaginate')) {
             return response()->json($query->get());

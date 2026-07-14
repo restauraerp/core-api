@@ -9,6 +9,7 @@ Route::get('/user', function (Request $request) {
 
 Route::prefix('v1')->group(function () {
     // Locations API
+    Route::get('location-types', [\App\Http\Controllers\LocationController::class, 'types']);
     Route::apiResource('locations', \App\Http\Controllers\LocationController::class);
     Route::apiResource('locations.halls', \App\Http\Controllers\HallController::class)->shallow();
     Route::apiResource('locations.tables', \App\Http\Controllers\TableController::class)->shallow();
@@ -23,6 +24,9 @@ Route::prefix('v1')->group(function () {
     // Public Catalog API
     Route::apiResource('product-categories', \App\Http\Controllers\ProductCategoryController::class)->only(['index', 'show']);
     Route::apiResource('products', \App\Http\Controllers\ProductController::class)->only(['index', 'show']);
+    
+    // Public Order API
+    Route::post('storefront/orders', [\App\Http\Controllers\OrderController::class, 'store']);
 
     // Auth & Users API
     Route::post('auth/register', [\App\Http\Controllers\AuthController::class, 'register']);

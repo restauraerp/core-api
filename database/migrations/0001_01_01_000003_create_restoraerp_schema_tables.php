@@ -31,6 +31,8 @@ return new class extends Migration
         // ---------------------------------------------------------
         Schema::table('users', function (Blueprint $table) {
             $table->foreignId('location_id')->nullable()->after('id')->constrained('locations')->nullOnDelete();
+            $table->string('phone')->nullable()->after('email');
+            $table->string('image_url')->nullable()->after('phone');
         });
 
         // ---------------------------------------------------------
@@ -222,6 +224,7 @@ return new class extends Migration
             $table->string('name')->nullable();
             $table->text('description')->nullable();
             $table->decimal('price', 10, 2)->nullable();
+            $table->decimal('sale_price', 10, 2)->nullable();
             $table->string('type')->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();

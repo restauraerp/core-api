@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use App\Models\User;
+use App\Models\Location;
 use Illuminate\Support\Facades\Hash;
 
 class AdminUserSeeder extends Seeder
@@ -14,10 +15,10 @@ class AdminUserSeeder extends Seeder
      */
     public function run(): void
     {
-        $location = \App\Models\Location::updateOrCreate(
+        $location = Location::updateOrCreate(
             ['id' => 1],
             [
-                'name' => 'Main Branch',
+                'name' => 'Banani Branch',
                 'type' => 'head_office',
                 'address' => 'Dhaka, Bangladesh',
                 'phone' => '+8801234567890',
@@ -25,14 +26,16 @@ class AdminUserSeeder extends Seeder
             ]
         );
 
-        User::updateOrCreate(
+        $user = User::updateOrCreate(
             ['email' => 'toaihimel@gmail.com'],
             [
-                'name' => 'Himel (Admin)',
+                'name' => 'Aftabul Islam',
                 'password' => Hash::make('Admin@PosBoss2026!'),
                 'email_verified_at' => now(),
                 'location_id' => $location->id,
             ]
         );
+
+        $user->assignRole('super_admin');
     }
 }
