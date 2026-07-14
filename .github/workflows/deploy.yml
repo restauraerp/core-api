@@ -1,0 +1,145 @@
+name: core-api-deploy
+
+# Deploys this Laravel API app to the production EC2 box on every tag that
+# starts with "v" (e.g. v1.0.0, v2025.06.18).
+#
+# Strategy: build vendor/ + front-end assets in CI (off the 1 GiB box),
+# rsync into a fresh releases/<tag> dir, wire the shared .env + storage,
+# migrate/optimize, then flip the `current` symlink atomically for
+# zero(ish)-downtime. Old releases are pruned.
+#
+# Required repo secrets:
+#   PUBLIC_DEPLOY_SSH_KEY   - publicdeploy's private key (terraform output -raw
+#                             publicdeploy_ssh_private_key, from infra/)
+#   DEPLOY_HOST             - instance public IP or domain (terraform output -raw
+#                             public_ip)
+#   DEPLOY_USER             - optional; defaults to "publicdeploy"
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: core-api-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'publicdeploy' }}
+      RELEASE: ${{ github.ref_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, dom, curl, zip, bcmath, intl, gd, pdo_mysql, redis, mongodb
+          tools: composer:v2
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Build front-end assets
+        run: |
+          npm ci
+          npm run build
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PUBLIC_DEPLOY_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Upload release
+        run: |
+          ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p /var/www/core-api/releases/$RELEASE"
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/id_deploy" \
+            --exclude='.git' --exclude='.github' --exclude='node_modules' \
+            --exclude='.env' --exclude='storage' --exclude='tests' \
+            --exclude='.idea' --exclude='.claude' \
+            ./ "$DEPLOY_USER@$DEPLOY_HOST:/var/www/core-api/releases/$RELEASE/"
+
+      - name: Activate release (link shared, migrate, flip current, restart)
+        run: |
+          ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" "RELEASE='$RELEASE' bash -s" <<'DEPLOY'
+          set -euo pipefail
+          APP=/var/www/core-api
+          REL="$APP/releases/$RELEASE"
+
+          mkdir -p "$APP/shared"
+
+          # Bootstrap shared/.env and shared/storage from whatever's already
+          # sitting at $APP root (Terraform's boot-time build) the first
+          # time this runs. Later runs just find them already in shared/.
+          if [ ! -e "$APP/shared/.env" ]; then
+            if [ -f "$APP/.env" ]; then mv "$APP/.env" "$APP/shared/.env"; else touch "$APP/shared/.env"; fi
+          fi
+
+          # Fix Domain issues by explicitly setting APP_URL and ASSET_URL
+          sed -i 's|^APP_URL=.*|APP_URL=https://api.restauraerp.com|g' "$APP/shared/.env"
+          
+          if grep -q "^ASSET_URL=" "$APP/shared/.env"; then
+            sed -i 's|^ASSET_URL=.*|ASSET_URL=https://api.restauraerp.com|g' "$APP/shared/.env"
+          else
+            echo "ASSET_URL=https://api.restauraerp.com" >> "$APP/shared/.env"
+          fi
+          
+          if [ ! -d "$APP/shared/storage" ]; then
+            if [ -d "$APP/storage" ] && [ ! -L "$APP/storage" ]; then mv "$APP/storage" "$APP/shared/storage"; else mkdir -p "$APP/shared/storage"; fi
+          fi
+
+          # Ensure required Laravel storage subdirectories exist
+          mkdir -p "$APP/shared/storage/framework/cache/data"
+          mkdir -p "$APP/shared/storage/framework/sessions"
+          mkdir -p "$APP/shared/storage/framework/views"
+          mkdir -p "$APP/shared/storage/logs"
+          mkdir -p "$APP/shared/storage/app/public"
+
+          # Wire persistent state from shared/ into this release.
+          ln -sfn "$APP/shared/.env" "$REL/.env"
+          rm -rf "$REL/storage"
+          ln -sfn "$APP/shared/storage" "$REL/storage"
+          chmod -R ug+rwX "$REL/bootstrap/cache" "$REL/storage"
+
+          cd "$REL"
+          php artisan version:copy
+          php artisan migrate --force
+          php artisan storage:link
+          php artisan optimize
+
+          # Atomic cutover.
+          ln -sfn "$REL" "$APP/current"
+
+          # artisan serve can't reload gracefully - restart is the closest
+          # to zero-downtime this runtime supports. Scoped, passwordless
+          # sudo already granted to publicdeploy for this one command.
+          sudo systemctl restart restoraerp-core-api
+
+          # Verify the new release is serving (port 8000 based on core_api_port).
+          sleep 2
+          curl -fsS http://127.0.0.1:8000/up >/dev/null && echo "health check OK"
+
+          # Keep the 5 most recent releases; delete older ones.
+          cd "$APP/releases"
+          ls -1dt */ | tail -n +6 | xargs -r rm -rf
+          echo "Deployed $RELEASE"
+          DEPLOY
