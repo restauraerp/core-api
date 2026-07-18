@@ -32,14 +32,16 @@ class DemoEmployeeSeeder extends Seeder
             $prefix = $bdPrefixes[array_rand($bdPrefixes)];
             $phone = $prefix . str_pad((string) rand(0, 99999999), 8, '0', STR_PAD_LEFT);
             
-            $employee = User::create([
-                'name' => $faker->name,
-                'email' => "employee{$i}@demo.com",
-                'password' => $password,
-                'email_verified_at' => now(),
-                'location_id' => $location->id,
-                'phone' => $phone,
-            ]);
+            $employee = User::updateOrCreate(
+                ['email' => "employee{$i}@demo.com"],
+                [
+                    'name' => $faker->name,
+                    'password' => $password,
+                    'email_verified_at' => now(),
+                    'location_id' => $location->id,
+                    'phone' => $phone,
+                ]
+            );
 
             $employee->assignRole($roles[array_rand($roles)]);
         }
