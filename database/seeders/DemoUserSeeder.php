@@ -80,6 +80,28 @@ class DemoUserSeeder extends Seeder
                 ]
             );
             $chef->assignRole('chef');
+
+            // Riders (2 per location)
+            $bengaliNames = [
+                'Rahim Uddin', 'Abdul Karim', 'Rafiqul Islam', 'Nazmul Hasan', 
+                'Kamrul Islam', 'Ariful Haque', 'Tarikul Islam', 'Faisal Ahmed',
+                'Imran Hossain', 'Habibur Rahman', 'Ashraful Islam', 'Mehedi Hasan',
+                'Zakir Hossain', 'Mahmudul Hasan', 'Shahriar Nafees', 'Tamim Iqbal'
+            ];
+            for ($i = 1; $i <= 2; $i++) {
+                $riderName = $bengaliNames[array_rand($bengaliNames)];
+                $rider = User::updateOrCreate(
+                    ['email' => "rider{$index}_{$i}@demo.com"],
+                    [
+                        'name' => $riderName,
+                        'password' => $password,
+                        'email_verified_at' => now(),
+                        'location_id' => $location->id,
+                        'phone' => '01711' . str_pad((string) rand(1, 999999), 6, '0', STR_PAD_LEFT),
+                    ]
+                );
+                $rider->assignRole('rider');
+            }
         }
     }
 }
