@@ -12,11 +12,11 @@ class DemoUserSeeder extends Seeder
     public function run(): void
     {
         $locations = Location::all();
-        $password = Hash::make('password');
+        $password = Hash::make(config('app.demo_password', 'password'));
 
         // Create Admin
         $admin = User::updateOrCreate(
-            ['email' => 'admin@demo.com'],
+            ['email' => config('app.demo_username', 'admin@demo.com')],
             [
                 'name' => 'Demo Admin',
                 'password' => $password,
