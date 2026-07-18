@@ -37,7 +37,9 @@ class RolePermissionSeeder extends Seeder
             
             'view_website', 'manage_website_content',
             
-            'view_settings', 'manage_system_settings'
+            'view_settings', 'manage_system_settings',
+            
+            'view_reporting'
         ];
 
         foreach ($permissions as $permission) {
@@ -66,7 +68,8 @@ class RolePermissionSeeder extends Seeder
             'view_pos', 'create_pos_order',
             'view_orders', 'update_order_status',
             'view_inventory', 'update_inventory_item',
-            'view_hr', 'manage_employees', 'manage_attendance', 'manage_leaves', 'manage_payroll'
+            'view_hr', 'manage_employees', 'manage_attendance', 'manage_leaves', 'manage_payroll',
+            'view_reporting'
         ]);
 
         $rider = Role::firstOrCreate(['name' => 'rider']);

@@ -31,18 +31,29 @@ class OrderSeeder extends Seeder
 
             // Generate Active Orders
             for ($i = 0; $i < $numActive; $i++) {
-                $this->createRandomOrder($location, $locationTables, $products, $customers, $orderTypes, false);
+                $this->createRandomOrder($location, $locationTables, $products, $customers, $orderTypes, false, now());
             }
 
-            // Generate Completed Orders
+            // Generate Completed Orders for today
             for ($i = 0; $i < $numCompleted; $i++) {
-                $this->createRandomOrder($location, $locationTables, $products, $customers, $orderTypes, true);
+                $this->createRandomOrder($location, $locationTables, $products, $customers, $orderTypes, true, now());
+            }
+
+            // Generate 1 year of Historical Orders
+            for ($daysBack = 365; $daysBack > 0; $daysBack--) {
+                // Generate 1-3 orders per day per location
+                $numOrdersToday = rand(1, 3);
+                for ($i = 0; $i < $numOrdersToday; $i++) {
+                    $date = now()->subDays($daysBack)->addHours(rand(10, 22));
+                    $this->createRandomOrder($location, $locationTables, $products, $customers, $orderTypes, true, $date);
+                }
             }
         }
     }
 
-    private function createRandomOrder($location, $locationTables, $products, $customers, $orderTypes, $isCompleted)
+    private function createRandomOrder($location, $locationTables, $products, $customers, $orderTypes, $isCompleted, $date = null)
     {
+        $date = $date ?? now();
         $type = $orderTypes[array_rand($orderTypes)];
         
         $validStatuses = [];
@@ -88,11 +99,18 @@ class OrderSeeder extends Seeder
             'discount_amount' => 0,
             'delivery_charge' => $deliveryCharge,
             'total' => $total,
-            'delivery_time' => in_array($type, ['takeaway', 'delivery', 'catering']) ? now()->addHours(rand(1, 48)) : null,
+            'delivery_time' => in_array($type, ['takeaway', 'delivery', 'catering']) ? (clone $date)->addHours(rand(1, 48)) : null,
             'delivery_address' => in_array($type, ['delivery', 'catering']) ? $customer->address ?? '123 Test Ave, Dhaka' : null,
             'latitude' => in_array($type, ['delivery', 'catering']) ? (23.8103 + (rand(-100, 100) / 10000)) : null,
             'longitude' => in_array($type, ['delivery', 'catering']) ? (90.4125 + (rand(-100, 100) / 10000)) : null,
         ]);
+        
+        $order->timestamps = false;
+        $order->update([
+            'created_at' => $date,
+            'updated_at' => $date,
+        ]);
+        $order->timestamps = true;
 
         $itemCount = rand(2, 4);
         for ($j = 0; $j < $itemCount; $j++) {
