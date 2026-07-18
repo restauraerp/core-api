@@ -27,10 +27,10 @@ class AdminUserSeeder extends Seeder
         );
 
         $user = User::updateOrCreate(
-            ['email' => 'toaihimel@gmail.com'],
+            ['email' => config('app.admin_email', 'toaihimel@gmail.com')],
             [
                 'name' => 'Aftabul Islam',
-                'password' => Hash::make('Admin@PosBoss2026!'),
+                'password' => Hash::make(config('app.admin_password', 'Admin@PosBoss2026!')),
                 'email_verified_at' => now(),
                 'location_id' => $location->id,
             ]
