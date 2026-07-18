@@ -68,5 +68,8 @@ class RolePermissionSeeder extends Seeder
             'view_inventory', 'update_inventory_item',
             'view_hr', 'manage_employees', 'manage_attendance', 'manage_leaves', 'manage_payroll'
         ]);
+
+        $rider = Role::firstOrCreate(['name' => 'rider']);
+        $rider->givePermissionTo(['view_delivery', 'update_delivery_status']);
     }
 }
