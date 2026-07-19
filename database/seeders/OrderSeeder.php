@@ -31,6 +31,7 @@ class OrderSeeder extends Seeder
         $ordersData = [];
         $orderItemsData = [];
         $paymentsData = [];
+        $ledgersData = [];
         $chunkSize = 1000;
 
         foreach ($locations as $location) {
@@ -40,12 +41,12 @@ class OrderSeeder extends Seeder
 
             // Generate Active Orders
             for ($i = 0; $i < $numActive; $i++) {
-                $this->generateOrderData($ordersData, $orderItemsData, $paymentsData, $location, $locationTables, $products, $customers, false, now());
+                $this->generateOrderData($ordersData, $orderItemsData, $paymentsData, $ledgersData, $location, $locationTables, $products, $customers, false, now());
             }
 
             // Generate Completed Orders for today
             for ($i = 0; $i < $numCompleted; $i++) {
-                $this->generateOrderData($ordersData, $orderItemsData, $paymentsData, $location, $locationTables, $products, $customers, true, now());
+                $this->generateOrderData($ordersData, $orderItemsData, $paymentsData, $ledgersData, $location, $locationTables, $products, $customers, true, now());
             }
 
             // Generate 2 years of Historical Orders
@@ -63,22 +64,22 @@ class OrderSeeder extends Seeder
 
                 for ($i = 0; $i < $numOrdersToday; $i++) {
                     $orderTime = $this->getRandomOrderTime($date, $isRamadan);
-                    $this->generateOrderData($ordersData, $orderItemsData, $paymentsData, $location, $locationTables, $products, $customers, true, $orderTime);
+                    $this->generateOrderData($ordersData, $orderItemsData, $paymentsData, $ledgersData, $location, $locationTables, $products, $customers, true, $orderTime);
                     
                     if (count($ordersData) >= $chunkSize) {
-                        $this->insertChunks($ordersData, $orderItemsData, $paymentsData);
+                        $this->insertChunks($ordersData, $orderItemsData, $paymentsData, $ledgersData);
                     }
                 }
             }
             
             // Insert remaining for location
             if (count($ordersData) > 0) {
-                $this->insertChunks($ordersData, $orderItemsData, $paymentsData);
+                $this->insertChunks($ordersData, $orderItemsData, $paymentsData, $ledgersData);
             }
         }
     }
 
-    private function insertChunks(&$ordersData, &$orderItemsData, &$paymentsData)
+    private function insertChunks(&$ordersData, &$orderItemsData, &$paymentsData, &$ledgersData)
     {
         DB::table('orders')->insert($ordersData);
         
@@ -89,10 +90,15 @@ class OrderSeeder extends Seeder
         foreach (array_chunk($paymentsData, 2000) as $chunk) {
             DB::table('payments')->insert($chunk);
         }
+
+        foreach (array_chunk($ledgersData, 2000) as $chunk) {
+            DB::table('accounting_ledgers')->insert($chunk);
+        }
         
         $ordersData = [];
         $orderItemsData = [];
         $paymentsData = [];
+        $ledgersData = [];
     }
 
     private function isRamadan(Carbon $date): bool
@@ -143,7 +149,7 @@ class OrderSeeder extends Seeder
         return $date->setTime($hour, $minute);
     }
 
-    private function generateOrderData(&$ordersData, &$orderItemsData, &$paymentsData, $location, $locationTables, $products, $customers, $isCompleted, $date = null)
+    private function generateOrderData(&$ordersData, &$orderItemsData, &$paymentsData, &$ledgersData, $location, $locationTables, $products, $customers, $isCompleted, $date = null)
     {
         $date = $date ? clone $date : now();
         $dateString = $date->toDateTimeString();
@@ -242,6 +248,16 @@ class OrderSeeder extends Seeder
                 'method' => $methods[array_rand($methods)],
                 'amount' => $total,
                 'status' => 'completed',
+                'created_at' => $dateString,
+                'updated_at' => $dateString,
+            ];
+            
+            $ledgersData[] = [
+                'location_id' => $location->id,
+                'transaction_type' => 'sale',
+                'amount' => $total,
+                'reference_id' => $orderId,
+                'description' => 'Sale from Order #' . $orderId,
                 'created_at' => $dateString,
                 'updated_at' => $dateString,
             ];
