@@ -36,8 +36,8 @@ class ProductSeeder extends Seeder
                 'category_id' => $pastaCategory->id,
                 'name' => 'Truffle Carbonara',
                 'description' => 'Handmade fettuccine, guanciale, pecorino romano, farm-fresh egg yolk, and shaved black truffle.',
-                'price' => 330,
-                'sale_price' => 299,
+                'price' => 850,
+                'sale_price' => 750,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/truffle_carbonara.png'
@@ -46,8 +46,8 @@ class ProductSeeder extends Seeder
                 'category_id' => $pizzaCategory->id,
                 'name' => 'Margherita Verace',
                 'description' => 'San Marzano tomato sauce, fresh buffalo mozzarella, basil, and a drizzle of extra virgin olive oil.',
-                'price' => 220,
-                'sale_price' => 199,
+                'price' => 650,
+                'sale_price' => 550,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/margherita_verace.png'
@@ -56,7 +56,7 @@ class ProductSeeder extends Seeder
                 'category_id' => $grillCategory->id,
                 'name' => 'Bistecca alla Fiorentina',
                 'description' => 'Premium dry-aged T-bone steak, grilled over charcoal, served with roasted rosemary potatoes.',
-                'price' => 450,
+                'price' => 3200,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/bistecca_fiorentina.png'
@@ -65,8 +65,8 @@ class ProductSeeder extends Seeder
                 'category_id' => $dessertCategory->id,
                 'name' => 'Classic Tiramisu',
                 'description' => 'Layers of espresso-soaked ladyfingers, rich mascarpone cream, and dusted with premium cocoa powder.',
-                'price' => 1200,
-                'sale_price' => 999,
+                'price' => 450,
+                'sale_price' => 400,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/classic_tiramisu.png'
@@ -75,7 +75,7 @@ class ProductSeeder extends Seeder
                 'category_id' => $pastaCategory->id,
                 'name' => 'Gnocchi al Pesto',
                 'description' => 'Soft potato dumplings tossed in a vibrant basil pesto with toasted pine nuts and parmesan.',
-                'price' => 280,
+                'price' => 750,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/gnocchi_pesto.png'
@@ -84,7 +84,7 @@ class ProductSeeder extends Seeder
                 'category_id' => $pastaCategory->id,
                 'name' => 'Lasagna al Forno',
                 'description' => 'Classic baked lasagna with rich slow-cooked beef ragu, creamy bechamel, and melted mozzarella.',
-                'price' => 380,
+                'price' => 850,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/lasagna.png'
@@ -93,7 +93,7 @@ class ProductSeeder extends Seeder
                 'category_id' => $pizzaCategory->id,
                 'name' => 'Pizza Quattro Formaggi',
                 'description' => 'Wood-fired white pizza topped with a decadent blend of mozzarella, gorgonzola, parmesan, and provolone.',
-                'price' => 450,
+                'price' => 950,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/quattro_formaggi.png'
@@ -102,7 +102,7 @@ class ProductSeeder extends Seeder
                 'category_id' => $pastaCategory->id,
                 'name' => 'Risotto ai Funghi',
                 'description' => 'Creamy Arborio rice slowly cooked with wild porcini mushrooms, finished with a drizzle of truffle oil.',
-                'price' => 320,
+                'price' => 800,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/risotto_funghi.png'
@@ -111,7 +111,7 @@ class ProductSeeder extends Seeder
                 'category_id' => $grillCategory->id, // Re-using grill for starters for simplicity, or we can just use a new one but let's keep it in existing categories or add to pasta
                 'name' => 'Bruschetta al Pomodoro',
                 'description' => 'Toasted artisan bread rubbed with garlic and topped with fresh diced tomatoes, basil, and balsamic glaze.',
-                'price' => 150,
+                'price' => 350,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/bruschetta.png'
@@ -120,7 +120,7 @@ class ProductSeeder extends Seeder
                 'category_id' => $dessertCategory->id,
                 'name' => 'Panna Cotta',
                 'description' => 'Silky vanilla bean panna cotta served with a vibrant mixed berry compote.',
-                'price' => 220,
+                'price' => 400,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/panna_cotta.png'
@@ -129,7 +129,7 @@ class ProductSeeder extends Seeder
                 'category_id' => $pizzaCategory->id,
                 'name' => 'Calzone Classico',
                 'description' => 'A folded pizza pocket stuffed with mozzarella, ricotta, and premium pepperoni, baked until golden.',
-                'price' => 350,
+                'price' => 750,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/calzone.png'
@@ -138,7 +138,7 @@ class ProductSeeder extends Seeder
                 'category_id' => $pastaCategory->id,
                 'name' => 'Spaghetti Bolognese',
                 'description' => 'Perfectly al dente spaghetti topped with our signature slow-simmered beef and tomato ragu.',
-                'price' => 290,
+                'price' => 650,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/spaghetti_bolognese.png'
@@ -147,7 +147,7 @@ class ProductSeeder extends Seeder
                 'category_id' => $pastaCategory->id,
                 'name' => 'Fettuccine Alfredo',
                 'description' => 'Fresh fettuccine ribbons tossed in a rich, velvety sauce of butter and aged parmesan cheese.',
-                'price' => 310,
+                'price' => 700,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/fettuccine_alfredo.png'
@@ -156,7 +156,7 @@ class ProductSeeder extends Seeder
                 'category_id' => $grillCategory->id,
                 'name' => 'Minestrone Soup',
                 'description' => 'A hearty traditional vegetable soup with beans, pasta, and fresh seasonal greens, served with crusty bread.',
-                'price' => 180,
+                'price' => 350,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/minestrone.png'
@@ -165,7 +165,7 @@ class ProductSeeder extends Seeder
                 'category_id' => $grillCategory->id,
                 'name' => 'Caprese Salad',
                 'description' => 'Fresh slices of buffalo mozzarella, ripe tomatoes, and sweet basil, drizzled with olive oil and balsamic glaze.',
-                'price' => 240,
+                'price' => 550,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/caprese_salad.png'
@@ -174,10 +174,37 @@ class ProductSeeder extends Seeder
                 'category_id' => $dessertCategory->id,
                 'name' => 'Gelato Stracciatella',
                 'description' => 'Classic artisanal vanilla gelato folded with fine shards of dark Italian chocolate.',
-                'price' => 180,
+                'price' => 250,
                 'type' => 'Standard',
                 'is_active' => true,
                 'image' => 'foods/gelato.png'
+            ],
+            [
+                'category_id' => $pastaCategory->id,
+                'name' => 'Ravioli al Tartufo',
+                'description' => 'Fresh handmade ravioli stuffed with ricotta, served in a rich black truffle cream sauce.',
+                'price' => 850,
+                'type' => 'Standard',
+                'is_active' => true,
+                'image' => 'foods/ravioli.png'
+            ],
+            [
+                'category_id' => $pizzaCategory->id,
+                'name' => 'Pizza Diavola',
+                'description' => 'Wood-fired crust with San Marzano tomato sauce, mozzarella, spicy Italian salami, and chili flakes.',
+                'price' => 800,
+                'type' => 'Standard',
+                'is_active' => true,
+                'image' => 'foods/pizza_diavola.png'
+            ],
+            [
+                'category_id' => $grillCategory->id,
+                'name' => 'Salmon al Forno',
+                'description' => 'Oven-baked fresh salmon fillet with herbs and lemon, served with roasted seasonal vegetables.',
+                'price' => 1800,
+                'type' => 'Standard',
+                'is_active' => true,
+                'image' => 'foods/salmon_al_forno.png'
             ]
         ];
 
