@@ -9,7 +9,7 @@ class AccountingLedgerController extends Controller
 {
     public function index()
     {
-        return response()->json(AccountingLedger::latest()->paginate(15));
+        return response()->json(AccountingLedger::orderBy('id', 'desc')->paginate(15));
     }
 
     public function store(Request $request)
