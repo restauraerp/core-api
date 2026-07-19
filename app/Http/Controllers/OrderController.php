@@ -10,6 +10,14 @@ class OrderController extends Controller
     public function index(Request $request)
     {
         $query = Order::with(['items.product.images', 'payments', 'customer', 'table']);
+
+        if ($request->has('from')) {
+            $query->where('created_at', '>=', $request->from);
+        }
+        if ($request->has('to')) {
+            $query->where('created_at', '<=', $request->to);
+        }
+
         if ($request->has('nopaginate')) {
             return response()->json($query->orderBy('created_at', 'desc')->get());
         }
