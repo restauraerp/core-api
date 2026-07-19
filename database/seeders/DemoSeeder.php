@@ -21,6 +21,7 @@ class DemoSeeder extends Seeder
             OrderSeeder::class,
             RecipeSeeder::class,
             DemoHrSeeder::class,
+            AccountingSeeder::class,
         ]);
     }
 }
