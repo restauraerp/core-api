@@ -11,91 +11,191 @@ class RecipeSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Create Inventory Items (Ingredients)
-        $ingredients = [
-            ['name' => 'Fettuccine Pasta', 'unit' => 'kg', 'min_stock_level' => 10],
-            ['name' => 'Truffle Oil', 'unit' => 'L', 'min_stock_level' => 2],
-            ['name' => 'Guanciale', 'unit' => 'kg', 'min_stock_level' => 5],
-            ['name' => 'Pecorino Romano', 'unit' => 'kg', 'min_stock_level' => 3],
-            ['name' => 'Farm-fresh Egg', 'unit' => 'pcs', 'min_stock_level' => 50],
-            ['name' => 'San Marzano Tomato', 'unit' => 'kg', 'min_stock_level' => 20],
-            ['name' => 'Buffalo Mozzarella', 'unit' => 'kg', 'min_stock_level' => 15],
-            ['name' => 'Basil', 'unit' => 'bunch', 'min_stock_level' => 10],
-            ['name' => 'Extra Virgin Olive Oil', 'unit' => 'L', 'min_stock_level' => 5],
-            ['name' => 'Pizza Dough', 'unit' => 'kg', 'min_stock_level' => 20],
-            ['name' => 'Fresh Ravioli', 'unit' => 'kg', 'min_stock_level' => 5],
-            ['name' => 'Black Truffle Paste', 'unit' => 'jar', 'min_stock_level' => 5],
-            ['name' => 'Spicy Italian Salami', 'unit' => 'kg', 'min_stock_level' => 10],
-            ['name' => 'Red Chili Flakes', 'unit' => 'kg', 'min_stock_level' => 2],
-            ['name' => 'Fresh Salmon Fillet', 'unit' => 'kg', 'min_stock_level' => 10],
-            ['name' => 'Fresh Lemon', 'unit' => 'pcs', 'min_stock_level' => 100],
-        ];
+        $ingredients = InventoryItem::all()->keyBy('name');
 
-        $createdIngredients = [];
-        foreach ($ingredients as $item) {
-            $createdIngredients[$item['name']] = InventoryItem::firstOrCreate(
-                ['name' => $item['name']],
-                ['unit' => $item['unit'], 'min_stock_level' => $item['min_stock_level']]
-            );
-        }
+        // Helper function
+        $createRecipe = function($productName, $recipeData) use ($ingredients) {
+            $product = Product::where('name', $productName)->first();
+            if ($product) {
+                foreach ($recipeData as $ingredientName => $qty) {
+                    if (isset($ingredients[$ingredientName])) {
+                        Recipe::firstOrCreate([
+                            'product_id' => $product->id,
+                            'inventory_item_id' => $ingredients[$ingredientName]->id,
+                        ], [
+                            'quantity_required' => $qty
+                        ]);
+                    }
+                }
+            }
+        };
 
-        // 2. Map to Recipes
-        // Truffle Carbonara
-        $truffleCarbonara = Product::where('name', 'Truffle Carbonara')->first();
-        if ($truffleCarbonara) {
-            $this->createRecipe($truffleCarbonara->id, $createdIngredients['Fettuccine Pasta']->id, 0.2); // 200g
-            $this->createRecipe($truffleCarbonara->id, $createdIngredients['Guanciale']->id, 0.05); // 50g
-            $this->createRecipe($truffleCarbonara->id, $createdIngredients['Pecorino Romano']->id, 0.03); // 30g
-            $this->createRecipe($truffleCarbonara->id, $createdIngredients['Farm-fresh Egg']->id, 2); // 2 eggs
-            $this->createRecipe($truffleCarbonara->id, $createdIngredients['Truffle Oil']->id, 0.01); // 10ml
-        }
-
-        // Margherita Verace
-        $margherita = Product::where('name', 'Margherita Verace')->first();
-        if ($margherita) {
-            $this->createRecipe($margherita->id, $createdIngredients['Pizza Dough']->id, 0.25); // 250g
-            $this->createRecipe($margherita->id, $createdIngredients['San Marzano Tomato']->id, 0.1); // 100g
-            $this->createRecipe($margherita->id, $createdIngredients['Buffalo Mozzarella']->id, 0.15); // 150g
-            $this->createRecipe($margherita->id, $createdIngredients['Basil']->id, 0.2); // some basil
-            $this->createRecipe($margherita->id, $createdIngredients['Extra Virgin Olive Oil']->id, 0.02); // 20ml
-        }
-
-        // Ravioli al Tartufo
-        $ravioli = Product::where('name', 'Ravioli al Tartufo')->first();
-        if ($ravioli) {
-            $this->createRecipe($ravioli->id, $createdIngredients['Fresh Ravioli']->id, 0.2); // 200g
-            $this->createRecipe($ravioli->id, $createdIngredients['Black Truffle Paste']->id, 0.05); // 0.05 jar (50g)
-            $this->createRecipe($ravioli->id, $createdIngredients['Pecorino Romano']->id, 0.02); // 20g
-        }
-
-        // Pizza Diavola
-        $diavola = Product::where('name', 'Pizza Diavola')->first();
-        if ($diavola) {
-            $this->createRecipe($diavola->id, $createdIngredients['Pizza Dough']->id, 0.25); // 250g
-            $this->createRecipe($diavola->id, $createdIngredients['San Marzano Tomato']->id, 0.1); // 100g
-            $this->createRecipe($diavola->id, $createdIngredients['Buffalo Mozzarella']->id, 0.15); // 150g
-            $this->createRecipe($diavola->id, $createdIngredients['Spicy Italian Salami']->id, 0.1); // 100g
-            $this->createRecipe($diavola->id, $createdIngredients['Red Chili Flakes']->id, 0.005); // 5g
-        }
-
-        // Salmon al Forno
-        $salmon = Product::where('name', 'Salmon al Forno')->first();
-        if ($salmon) {
-            $this->createRecipe($salmon->id, $createdIngredients['Fresh Salmon Fillet']->id, 0.2); // 200g
-            $this->createRecipe($salmon->id, $createdIngredients['Extra Virgin Olive Oil']->id, 0.02); // 20ml
-            $this->createRecipe($salmon->id, $createdIngredients['Fresh Lemon']->id, 1); // 1 pc
-        }
-
-        $this->command->info('✅ RecipeSeeder: Seeded demo inventory items and linked them as recipes to products.');
-    }
-
-    private function createRecipe($productId, $inventoryItemId, $qty)
-    {
-        Recipe::firstOrCreate([
-            'product_id' => $productId,
-            'inventory_item_id' => $inventoryItemId,
-        ], [
-            'quantity_required' => $qty
+        // 1. Truffle Carbonara
+        $createRecipe('Truffle Carbonara', [
+            'Fettuccine Pasta' => 0.2,
+            'Guanciale' => 0.05,
+            'Pecorino Romano' => 0.03,
+            'Farm-fresh Egg' => 2,
+            'Truffle Oil' => 0.01,
         ]);
+
+        // 2. Margherita Verace
+        $createRecipe('Margherita Verace', [
+            'Pizza Dough' => 0.25,
+            'San Marzano Tomato' => 0.1,
+            'Buffalo Mozzarella' => 0.15,
+            'Basil' => 0.2,
+            'Extra Virgin Olive Oil' => 0.02,
+        ]);
+
+        // 3. Bistecca alla Fiorentina
+        $createRecipe('Bistecca alla Fiorentina', [
+            'T-Bone Steak' => 0.8, // 800g
+            'Extra Virgin Olive Oil' => 0.03,
+            'Table Salt' => 0.01,
+            'Whole Black Pepper' => 0.005,
+        ]);
+
+        // 4. Classic Tiramisu
+        $createRecipe('Classic Tiramisu', [
+            'Ladyfingers' => 1, // 1 pack
+            'Mascarpone Cheese' => 0.15,
+            'Espresso Coffee' => 0.05,
+            'Cocoa Powder' => 0.01,
+            'Sugar' => 0.05,
+            'Farm-fresh Egg' => 1,
+        ]);
+
+        // 5. Gnocchi al Pesto
+        $createRecipe('Gnocchi al Pesto', [
+            'Potato Gnocchi' => 0.2,
+            'Basil Pesto' => 0.05,
+            'Parmesan Cheese' => 0.03,
+            'Extra Virgin Olive Oil' => 0.01,
+        ]);
+
+        // 6. Lasagna al Forno
+        $createRecipe('Lasagna al Forno', [
+            'Lasagna Sheets' => 0.5, // half pack
+            'Minced Beef' => 0.15,
+            'San Marzano Tomato' => 0.1,
+            'Bechamel Sauce' => 0.1,
+            'Buffalo Mozzarella' => 0.1,
+            'Parmesan Cheese' => 0.03,
+        ]);
+
+        // 7. Pizza Quattro Formaggi
+        $createRecipe('Pizza Quattro Formaggi', [
+            'Pizza Dough' => 0.25,
+            'Buffalo Mozzarella' => 0.1,
+            'Gorgonzola Cheese' => 0.05,
+            'Parmesan Cheese' => 0.03,
+            'Fontina Cheese' => 0.05,
+        ]);
+
+        // 8. Risotto ai Funghi
+        $createRecipe('Risotto ai Funghi', [
+            'Arborio Rice' => 0.15,
+            'Porcini Mushrooms' => 0.05,
+            'Vegetable Broth' => 0.3, // 300ml
+            'Butter Block' => 0.02,
+            'Parmesan Cheese' => 0.03,
+        ]);
+
+        // 9. Bruschetta al Pomodoro
+        $createRecipe('Bruschetta al Pomodoro', [
+            'Rustic Bread' => 0.2, // 0.2 loaf
+            'Tomato' => 0.1,
+            'Garlic' => 0.01,
+            'Basil' => 0.1,
+            'Extra Virgin Olive Oil' => 0.02,
+        ]);
+
+        // 10. Panna Cotta
+        $createRecipe('Panna Cotta', [
+            'Heavy Cream' => 0.15,
+            'Sugar' => 0.03,
+            'Gelatin' => 0.01,
+            'Vanilla Extract' => 0.005,
+        ]);
+
+        // 11. Calzone Classico
+        $createRecipe('Calzone Classico', [
+            'Pizza Dough' => 0.25,
+            'Ricotta Cheese' => 0.1,
+            'Spicy Italian Salami' => 0.05,
+            'San Marzano Tomato' => 0.05,
+            'Buffalo Mozzarella' => 0.1,
+        ]);
+
+        // 12. Spaghetti Bolognese
+        $createRecipe('Spaghetti Bolognese', [
+            'Spaghetti' => 0.15,
+            'Minced Beef' => 0.15,
+            'San Marzano Tomato' => 0.1,
+            'Red Onion' => 0.02,
+            'Carrot' => 0.02,
+            'Celery' => 0.02,
+            'Garlic' => 0.01,
+        ]);
+
+        // 13. Fettuccine Alfredo
+        $createRecipe('Fettuccine Alfredo', [
+            'Fettuccine Pasta' => 0.15,
+            'Butter Block' => 0.03,
+            'Heavy Cream' => 0.1,
+            'Parmesan Cheese' => 0.05,
+        ]);
+
+        // 14. Minestrone Soup
+        $createRecipe('Minestrone Soup', [
+            'Carrot' => 0.05,
+            'Potatoes' => 0.05,
+            'Celery' => 0.03,
+            'Vegetable Broth' => 0.3,
+            'San Marzano Tomato' => 0.05,
+        ]);
+
+        // 15. Caprese Salad
+        $createRecipe('Caprese Salad', [
+            'Tomato' => 0.15,
+            'Buffalo Mozzarella' => 0.15,
+            'Basil' => 0.2,
+            'Extra Virgin Olive Oil' => 0.02,
+            'Balsamic Glaze' => 0.01,
+        ]);
+
+        // 16. Gelato Stracciatella
+        $createRecipe('Gelato Stracciatella', [
+            'Fresh Milk' => 0.1,
+            'Heavy Cream' => 0.1,
+            'Sugar' => 0.05,
+            'Chocolate Chips' => 0.05,
+        ]);
+
+        // 17. Ravioli al Tartufo
+        $createRecipe('Ravioli al Tartufo', [
+            'Fresh Ravioli' => 0.2,
+            'Black Truffle Paste' => 0.05,
+            'Pecorino Romano' => 0.02,
+        ]);
+
+        // 18. Pizza Diavola
+        $createRecipe('Pizza Diavola', [
+            'Pizza Dough' => 0.25,
+            'San Marzano Tomato' => 0.1,
+            'Buffalo Mozzarella' => 0.15,
+            'Spicy Italian Salami' => 0.1,
+            'Red Chili Flakes' => 0.005,
+        ]);
+
+        // 19. Salmon al Forno
+        $createRecipe('Salmon al Forno', [
+            'Fresh Salmon Fillet' => 0.2,
+            'Extra Virgin Olive Oil' => 0.02,
+            'Fresh Lemon' => 1,
+        ]);
+
+        $this->command->info('✅ RecipeSeeder: Seeded demo inventory items and linked them as recipes to all 19 products.');
     }
 }
