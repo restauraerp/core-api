@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Customer;
@@ -11,6 +12,8 @@ use Carbon\Carbon;
 
 class OrderSeeder extends Seeder
 {
+    private int $nextOrderId = 1;
+
     public function run(): void
     {
         $products = Product::all();
@@ -23,6 +26,13 @@ class OrderSeeder extends Seeder
             return;
         }
 
+        $this->nextOrderId = (DB::table('orders')->max('id') ?? 0) + 1;
+        
+        $ordersData = [];
+        $orderItemsData = [];
+        $paymentsData = [];
+        $chunkSize = 1000;
+
         foreach ($locations as $location) {
             $locationTables = $tables->where('location_id', $location->id);
             $numActive = rand(5, 10);
@@ -30,12 +40,12 @@ class OrderSeeder extends Seeder
 
             // Generate Active Orders
             for ($i = 0; $i < $numActive; $i++) {
-                $this->createRandomOrder($location, $locationTables, $products, $customers, false, now());
+                $this->generateOrderData($ordersData, $orderItemsData, $paymentsData, $location, $locationTables, $products, $customers, false, now());
             }
 
             // Generate Completed Orders for today
             for ($i = 0; $i < $numCompleted; $i++) {
-                $this->createRandomOrder($location, $locationTables, $products, $customers, true, now());
+                $this->generateOrderData($ordersData, $orderItemsData, $paymentsData, $location, $locationTables, $products, $customers, true, now());
             }
 
             // Generate 2 years of Historical Orders
@@ -53,10 +63,36 @@ class OrderSeeder extends Seeder
 
                 for ($i = 0; $i < $numOrdersToday; $i++) {
                     $orderTime = $this->getRandomOrderTime($date, $isRamadan);
-                    $this->createRandomOrder($location, $locationTables, $products, $customers, true, $orderTime);
+                    $this->generateOrderData($ordersData, $orderItemsData, $paymentsData, $location, $locationTables, $products, $customers, true, $orderTime);
+                    
+                    if (count($ordersData) >= $chunkSize) {
+                        $this->insertChunks($ordersData, $orderItemsData, $paymentsData);
+                    }
                 }
             }
+            
+            // Insert remaining for location
+            if (count($ordersData) > 0) {
+                $this->insertChunks($ordersData, $orderItemsData, $paymentsData);
+            }
         }
+    }
+
+    private function insertChunks(&$ordersData, &$orderItemsData, &$paymentsData)
+    {
+        DB::table('orders')->insert($ordersData);
+        
+        foreach (array_chunk($orderItemsData, 2000) as $chunk) {
+            DB::table('order_items')->insert($chunk);
+        }
+        
+        foreach (array_chunk($paymentsData, 2000) as $chunk) {
+            DB::table('payments')->insert($chunk);
+        }
+        
+        $ordersData = [];
+        $orderItemsData = [];
+        $paymentsData = [];
     }
 
     private function isRamadan(Carbon $date): bool
@@ -107,9 +143,10 @@ class OrderSeeder extends Seeder
         return $date->setTime($hour, $minute);
     }
 
-    private function createRandomOrder($location, $locationTables, $products, $customers, $isCompleted, $date = null)
+    private function generateOrderData(&$ordersData, &$orderItemsData, &$paymentsData, $location, $locationTables, $products, $customers, $isCompleted, $date = null)
     {
-        $date = $date ?? now();
+        $date = $date ? clone $date : now();
+        $dateString = $date->toDateTimeString();
         
         // Food type/Order type mapping for Bangladesh: heavily skewed towards delivery and dine_in
         $orderTypes = [
@@ -153,29 +190,33 @@ class OrderSeeder extends Seeder
         }
 
         $customer = $customers->random();
-
         $subtotal = 0;
-        $orderItems = [];
-        // BD Restaurants typically have 2-5 items per order
+        $orderId = $this->nextOrderId++;
         $itemCount = rand(2, 5);
+        
         for ($j = 0; $j < $itemCount; $j++) {
             $product = $products->random();
             $qty = rand(1, 3);
             $price = $product->sale_price ?? $product->price;
             $subtotal += $qty * $price;
-            $orderItems[] = [
+            
+            $orderItemsData[] = [
+                'order_id' => $orderId,
                 'product_id' => $product->id,
                 'quantity' => $qty,
                 'price' => $price,
+                'created_at' => $dateString,
+                'updated_at' => $dateString,
             ];
         }
 
         $tax = $subtotal * 0.1; // 10% VAT
-        // Delivery charge in BD is usually 50-100 BDT
         $deliveryCharge = in_array($type, ['delivery', 'catering']) ? rand(50, 100) : 0;
         $total = $subtotal + $tax + $deliveryCharge;
+        $deliveryTime = in_array($type, ['takeaway', 'delivery', 'catering']) ? (clone $date)->addMinutes(rand(30, 90))->toDateTimeString() : null;
 
-        $order = Order::create([
+        $ordersData[] = [
+            'id' => $orderId,
             'location_id' => $location->id,
             'user_id' => 1,
             'customer_id' => $customer->id,
@@ -188,31 +229,24 @@ class OrderSeeder extends Seeder
             'discount_amount' => 0,
             'delivery_charge' => $deliveryCharge,
             'total' => $total,
-            'delivery_time' => in_array($type, ['takeaway', 'delivery', 'catering']) ? (clone $date)->addMinutes(rand(30, 90)) : null,
+            'delivery_time' => $deliveryTime,
             'delivery_address' => in_array($type, ['delivery', 'catering']) ? $customer->address ?? 'Dhaka, Bangladesh' : null,
             'latitude' => in_array($type, ['delivery', 'catering']) ? (23.8103 + (rand(-100, 100) / 10000)) : null,
             'longitude' => in_array($type, ['delivery', 'catering']) ? (90.4125 + (rand(-100, 100) / 10000)) : null,
-        ]);
+            'created_at' => $dateString,
+            'updated_at' => $dateString,
+        ];
         
-        $order->timestamps = false;
-        $order->update([
-            'created_at' => $date,
-            'updated_at' => $date,
-        ]);
-        $order->timestamps = true;
-
-        foreach ($orderItems as $item) {
-            $order->items()->create($item);
-        }
-
         if ($paymentStatus === 'paid') {
             $methods = ['cash', 'cash', 'mfs', 'mfs', 'card'];
-            $order->payments()->create([
-                // Mobile Financial Services (bkash, nagad) are very popular in BD
+            $paymentsData[] = [
+                'order_id' => $orderId,
                 'method' => $methods[array_rand($methods)],
                 'amount' => $total,
                 'status' => 'completed',
-            ]);
+                'created_at' => $dateString,
+                'updated_at' => $dateString,
+            ];
         }
     }
 }
