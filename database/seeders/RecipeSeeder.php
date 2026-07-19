@@ -23,6 +23,12 @@ class RecipeSeeder extends Seeder
             ['name' => 'Basil', 'unit' => 'bunch', 'min_stock_level' => 10],
             ['name' => 'Extra Virgin Olive Oil', 'unit' => 'L', 'min_stock_level' => 5],
             ['name' => 'Pizza Dough', 'unit' => 'kg', 'min_stock_level' => 20],
+            ['name' => 'Fresh Ravioli', 'unit' => 'kg', 'min_stock_level' => 5],
+            ['name' => 'Black Truffle Paste', 'unit' => 'jar', 'min_stock_level' => 5],
+            ['name' => 'Spicy Italian Salami', 'unit' => 'kg', 'min_stock_level' => 10],
+            ['name' => 'Red Chili Flakes', 'unit' => 'kg', 'min_stock_level' => 2],
+            ['name' => 'Fresh Salmon Fillet', 'unit' => 'kg', 'min_stock_level' => 10],
+            ['name' => 'Fresh Lemon', 'unit' => 'pcs', 'min_stock_level' => 100],
         ];
 
         $createdIngredients = [];
@@ -52,6 +58,32 @@ class RecipeSeeder extends Seeder
             $this->createRecipe($margherita->id, $createdIngredients['Buffalo Mozzarella']->id, 0.15); // 150g
             $this->createRecipe($margherita->id, $createdIngredients['Basil']->id, 0.2); // some basil
             $this->createRecipe($margherita->id, $createdIngredients['Extra Virgin Olive Oil']->id, 0.02); // 20ml
+        }
+
+        // Ravioli al Tartufo
+        $ravioli = Product::where('name', 'Ravioli al Tartufo')->first();
+        if ($ravioli) {
+            $this->createRecipe($ravioli->id, $createdIngredients['Fresh Ravioli']->id, 0.2); // 200g
+            $this->createRecipe($ravioli->id, $createdIngredients['Black Truffle Paste']->id, 0.05); // 0.05 jar (50g)
+            $this->createRecipe($ravioli->id, $createdIngredients['Pecorino Romano']->id, 0.02); // 20g
+        }
+
+        // Pizza Diavola
+        $diavola = Product::where('name', 'Pizza Diavola')->first();
+        if ($diavola) {
+            $this->createRecipe($diavola->id, $createdIngredients['Pizza Dough']->id, 0.25); // 250g
+            $this->createRecipe($diavola->id, $createdIngredients['San Marzano Tomato']->id, 0.1); // 100g
+            $this->createRecipe($diavola->id, $createdIngredients['Buffalo Mozzarella']->id, 0.15); // 150g
+            $this->createRecipe($diavola->id, $createdIngredients['Spicy Italian Salami']->id, 0.1); // 100g
+            $this->createRecipe($diavola->id, $createdIngredients['Red Chili Flakes']->id, 0.005); // 5g
+        }
+
+        // Salmon al Forno
+        $salmon = Product::where('name', 'Salmon al Forno')->first();
+        if ($salmon) {
+            $this->createRecipe($salmon->id, $createdIngredients['Fresh Salmon Fillet']->id, 0.2); // 200g
+            $this->createRecipe($salmon->id, $createdIngredients['Extra Virgin Olive Oil']->id, 0.02); // 20ml
+            $this->createRecipe($salmon->id, $createdIngredients['Fresh Lemon']->id, 1); // 1 pc
         }
 
         $this->command->info('✅ RecipeSeeder: Seeded demo inventory items and linked them as recipes to products.');
