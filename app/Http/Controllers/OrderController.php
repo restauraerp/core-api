@@ -18,6 +18,10 @@ class OrderController extends Controller
             $query->where('created_at', '<=', $request->to);
         }
 
+        if ($request->has('location_id')) {
+            $query->where('location_id', $request->location_id);
+        }
+
         if ($request->has('nopaginate')) {
             return response()->json($query->orderBy('created_at', 'desc')->get());
         }
