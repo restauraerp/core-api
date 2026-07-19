@@ -205,8 +205,6 @@ class OrderSeeder extends Seeder
                 'product_id' => $product->id,
                 'quantity' => $qty,
                 'price' => $price,
-                'created_at' => $dateString,
-                'updated_at' => $dateString,
             ];
         }
 
