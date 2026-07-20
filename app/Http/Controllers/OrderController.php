@@ -22,6 +22,10 @@ class OrderController extends Controller
             $query->where('location_id', $request->location_id);
         }
 
+        if ($request->has('statuses')) {
+            $query->whereIn('status', is_array($request->statuses) ? $request->statuses : explode(',', $request->statuses));
+        }
+
         if ($request->has('nopaginate')) {
             return response()->json($query->orderBy('created_at', 'desc')->get());
         }
