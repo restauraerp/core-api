@@ -7,9 +7,27 @@ use Illuminate\Http\Request;
 
 class AccountingLedgerController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(AccountingLedger::orderBy('id', 'desc')->paginate(15));
+        $query = AccountingLedger::query();
+
+        if ($request->has('location_id') && $request->location_id !== 'all' && $request->location_id !== '') {
+            if ($request->location_id === 'general') {
+                $query->whereNull('location_id');
+            } else {
+                $query->where('location_id', $request->location_id);
+            }
+        }
+
+        if ($request->has('start_date') && $request->start_date) {
+            $query->whereDate('created_at', '>=', $request->start_date);
+        }
+
+        if ($request->has('end_date') && $request->end_date) {
+            $query->whereDate('created_at', '<=', $request->end_date);
+        }
+
+        return response()->json($query->orderBy('id', 'desc')->paginate(15));
     }
 
     public function store(Request $request)
