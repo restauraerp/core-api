@@ -22,6 +22,27 @@ class OrderController extends Controller
             $query->where('location_id', $request->location_id);
         }
 
+        if ($request->has('statuses')) {
+            $query->whereIn('status', is_array($request->statuses) ? $request->statuses : explode(',', $request->statuses));
+        }
+
+        if ($request->has('active_only')) {
+            $query->where(function ($q) {
+                $q->where(function ($subQ) {
+                    $subQ->where('payment_status', '!=', 'paid')
+                         ->orWhereNull('payment_status');
+                })->orWhere(function ($subQ) {
+                    $subQ->where('payment_status', 'paid')
+                         ->where(function ($statusQ) {
+                             $statusQ->whereNotIn('status', ['served', 'delivered'])
+                                     ->whereNot(function ($packedQ) {
+                                         $packedQ->where('status', 'packed')->where('order_type', 'takeaway');
+                                     });
+                         });
+                });
+            });
+        }
+
         if ($request->has('nopaginate')) {
             return response()->json($query->orderBy('created_at', 'desc')->get());
         }

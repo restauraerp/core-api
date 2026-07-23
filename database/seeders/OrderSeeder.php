@@ -8,18 +8,26 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\Customer;
 use App\Models\Table;
+use App\Models\Location;
+use App\Models\User;
+use App\Models\InventoryItem;
 use Carbon\Carbon;
 
 class OrderSeeder extends Seeder
 {
     private int $nextOrderId = 1;
+    private int $nextExpenseId = 1;
+    private int $nextPurchaseOrderId = 1;
 
     public function run(): void
     {
         $products = Product::all();
         $customers = Customer::all();
         $tables = Table::all();
-        $locations = \App\Models\Location::all();
+        $locations = Location::all();
+        $admin = User::first();
+        $suppliers = DB::table('suppliers')->pluck('id')->toArray();
+        $inventoryItems = InventoryItem::all();
 
         if ($products->isEmpty() || $customers->isEmpty() || $tables->isEmpty()) {
             $this->command->warn('Ensure Products, Customers, and Tables are seeded before Orders.');
@@ -27,35 +35,29 @@ class OrderSeeder extends Seeder
         }
 
         $this->nextOrderId = (DB::table('orders')->max('id') ?? 0) + 1;
+        $this->nextExpenseId = (DB::table('expenses')->max('id') ?? 0) + 1;
+        $this->nextPurchaseOrderId = (DB::table('purchase_orders')->max('id') ?? 0) + 1;
         
         $ordersData = [];
         $orderItemsData = [];
         $paymentsData = [];
         $ledgersData = [];
+        $expensesData = [];
+        $purchaseOrdersData = [];
+        $purchaseItemsData = [];
         $chunkSize = 1000;
 
-        foreach ($locations as $location) {
-            $locationTables = $tables->where('location_id', $location->id);
-            $numActive = rand(5, 10);
-            $numCompleted = rand(3, 5);
+        // Loop chronologically from 730 days ago to today
+        // Putting the days loop OUTSIDE the locations loop ensures perfectly ordered insertions across all locations
+        for ($daysBack = 730; $daysBack >= 0; $daysBack--) {
+            $date = now()->subDays($daysBack);
+            $isWeekend = in_array($date->dayOfWeek, [Carbon::FRIDAY, Carbon::SATURDAY]);
+            $isRamadan = $this->isRamadan($date);
 
-            // Generate Active Orders
-            for ($i = 0; $i < $numActive; $i++) {
-                $this->generateOrderData($ordersData, $orderItemsData, $paymentsData, $ledgersData, $location, $locationTables, $products, $customers, false, now());
-            }
-
-            // Generate Completed Orders for today
-            for ($i = 0; $i < $numCompleted; $i++) {
-                $this->generateOrderData($ordersData, $orderItemsData, $paymentsData, $ledgersData, $location, $locationTables, $products, $customers, true, now());
-            }
-
-            // Generate 2 years of Historical Orders
-            for ($daysBack = 730; $daysBack > 0; $daysBack--) {
-                $date = now()->subDays($daysBack);
-                $isWeekend = in_array($date->dayOfWeek, [Carbon::FRIDAY, Carbon::SATURDAY]);
-                $isRamadan = $this->isRamadan($date);
-
-                // Sales volume for a standard Bangladeshi restaurant
+            foreach ($locations as $location) {
+                $locationTables = $tables->where('location_id', $location->id);
+                
+                // 1. Generate Orders
                 if ($isRamadan) {
                     $numOrdersToday = $isWeekend ? rand(15, 25) : rand(8, 15);
                 } else {
@@ -65,30 +67,54 @@ class OrderSeeder extends Seeder
                 for ($i = 0; $i < $numOrdersToday; $i++) {
                     $orderTime = $this->getRandomOrderTime($date, $isRamadan);
                     $this->generateOrderData($ordersData, $orderItemsData, $paymentsData, $ledgersData, $location, $locationTables, $products, $customers, true, $orderTime);
-                    
-                    if (count($ordersData) >= $chunkSize) {
-                        $this->insertChunks($ordersData, $orderItemsData, $paymentsData, $ledgersData);
-                    }
+                }
+                
+                // 2. Generate Monthly Expenses on the 1st of the month
+                if ($date->day === 1) {
+                    $this->generateMonthlyExpenses($date, $location, $admin, $expensesData, $ledgersData);
+                }
+                
+                // 3. Generate Random Purchase Orders (approx 10% chance per day)
+                if (rand(1, 100) <= 10) {
+                    $this->generatePurchaseOrder($date, $location, $admin, $suppliers, $inventoryItems, $purchaseOrdersData, $purchaseItemsData, $ledgersData);
+                }
+
+                // Flush chunks to maintain speed & chronological insert boundaries
+                if (count($ordersData) >= $chunkSize || count($expensesData) >= $chunkSize || count($purchaseOrdersData) >= $chunkSize) {
+                    $this->insertChunks($ordersData, $orderItemsData, $paymentsData, $ledgersData, $expensesData, $purchaseOrdersData, $purchaseItemsData);
                 }
             }
-            
-            // Insert remaining for location
-            if (count($ordersData) > 0) {
-                $this->insertChunks($ordersData, $orderItemsData, $paymentsData, $ledgersData);
+        }
+        
+        // Generate a few active (uncompleted) orders for today
+        foreach ($locations as $location) {
+            $locationTables = $tables->where('location_id', $location->id);
+            $numActive = rand(5, 10);
+            for ($i = 0; $i < $numActive; $i++) {
+                $this->generateOrderData($ordersData, $orderItemsData, $paymentsData, $ledgersData, $location, $locationTables, $products, $customers, false, now());
             }
         }
+
+        // Insert remaining
+        $this->insertChunks($ordersData, $orderItemsData, $paymentsData, $ledgersData, $expensesData, $purchaseOrdersData, $purchaseItemsData);
+        
+        $this->command->info('✅ OrderSeeder: Chronologically Seeded Orders, Expenses, Purchases and Accounting Ledgers for 2 Years.');
     }
 
-    private function insertChunks(&$ordersData, &$orderItemsData, &$paymentsData, &$ledgersData)
+    private function insertChunks(&$ordersData, &$orderItemsData, &$paymentsData, &$ledgersData, &$expensesData, &$purchaseOrdersData, &$purchaseItemsData)
     {
-        DB::table('orders')->insert($ordersData);
-        
+        if (count($ordersData) > 0) DB::table('orders')->insert($ordersData);
         foreach (array_chunk($orderItemsData, 2000) as $chunk) {
             DB::table('order_items')->insert($chunk);
         }
-        
         foreach (array_chunk($paymentsData, 2000) as $chunk) {
             DB::table('payments')->insert($chunk);
+        }
+
+        if (count($expensesData) > 0) DB::table('expenses')->insert($expensesData);
+        if (count($purchaseOrdersData) > 0) DB::table('purchase_orders')->insert($purchaseOrdersData);
+        foreach (array_chunk($purchaseItemsData, 2000) as $chunk) {
+            DB::table('purchase_items')->insert($chunk);
         }
 
         foreach (array_chunk($ledgersData, 2000) as $chunk) {
@@ -99,6 +125,135 @@ class OrderSeeder extends Seeder
         $orderItemsData = [];
         $paymentsData = [];
         $ledgersData = [];
+        $expensesData = [];
+        $purchaseOrdersData = [];
+        $purchaseItemsData = [];
+    }
+
+    private function generateMonthlyExpenses($date, $location, $admin, &$expensesData, &$ledgersData)
+    {
+        $dateString = (clone $date)->setTime(9, 0)->toDateTimeString();
+
+        // Rent Expense
+        $rentAmount = rand(150000, 250000);
+        $expensesData[] = [
+            'id' => $this->nextExpenseId,
+            'location_id' => $location->id,
+            'category' => 'Rent',
+            'amount' => $rentAmount,
+            'logged_by' => $admin->id ?? 1,
+            'receipt_url' => null,
+            'created_at' => $dateString,
+            'updated_at' => $dateString,
+        ];
+        $ledgersData[] = [
+            'location_id' => $location->id,
+            'transaction_type' => 'expense',
+            'amount' => -$rentAmount,
+            'reference_id' => $this->nextExpenseId,
+            'description' => 'Monthly Rent Expense',
+            'created_at' => $dateString,
+            'updated_at' => $dateString,
+        ];
+        $this->nextExpenseId++;
+
+        // Salary Expense
+        $salaryAmount = rand(300000, 500000);
+        $expensesData[] = [
+            'id' => $this->nextExpenseId,
+            'location_id' => $location->id,
+            'category' => 'Salary',
+            'amount' => $salaryAmount,
+            'logged_by' => $admin->id ?? 1,
+            'receipt_url' => null,
+            'created_at' => $dateString,
+            'updated_at' => $dateString,
+        ];
+        $ledgersData[] = [
+            'location_id' => $location->id,
+            'transaction_type' => 'salary',
+            'amount' => -$salaryAmount,
+            'reference_id' => $this->nextExpenseId,
+            'description' => 'Employee Salaries',
+            'created_at' => $dateString,
+            'updated_at' => $dateString,
+        ];
+        $this->nextExpenseId++;
+
+        // Utilities
+        $utilityAmount = rand(50000, 100000);
+        $expensesData[] = [
+            'id' => $this->nextExpenseId,
+            'location_id' => $location->id,
+            'category' => 'Utilities',
+            'amount' => $utilityAmount,
+            'logged_by' => $admin->id ?? 1,
+            'receipt_url' => null,
+            'created_at' => $dateString,
+            'updated_at' => $dateString,
+        ];
+        $ledgersData[] = [
+            'location_id' => $location->id,
+            'transaction_type' => 'expense',
+            'amount' => -$utilityAmount,
+            'reference_id' => $this->nextExpenseId,
+            'description' => 'Utilities & Operational Expenses',
+            'created_at' => $dateString,
+            'updated_at' => $dateString,
+        ];
+        $this->nextExpenseId++;
+    }
+
+    private function generatePurchaseOrder($date, $location, $admin, $suppliers, $items, &$purchaseOrdersData, &$purchaseItemsData, &$ledgersData)
+    {
+        if (empty($suppliers) || $items->isEmpty()) return;
+        $dateString = (clone $date)->setTime(rand(10, 16), rand(0, 59))->toDateTimeString();
+
+        $supplierId = $suppliers[array_rand($suppliers)];
+        $totalAmount = 0;
+        $numItems = rand(3, 8);
+        $orderItems = [];
+
+        for ($i = 0; $i < $numItems; $i++) {
+            $item = $items->random();
+            $qty = rand(10, 50);
+            $price = $item->cost_per_unit ?? rand(50, 500);
+            $subtotal = $qty * $price;
+            $totalAmount += $subtotal;
+            
+            $orderItems[] = [
+                'purchase_order_id' => $this->nextPurchaseOrderId,
+                'inventory_item_id' => $item->id,
+                'quantity' => $qty,
+                'price' => $price,
+            ];
+        }
+
+        $purchaseOrdersData[] = [
+            'id' => $this->nextPurchaseOrderId,
+            'supplier_id' => $supplierId,
+            'location_id' => $location->id,
+            'created_by' => $admin->id ?? 1,
+            'total_amount' => $totalAmount,
+            'status' => 'received',
+            'created_at' => $dateString,
+            'updated_at' => $dateString,
+        ];
+        
+        foreach ($orderItems as $oi) {
+            $purchaseItemsData[] = $oi;
+        }
+
+        $ledgersData[] = [
+            'location_id' => $location->id,
+            'transaction_type' => 'purchase',
+            'amount' => -$totalAmount,
+            'reference_id' => $this->nextPurchaseOrderId,
+            'description' => 'Inventory Purchase Order #' . $this->nextPurchaseOrderId,
+            'created_at' => $dateString,
+            'updated_at' => $dateString,
+        ];
+        $this->nextPurchaseOrderId++;
     }
 
     private function isRamadan(Carbon $date): bool
