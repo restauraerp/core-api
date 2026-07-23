@@ -74,5 +74,14 @@ class RolePermissionSeeder extends Seeder
 
         $rider = Role::firstOrCreate(['name' => 'rider']);
         $rider->givePermissionTo(['view_delivery', 'update_delivery_status']);
+
+        $accountant = Role::firstOrCreate(['name' => 'accountant']);
+        $accountant->givePermissionTo([
+            'view_dashboard',
+            'view_accounting', 
+            'manage_ledgers', 
+            'manage_expenses',
+            'view_reporting'
+        ]);
     }
 }

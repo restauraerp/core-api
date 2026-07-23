@@ -18,10 +18,10 @@ class DemoSeeder extends Seeder
             ProductSeeder::class,
             CustomerSeeder::class,
             TableSeeder::class,
+            AccountingSeeder::class,
             OrderSeeder::class,
             RecipeSeeder::class,
             DemoHrSeeder::class,
-            AccountingSeeder::class,
         ]);
     }
 }
