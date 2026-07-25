@@ -8230,6 +8230,334 @@
                 }
             }
         },
+        "/v1/reports/sales": {
+            "get": {
+                "operationId": "report.sales",
+                "description": "GET /reports/sales?from=&to=&location_id=&bucket=hour|day|month",
+                "summary": "Headline totals plus a time series, in a single response so the two can\nnever disagree with each other",
+                "tags": [
+                    "Report"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "bucket": {
+                                            "type": "string"
+                                        },
+                                        "summary": {
+                                            "type": "object",
+                                            "properties": {
+                                                "orders_count": {
+                                                    "type": "integer"
+                                                },
+                                                "gross_revenue": {
+                                                    "type": "number"
+                                                },
+                                                "item_revenue": {
+                                                    "type": "number"
+                                                },
+                                                "tax_total": {
+                                                    "type": "number"
+                                                },
+                                                "discount_total": {
+                                                    "type": "number"
+                                                },
+                                                "delivery_total": {
+                                                    "type": "number"
+                                                },
+                                                "collected_revenue": {
+                                                    "type": "number"
+                                                },
+                                                "outstanding_revenue": {
+                                                    "type": "number"
+                                                },
+                                                "unpaid_orders": {
+                                                    "type": "integer"
+                                                },
+                                                "avg_order_value": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "string"
+                                                        },
+                                                        {
+                                                            "type": "number"
+                                                        }
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "orders_count",
+                                                "gross_revenue",
+                                                "item_revenue",
+                                                "tax_total",
+                                                "discount_total",
+                                                "delivery_total",
+                                                "collected_revenue",
+                                                "outstanding_revenue",
+                                                "unpaid_orders",
+                                                "avg_order_value"
+                                            ]
+                                        },
+                                        "series": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "bucket",
+                                        "summary",
+                                        "series"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/reports/products": {
+            "get": {
+                "operationId": "report.products",
+                "description": "Revenue here is the sum of line items (quantity x price), which is\npre-tax, pre-delivery and before order-level discounts - it reconciles\nwith `item_revenue` from sales(), not with `gross_revenue`.\n\nGET /reports/products?from=&to=&location_id=&limit=",
+                "summary": "Per-product totals for the window",
+                "tags": [
+                    "Report"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "product_id": {
+                                                        "type": "string"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "quantity": {
+                                                        "type": "number"
+                                                    },
+                                                    "revenue": {
+                                                        "type": "number"
+                                                    },
+                                                    "orders": {
+                                                        "type": "integer"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "product_id",
+                                                    "name",
+                                                    "quantity",
+                                                    "revenue",
+                                                    "orders"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/reports/hourly": {
+            "get": {
+                "operationId": "report.hourly",
+                "description": "GET /reports/hourly?from=&to=&location_id=",
+                "summary": "Order/revenue distribution across the 24 hours of the day, summed over\nevery day in the window. Hours with no trade are returned as zeroes so\nthe chart has a continuous x-axis",
+                "tags": [
+                    "Report"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "hour": {
+                                                        "type": "integer"
+                                                    },
+                                                    "label": {
+                                                        "type": "string"
+                                                    },
+                                                    "orders": {
+                                                        "type": "integer"
+                                                    },
+                                                    "revenue": {
+                                                        "type": "number"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "hour",
+                                                    "label",
+                                                    "orders",
+                                                    "revenue"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/reports/inventory": {
+            "get": {
+                "operationId": "report.inventory",
+                "description": "Stock lives on the inventory_item_location pivot, not on\ninventory_items.current_stock (which is null for every row). When a\nbranch is selected we report that branch's quantity; otherwise the total\nacross branches.\n\nGET /reports/inventory?location_id=",
+                "summary": "Stock on hand, lowest first",
+                "tags": [
+                    "Report"
+                ],
+                "parameters": [
+                    {
+                        "name": "location_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "scoped_to_location": {
+                                            "type": "string"
+                                        },
+                                        "summary": {
+                                            "type": "object",
+                                            "properties": {
+                                                "items_count": {
+                                                    "type": "integer",
+                                                    "minimum": 0
+                                                },
+                                                "low_stock_count": {
+                                                    "type": "integer",
+                                                    "minimum": 0
+                                                },
+                                                "total_value": {
+                                                    "type": "number"
+                                                }
+                                            },
+                                            "required": [
+                                                "items_count",
+                                                "low_stock_count",
+                                                "total_value"
+                                            ]
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "name": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "sku": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "unit": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "cost_per_unit": {
+                                                        "type": "number"
+                                                    },
+                                                    "min_stock_level": {
+                                                        "type": "number"
+                                                    },
+                                                    "quantity": {
+                                                        "type": "number"
+                                                    },
+                                                    "total_value": {
+                                                        "type": "string"
+                                                    },
+                                                    "is_low": {
+                                                        "type": "boolean"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "name",
+                                                    "sku",
+                                                    "unit",
+                                                    "cost_per_unit",
+                                                    "min_stock_level",
+                                                    "quantity",
+                                                    "total_value",
+                                                    "is_low"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "scoped_to_location",
+                                        "summary",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/reservations": {
             "get": {
                 "operationId": "reservations.index",
