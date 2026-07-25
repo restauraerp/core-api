@@ -87,6 +87,14 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('payments', \App\Http\Controllers\PaymentController::class);
         Route::apiResource('deliveries', \App\Http\Controllers\DeliveryController::class);
 
+        // Reporting API (aggregated server-side; see ReportController)
+        Route::prefix('reports')->group(function () {
+            Route::get('sales', [\App\Http\Controllers\ReportController::class, 'sales']);
+            Route::get('products', [\App\Http\Controllers\ReportController::class, 'products']);
+            Route::get('hourly', [\App\Http\Controllers\ReportController::class, 'hourly']);
+            Route::get('inventory', [\App\Http\Controllers\ReportController::class, 'inventory']);
+        });
+
         // Support & System API
         Route::apiResource('support-tickets', \App\Http\Controllers\SupportTicketController::class);
         Route::apiResource('support-tickets.messages', \App\Http\Controllers\ChatMessageController::class)->shallow();
