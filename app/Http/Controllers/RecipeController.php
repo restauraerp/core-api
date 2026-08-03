@@ -21,8 +21,8 @@ class RecipeController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'product_id' => 'required|exists:products,id',
-            'inventory_item_id' => 'required|exists:inventory_items,id',
+            'product_id' => ['required', $this->tenantExists('products')],
+            'inventory_item_id' => ['required', $this->tenantExists('inventory_items')],
             'quantity_required' => 'required|numeric|min:0.01',
         ]);
 

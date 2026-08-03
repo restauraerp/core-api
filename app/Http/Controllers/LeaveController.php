@@ -19,7 +19,7 @@ class LeaveController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
+            'user_id' => ['required', $this->tenantExists('users')],
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
             'reason' => 'nullable|string',
@@ -38,7 +38,7 @@ class LeaveController extends Controller
     public function update(Request $request, Leave $leave)
     {
         $validated = $request->validate([
-            'user_id' => 'sometimes|exists:users,id',
+            'user_id' => ['sometimes', $this->tenantExists('users')],
             'start_date' => 'sometimes|date',
             'end_date' => 'sometimes|date|after_or_equal:start_date',
             'reason' => 'nullable|string',

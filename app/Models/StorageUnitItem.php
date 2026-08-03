@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\BelongsToTenant;
 
 class StorageUnitItem extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'storage_unit_id',
         'inventory_item_id',

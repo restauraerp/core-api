@@ -19,7 +19,7 @@ class AttendanceController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
+            'user_id' => ['required', $this->tenantExists('users')],
             'date' => 'required|date',
             'check_in' => 'nullable|date_format:H:i:s',
             'check_out' => 'nullable|date_format:H:i:s|after:check_in',
@@ -38,7 +38,7 @@ class AttendanceController extends Controller
     public function update(Request $request, Attendance $attendance)
     {
         $validated = $request->validate([
-            'user_id' => 'sometimes|exists:users,id',
+            'user_id' => ['sometimes', $this->tenantExists('users')],
             'date' => 'sometimes|date',
             'check_in' => 'nullable|date_format:H:i:s',
             'check_out' => 'nullable|date_format:H:i:s|after:check_in',

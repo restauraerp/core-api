@@ -123,10 +123,30 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    // Whether this deployment is the public demo. Off by default and
+    // deliberately separate from "DemoSeeder has been run": seeded demo data is
+    // harmless anywhere, but this flag is what publishes the credentials below
+    // over an unauthenticated endpoint, so it must never be true on a customer
+    // install. Read at request time, so toggling it needs no rebuild anywhere -
+    // the front discovers demo mode from the API rather than baking it in.
+    'demo_mode' => filter_var(env('DEMO_MODE', false), FILTER_VALIDATE_BOOLEAN),
+
     'demo_username' => env('DEMO_USERNAME', 'admin@demo.com'),
     'demo_password' => env('DEMO_PASSWORD', 'password'),
 
     'admin_email' => env('ADMIN_EMAIL', 'toaihimel@gmail.com'),
     'admin_password' => env('ADMIN_PASSWORD', 'Admin@PosBoss2026!'),
+
+    // The tenant InstallationSeeder provisions on a fresh install. Its slug is
+    // the "restaurant code" clients send as X-Tenant-ID, so changing it after
+    // deployment breaks every configured client.
+    'install_tenant_name' => env('INSTALL_TENANT_NAME', 'RestoraERP'),
+    'install_tenant_slug' => env('INSTALL_TENANT_SLUG', 'default'),
+
+    // Demo box only - the two tenants DemoSeeder builds. Two, not one, so the
+    // demo actually demonstrates isolation and so any scoping regression shows
+    // up as one restaurant's data appearing in the other's dashboard.
+    'demo_tenant_slug' => env('DEMO_TENANT_SLUG', 'bangla-bistro'),
+    'demo_tenant_secondary_slug' => env('DEMO_TENANT_SECONDARY_SLUG', 'spice-garden'),
 
 ];

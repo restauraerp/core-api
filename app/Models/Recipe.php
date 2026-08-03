@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\BelongsToTenant;
 
 class Recipe extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'product_id',
         'inventory_item_id',

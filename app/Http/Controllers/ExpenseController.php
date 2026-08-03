@@ -15,10 +15,10 @@ class ExpenseController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'location_id' => 'nullable|exists:locations,id',
+            'location_id' => ['nullable', $this->tenantExists('locations')],
             'category' => 'nullable|string',
             'amount' => 'nullable|numeric',
-            'logged_by' => 'nullable|exists:users,id',
+            'logged_by' => ['nullable', $this->tenantExists('users')],
             'receipt_url' => 'nullable|string',
         ]);
 
@@ -38,10 +38,10 @@ class ExpenseController extends Controller
     public function update(Request $request, Expense $expense)
     {
         $validated = $request->validate([
-            'location_id' => 'nullable|exists:locations,id',
+            'location_id' => ['nullable', $this->tenantExists('locations')],
             'category' => 'nullable|string',
             'amount' => 'nullable|numeric',
-            'logged_by' => 'nullable|exists:users,id',
+            'logged_by' => ['nullable', $this->tenantExists('users')],
             'receipt_url' => 'nullable|string',
         ]);
 
