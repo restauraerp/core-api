@@ -1900,6 +1900,52 @@
                 }
             }
         },
+        "/v1/demo-config": {
+            "get": {
+                "operationId": "demo.show",
+                "tags": [
+                    "Demo"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "tenant": {
+                                            "type": "string",
+                                            "description": "The \"restaurant code\" the login form needs alongside the\ncredentials - emails are unique per tenant, not platform-wide."
+                                        },
+                                        "secondary_tenant": {
+                                            "type": "string",
+                                            "description": "The second tenant DemoSeeder builds. Returned so a client can\noffer both restaurants without a second round trip; the front\ncurrently prefills with the primary only."
+                                        },
+                                        "email": {
+                                            "type": "string"
+                                        },
+                                        "password": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "tenant",
+                                        "secondary_tenant",
+                                        "email",
+                                        "password"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFoundHttpException"
+                    }
+                },
+                "security": []
+            }
+        },
         "/v1/discounts": {
             "get": {
                 "operationId": "discounts.index",
@@ -10560,6 +10606,34 @@
                 "tags": [
                     "TaxRule"
                 ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "percentage": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "maximum": 100
+                                    },
+                                    "is_active": {
+                                        "type": "boolean"
+                                    }
+                                },
+                                "required": [
+                                    "name",
+                                    "percentage"
+                                ]
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "201": {
                         "description": "",
@@ -10632,6 +10706,29 @@
                         }
                     }
                 ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "percentage": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "maximum": 100
+                                    },
+                                    "is_active": {
+                                        "type": "boolean"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "",
@@ -14531,6 +14628,25 @@
                 }
             },
             "ModelNotFoundException": {
+                "description": "Not found",
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "message": {
+                                    "type": "string",
+                                    "description": "Error overview."
+                                }
+                            },
+                            "required": [
+                                "message"
+                            ]
+                        }
+                    }
+                }
+            },
+            "NotFoundHttpException": {
                 "description": "Not found",
                 "content": {
                     "application/json": {
