@@ -26,21 +26,19 @@ class OrderController extends Controller
             $query->whereIn('status', is_array($request->statuses) ? $request->statuses : explode(',', $request->statuses));
         }
 
+        // Live floor view: everything still needing attention.
         if ($request->has('active_only')) {
-            $query->where(function ($q) {
-                $q->where(function ($subQ) {
-                    $subQ->where('payment_status', '!=', 'paid')
-                         ->orWhereNull('payment_status');
-                })->orWhere(function ($subQ) {
-                    $subQ->where('payment_status', 'paid')
-                         ->where(function ($statusQ) {
-                             $statusQ->whereNotIn('status', ['served', 'delivered'])
-                                     ->whereNot(function ($packedQ) {
-                                         $packedQ->where('status', 'packed')->where('order_type', 'takeaway');
-                                     });
-                         });
-                });
-            });
+            $query->active();
+        }
+
+        // The Completed tab. Deliberately applies no order_type filter - it
+        // lists finished orders of every type together.
+        //
+        // Note this is never combined with `nopaginate` in practice: completed
+        // orders accumulate forever (a demo tenant already carries ~50k), and
+        // this query eager-loads items, products and images per row.
+        if ($request->has('completed_only')) {
+            $query->completed();
         }
 
         if ($request->has('nopaginate')) {
