@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\InventoryItem;
 use App\Models\Order;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -33,6 +34,16 @@ class ReportController extends Controller
     private const EXCLUDED_STATUSES = ['cancelled', 'canceled', 'failed', 'refunded', 'void', 'rejected'];
 
     private const BUCKETS = ['hour', 'day', 'month'];
+
+    /**
+     * Queries built with the query builder (DB::table) never pass through
+     * Eloquent, so the BelongsToTenant global scope does not apply to them and
+     * they must be filtered by hand.
+     */
+    private function tenantId(): ?int
+    {
+        return app(TenantContext::class)->id();
+    }
 
     /**
      * Base order query with the window, branch and status rules applied.
@@ -167,6 +178,10 @@ class ReportController extends Controller
         $rows = DB::table('order_items')
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->leftJoin('products', 'products.id', '=', 'order_items.product_id')
+            // The subquery is already tenant-scoped (it is an Eloquent Order
+            // query), but stating it on order_items too lets MySQL use the
+            // tenant-leading index instead of filtering after the join.
+            ->where('order_items.tenant_id', $this->tenantId())
             ->whereIn('orders.id', (clone $this->scope($request))->select('id'))
             ->groupBy('order_items.product_id', 'products.name')
             ->selectRaw('
@@ -240,6 +255,10 @@ class ReportController extends Controller
         $scoped = $locationId !== null && $locationId !== '' && $locationId !== 'all';
 
         $stock = DB::table('inventory_item_location')
+            // Without this the aggregate sums every tenant's stock rows before
+            // the per-item lookup below discards the ones that do not match -
+            // a full-table scan that grows with the whole platform.
+            ->where('tenant_id', $this->tenantId())
             ->when($scoped, fn ($q) => $q->where('location_id', $locationId))
             ->groupBy('inventory_item_id')
             ->selectRaw('inventory_item_id, COALESCE(SUM(quantity), 0) as quantity')

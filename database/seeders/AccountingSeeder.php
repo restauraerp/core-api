@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
+use App\Models\Supplier;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 
 class AccountingSeeder extends Seeder
 {
@@ -40,7 +40,13 @@ class AccountingSeeder extends Seeder
             ]
         ];
         
-        DB::table('suppliers')->insert($suppliersData);
-        $this->command->info('✅ AccountingSeeder: Seeded Suppliers.');
+        // Via the model, not DB::table: BelongsToTenant stamps tenant_id on
+        // create, and updateOrCreate keeps this idempotent across the two demo
+        // tenants (and across re-runs).
+        foreach ($suppliersData as $supplier) {
+            Supplier::updateOrCreate(['name' => $supplier['name']], $supplier);
+        }
+
+        $this->command->info('✅ AccountingSeeder: Seeded '.count($suppliersData).' suppliers.');
     }
 }

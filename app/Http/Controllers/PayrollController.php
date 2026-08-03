@@ -19,7 +19,7 @@ class PayrollController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'user_id' => 'required|exists:users,id',
+            'user_id' => ['required', $this->tenantExists('users')],
             'month' => 'required|integer|min:1|max:12',
             'year' => 'required|integer|min:2000',
             'basic_salary' => 'required|numeric|min:0',
@@ -46,7 +46,7 @@ class PayrollController extends Controller
     public function update(Request $request, Payroll $payroll)
     {
         $validated = $request->validate([
-            'user_id' => 'sometimes|exists:users,id',
+            'user_id' => ['sometimes', $this->tenantExists('users')],
             'month' => 'sometimes|integer|min:1|max:12',
             'year' => 'sometimes|integer|min:2000',
             'basic_salary' => 'sometimes|numeric|min:0',

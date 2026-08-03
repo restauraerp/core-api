@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use Database\Seeders\Concerns\SeedsTenantData;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use App\Models\Order;
@@ -15,6 +16,8 @@ use Carbon\Carbon;
 
 class OrderSeeder extends Seeder
 {
+    use SeedsTenantData;
+
     private int $nextOrderId = 1;
     private int $nextExpenseId = 1;
     private int $nextPurchaseOrderId = 1;
@@ -26,7 +29,9 @@ class OrderSeeder extends Seeder
         $tables = Table::all();
         $locations = Location::all();
         $admin = User::first();
-        $suppliers = DB::table('suppliers')->pluck('id')->toArray();
+        // Raw builder query - scope by hand so a tenant's purchase orders never
+        // reference another restaurant's supplier.
+        $suppliers = DB::table('suppliers')->where('tenant_id', $this->tenantId())->pluck('id')->toArray();
         $inventoryItems = InventoryItem::all();
 
         if ($products->isEmpty() || $customers->isEmpty() || $tables->isEmpty()) {
@@ -103,22 +108,25 @@ class OrderSeeder extends Seeder
 
     private function insertChunks(&$ordersData, &$orderItemsData, &$paymentsData, &$ledgersData, &$expensesData, &$purchaseOrdersData, &$purchaseItemsData)
     {
-        if (count($ordersData) > 0) DB::table('orders')->insert($ordersData);
+        // Every insert below is a raw query-builder call, so BelongsToTenant
+        // never sees these rows - stampTenant() supplies the tenant_id that the
+        // creating hook would otherwise have added.
+        if (count($ordersData) > 0) DB::table('orders')->insert($this->stampTenant($ordersData));
         foreach (array_chunk($orderItemsData, 2000) as $chunk) {
-            DB::table('order_items')->insert($chunk);
+            DB::table('order_items')->insert($this->stampTenant($chunk));
         }
         foreach (array_chunk($paymentsData, 2000) as $chunk) {
-            DB::table('payments')->insert($chunk);
+            DB::table('payments')->insert($this->stampTenant($chunk));
         }
 
-        if (count($expensesData) > 0) DB::table('expenses')->insert($expensesData);
-        if (count($purchaseOrdersData) > 0) DB::table('purchase_orders')->insert($purchaseOrdersData);
+        if (count($expensesData) > 0) DB::table('expenses')->insert($this->stampTenant($expensesData));
+        if (count($purchaseOrdersData) > 0) DB::table('purchase_orders')->insert($this->stampTenant($purchaseOrdersData));
         foreach (array_chunk($purchaseItemsData, 2000) as $chunk) {
-            DB::table('purchase_items')->insert($chunk);
+            DB::table('purchase_items')->insert($this->stampTenant($chunk));
         }
 
         foreach (array_chunk($ledgersData, 2000) as $chunk) {
-            DB::table('accounting_ledgers')->insert($chunk);
+            DB::table('accounting_ledgers')->insert($this->stampTenant($chunk));
         }
         
         $ordersData = [];

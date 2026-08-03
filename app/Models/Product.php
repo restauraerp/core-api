@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\BelongsToTenant;
 
 class Product extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'category_id',
         'name',
@@ -30,8 +33,10 @@ class Product extends Model
 
     public function locations()
     {
-        return $this->belongsToMany(Location::class, 'location_product')
-                    ->withPivot('is_available')
-                    ->withTimestamps();
+        return $this->scopedToTenantPivot(
+            $this->belongsToMany(Location::class, 'location_product')
+                ->withPivot('is_available')
+                ->withTimestamps()
+        );
     }
 }

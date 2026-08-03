@@ -15,7 +15,7 @@ class OrganizationController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:organizations,name',
+            'name' => ['required', 'string', 'max:255', $this->tenantUnique('organizations')],
         ]);
 
         $org = Organization::create($validated);

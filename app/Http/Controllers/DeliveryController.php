@@ -15,8 +15,8 @@ class DeliveryController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'order_id' => 'required|exists:orders,id',
-            'rider_id' => 'nullable|exists:users,id',
+            'order_id' => ['required', $this->tenantExists('orders')],
+            'rider_id' => ['nullable', $this->tenantExists('users')],
             'address' => 'nullable|string',
             'delivery_charge' => 'nullable|numeric',
             'status' => 'required|string',
@@ -34,8 +34,8 @@ class DeliveryController extends Controller
     public function update(Request $request, Delivery $delivery)
     {
         $validated = $request->validate([
-            'order_id' => 'sometimes|exists:orders,id',
-            'rider_id' => 'nullable|exists:users,id',
+            'order_id' => ['sometimes', $this->tenantExists('orders')],
+            'rider_id' => ['nullable', $this->tenantExists('users')],
             'address' => 'nullable|string',
             'delivery_charge' => 'nullable|numeric',
             'status' => 'sometimes|string',
