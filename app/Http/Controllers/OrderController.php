@@ -26,21 +26,19 @@ class OrderController extends Controller
             $query->whereIn('status', is_array($request->statuses) ? $request->statuses : explode(',', $request->statuses));
         }
 
+        // Live floor view: everything still needing attention.
         if ($request->has('active_only')) {
-            $query->where(function ($q) {
-                $q->where(function ($subQ) {
-                    $subQ->where('payment_status', '!=', 'paid')
-                         ->orWhereNull('payment_status');
-                })->orWhere(function ($subQ) {
-                    $subQ->where('payment_status', 'paid')
-                         ->where(function ($statusQ) {
-                             $statusQ->whereNotIn('status', ['served', 'delivered'])
-                                     ->whereNot(function ($packedQ) {
-                                         $packedQ->where('status', 'packed')->where('order_type', 'takeaway');
-                                     });
-                         });
-                });
-            });
+            $query->active();
+        }
+
+        // The Completed tab. Deliberately applies no order_type filter - it
+        // lists finished orders of every type together.
+        //
+        // Note this is never combined with `nopaginate` in practice: completed
+        // orders accumulate forever (a demo tenant already carries ~50k), and
+        // this query eager-loads items, products and images per row.
+        if ($request->has('completed_only')) {
+            $query->completed();
         }
 
         if ($request->has('nopaginate')) {
@@ -52,7 +50,7 @@ class OrderController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'location_id' => 'required|exists:locations,id',
+            'location_id' => ['required', $this->tenantExists('locations')],
             'order_type' => 'required|string',
             'status' => 'required|string',
             'payment_status' => 'sometimes|string',
@@ -61,17 +59,17 @@ class OrderController extends Controller
             'discount_amount' => 'required|numeric',
             'delivery_charge' => 'nullable|numeric',
             'total' => 'required|numeric',
-            'table_id' => 'nullable|integer|exists:tables,id',
-            'hall_id' => 'nullable|integer|exists:halls,id',
-            'customer_id' => 'nullable|integer|exists:customers,id',
-            'discount_id' => 'nullable|integer|exists:discounts,id',
+            'table_id' => ['nullable', 'integer', $this->tenantExists('tables')],
+            'hall_id' => ['nullable', 'integer', $this->tenantExists('halls')],
+            'customer_id' => ['nullable', 'integer', $this->tenantExists('customers')],
+            'discount_id' => ['nullable', 'integer', $this->tenantExists('discounts')],
             'payment_method' => 'nullable|string',
             'delivery_time' => 'nullable|date',
             'delivery_address' => 'nullable|string',
             'latitude' => 'nullable|numeric',
             'longitude' => 'nullable|numeric',
             'items' => 'required|array',
-            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.product_id' => ['required', $this->tenantExists('products')],
             'items.*.qty' => 'required|integer|min:1',
             'items.*.price' => 'required|numeric',
             'items.*.notes' => 'nullable|string|max:500',
@@ -121,7 +119,7 @@ class OrderController extends Controller
             'status' => 'sometimes|string',
             'payment_status' => 'sometimes|string',
             'payment_method' => 'sometimes|string',
-            'discount_id' => 'sometimes|nullable|integer|exists:discounts,id',
+            'discount_id' => ['sometimes', 'nullable', 'integer', $this->tenantExists('discounts')],
             'discount_amount' => 'sometimes|numeric',
             'delivery_charge' => 'sometimes|numeric',
             'tax_amount' => 'sometimes|numeric',

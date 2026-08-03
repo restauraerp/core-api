@@ -2,7 +2,9 @@
 
 namespace Database\Seeders;
 
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Str;
 use App\Models\WebsiteSetting;
 use App\Models\SocialLink;
 use App\Models\Page;
@@ -12,6 +14,19 @@ class WebsiteSeeder extends Seeder
 {
     public function run(): void
     {
+        // This seeder runs once per demo tenant, so its copy cannot name a
+        // single restaurant: the second demo tenant would come out branded
+        // "Bangla Bistro" too, and the storefront - which reads site_name -
+        // would show two identical restaurants. The literals below are written
+        // for the first demo tenant and rewritten to the current one at the
+        // point of insert (see $brand()).
+        $tenant = app(TenantContext::class)->get();
+        $tenantName = $tenant?->name ?? 'Bangla Bistro';
+        $tenantHandle = Str::slug($tenantName, '');
+
+        $brand = fn (mixed $value): mixed => is_string($value)
+            ? str_replace(['Bangla Bistro', 'banglabistro'], [$tenantName, $tenantHandle], $value)
+            : $value;
         // ── Website Settings (Brand & Contact) ──────────────────────────
         $settings = [
             // Brand Identity
@@ -54,7 +69,7 @@ class WebsiteSeeder extends Seeder
 
         foreach ($settings as $s) {
             WebsiteSetting::updateOrCreate(['key' => $s['key']], [
-                'value' => $s['value'],
+                'value' => $brand($s['value']),
                 'type'  => $s['type'],
             ]);
         }
@@ -68,9 +83,11 @@ class WebsiteSeeder extends Seeder
             ['platform' => 'whatsapp',   'url' => 'https://wa.me/8801700000000',          'is_active' => 1],
         ];
 
-        SocialLink::truncate();
+        // NOT truncate(): that ignores the tenant global scope and would wipe
+        // every restaurant's social links, not just this one's.
+        SocialLink::query()->delete();
         foreach ($socialLinks as $link) {
-            SocialLink::create($link);
+            SocialLink::create(array_map($brand, $link));
         }
 
         // ── CMS Pages ────────────────────────────────────────────────────
@@ -99,7 +116,7 @@ class WebsiteSeeder extends Seeder
         ];
 
         foreach ($pages as $p) {
-            Page::updateOrCreate(['slug' => $p['slug']], $p);
+            Page::updateOrCreate(['slug' => $p['slug']], array_map($brand, $p));
         }
 
         // ── Google Reviews ────────────────────────────────────────────────
@@ -112,9 +129,10 @@ class WebsiteSeeder extends Seeder
             ['author_name' => 'Farzana Begum',  'rating' => 5, 'is_displayed' => 1, 'time' => now()->subDays(5)->toDateTimeString(),  'text' => 'Best tiramisu I have ever had. Ordered delivery and it arrived hot and well-packaged. Will definitely order again!'],
         ];
 
-        GoogleReview::truncate();
+        // Scoped delete - see the SocialLink note above.
+        GoogleReview::query()->delete();
         foreach ($reviews as $r) {
-            GoogleReview::create($r);
+            GoogleReview::create(array_map($brand, $r));
         }
 
         $this->command->info('✅ WebsiteSeeder: Seeded ' . count($settings) . ' settings, ' . count($socialLinks) . ' social links, ' . count($pages) . ' pages, ' . count($reviews) . ' reviews.');

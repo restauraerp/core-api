@@ -4,9 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Enums\LocationType;
+use App\Models\Concerns\BelongsToTenant;
 
 class Location extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'name',
         'slug',

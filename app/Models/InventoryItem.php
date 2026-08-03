@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\BelongsToTenant;
 
 class InventoryItem extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'title',
         'image',
@@ -19,8 +22,10 @@ class InventoryItem extends Model
 
     public function locations()
     {
-        return $this->belongsToMany(Location::class, 'inventory_item_location')
-                    ->withPivot('quantity', 'is_active')
-                    ->withTimestamps();
+        return $this->scopedToTenantPivot(
+            $this->belongsToMany(Location::class, 'inventory_item_location')
+                ->withPivot('quantity', 'is_active')
+                ->withTimestamps()
+        );
     }
 }

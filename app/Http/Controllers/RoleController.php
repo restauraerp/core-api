@@ -19,7 +19,7 @@ class RoleController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name' => 'required|string|unique:roles|max:255',
+            'name' => ['required', 'string', 'max:255', $this->tenantUnique('roles')],
             'guard_name' => 'nullable|string|max:255',
             'permissions' => 'nullable|array',
             'permissions.*' => 'exists:permissions,name'
@@ -47,7 +47,7 @@ class RoleController extends Controller
     public function update(Request $request, Role $role)
     {
         $validated = $request->validate([
-            'name' => 'sometimes|string|max:255|unique:roles,name,' . $role->id,
+            'name' => ['sometimes', 'string', 'max:255', $this->tenantUnique('roles')->ignore($role->id)],
             'guard_name' => 'nullable|string|max:255',
             'permissions' => 'nullable|array',
             'permissions.*' => 'exists:permissions,name'

@@ -31,12 +31,12 @@ class CustomerController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'phone' => 'required|string|max:20|unique:customers,phone',
+            'phone' => ['required', 'string', 'max:20', $this->tenantUnique('customers')],
             'email' => 'nullable|email|max:255',
             'address' => 'nullable|string',
             'loyalty_points' => 'nullable|integer',
             'tier' => 'nullable|string|max:50',
-            'organization_id' => 'nullable|integer|exists:organizations,id',
+            'organization_id' => ['nullable', 'integer', $this->tenantExists('organizations')],
             'organization_name' => 'nullable|string|max:255',
             'google_map_location' => 'nullable|string',
         ]);
@@ -61,12 +61,12 @@ class CustomerController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'phone' => 'required|string|max:20|unique:customers,phone,' . $customer->id,
+            'phone' => ['required', 'string', 'max:20', $this->tenantUnique('customers')->ignore($customer->id)],
             'email' => 'nullable|email|max:255',
             'address' => 'nullable|string',
             'loyalty_points' => 'nullable|integer',
             'tier' => 'nullable|string|max:50',
-            'organization_id' => 'nullable|integer|exists:organizations,id',
+            'organization_id' => ['nullable', 'integer', $this->tenantExists('organizations')],
             'organization_name' => 'nullable|string|max:255',
             'google_map_location' => 'nullable|string',
         ]);

@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Concerns\BelongsToTenant;
 
 class Tag extends Model
 {
+    use BelongsToTenant;
+
     protected $fillable = [
         'name',
         'slug',
@@ -15,6 +18,8 @@ class Tag extends Model
 
     public function products()
     {
-        return $this->belongsToMany(Product::class);
+        return $this->scopedToTenantPivot(
+            $this->belongsToMany(Product::class)
+        );
     }
 }

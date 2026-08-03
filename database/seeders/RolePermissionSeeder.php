@@ -2,86 +2,49 @@
 
 namespace Database\Seeders;
 
+use App\Support\Tenancy\RoleDefinitions;
 use Illuminate\Database\Seeder;
-use Spatie\Permission\Models\Role;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
+/**
+ * Installs the *global* half of the authorisation model:
+ *
+ *   - the permission catalogue, which Spatie keeps global even under teams
+ *     (permission names map 1:1 to hardcoded frontend route guards)
+ *   - the platform-level super_admin role, at tenant_id = NULL
+ *
+ * Per-tenant roles (restaurant_admin, branch_manager, ...) are NOT created
+ * here - TenantProvisioner stamps them into each tenant as it is created.
+ */
 class RolePermissionSeeder extends Seeder
 {
     public function run(): void
     {
-        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
+        $registrar = app(PermissionRegistrar::class);
+        $registrar->forgetCachedPermissions();
 
-        $permissions = [
-            'view_dashboard',
-            
-            'view_pos', 'create_pos_order',
-            
-            'view_orders', 'update_order_status', 'delete_order',
-            
-            'view_catalog', 'create_catalog_item', 'update_catalog_item', 'delete_catalog_item',
-            
-            'view_inventory', 'create_inventory_item', 'update_inventory_item', 'delete_inventory_item',
-            
-            'view_kitchen_kiosk', 'update_kiosk_status',
-            
-            'view_hr', 'manage_employees', 'manage_attendance', 'manage_leaves', 'manage_payroll', 'manage_roles_permissions',
-            
-            'view_delivery', 'update_delivery_status',
-            
-            'view_crm', 'manage_customers', 'manage_loyalty_settings',
-            
-            'view_locations', 'create_location', 'update_location', 'delete_location',
-            
-            'view_accounting', 'manage_ledgers', 'manage_expenses',
-            
-            'view_website', 'manage_website_content',
-            
-            'view_settings', 'manage_system_settings',
-            
-            'view_reporting'
-        ];
+        // Global roles live outside any tenant. Without this the role below
+        // would inherit whatever team id happens to be set and quietly stop
+        // being global.
+        $registrar->setPermissionsTeamId(null);
 
-        foreach ($permissions as $permission) {
-            Permission::firstOrCreate(['name' => $permission]);
+        foreach (RoleDefinitions::permissions() as $permission) {
+            Permission::firstOrCreate([
+                'name' => $permission,
+                'guard_name' => 'web',
+            ]);
         }
 
-        $superAdmin = Role::firstOrCreate(['name' => 'super_admin']);
-        $superAdmin->givePermissionTo(Permission::all());
-
-        $admin = Role::firstOrCreate(['name' => 'admin']);
-        $admin->givePermissionTo(Permission::all());
-
-        $chef = Role::firstOrCreate(['name' => 'chef']);
-        $chef->givePermissionTo(['view_kitchen_kiosk', 'update_kiosk_status']);
-
-        $posManager = Role::firstOrCreate(['name' => 'pos_manager']);
-        $posManager->givePermissionTo([
-            'view_dashboard', 
-            'view_pos', 'create_pos_order',
-            'view_orders', 'update_order_status'
+        $superAdmin = Role::firstOrCreate([
+            'name' => RoleDefinitions::SUPER_ADMIN,
+            'guard_name' => 'web',
+            'tenant_id' => null,
         ]);
 
-        $branchManager = Role::firstOrCreate(['name' => 'branch_manager']);
-        $branchManager->givePermissionTo([
-            'view_dashboard',
-            'view_pos', 'create_pos_order',
-            'view_orders', 'update_order_status',
-            'view_inventory', 'update_inventory_item',
-            'view_hr', 'manage_employees', 'manage_attendance', 'manage_leaves', 'manage_payroll',
-            'view_reporting'
-        ]);
+        $superAdmin->syncPermissions(Permission::all());
 
-        $rider = Role::firstOrCreate(['name' => 'rider']);
-        $rider->givePermissionTo(['view_delivery', 'update_delivery_status']);
-
-        $accountant = Role::firstOrCreate(['name' => 'accountant']);
-        $accountant->givePermissionTo([
-            'view_dashboard',
-            'view_accounting', 
-            'manage_ledgers', 
-            'manage_expenses',
-            'view_reporting'
-        ]);
+        $registrar->forgetCachedPermissions();
     }
 }

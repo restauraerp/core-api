@@ -15,7 +15,7 @@ class PageController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'slug' => 'required|string|unique:pages|max:255',
+            'slug' => ['required', 'string', 'max:255', $this->tenantUnique('pages')],
             'title' => 'required|string|max:255',
             'content' => 'nullable|string',
             'meta_title' => 'nullable|string|max:255',
@@ -34,7 +34,7 @@ class PageController extends Controller
     public function update(Request $request, Page $page)
     {
         $validated = $request->validate([
-            'slug' => 'sometimes|string|max:255|unique:pages,slug,' . $page->id,
+            'slug' => ['sometimes', 'string', 'max:255', $this->tenantUnique('pages')->ignore($page->id)],
             'title' => 'sometimes|string|max:255',
             'content' => 'nullable|string',
             'meta_title' => 'nullable|string|max:255',

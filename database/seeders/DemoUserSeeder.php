@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Support\Tenancy\RoleDefinitions;
 use Illuminate\Database\Seeder;
 use App\Models\User;
 use App\Models\Location;
@@ -25,20 +26,26 @@ class DemoUserSeeder extends Seeder
                 'phone' => '01711000001',
             ]
         );
-        $admin->assignRole('admin');
+        // Was 'admin'; that role is now called restaurant_admin, to read
+        // unambiguously next to the platform-level super_admin.
+        $admin->assignRole(RoleDefinitions::RESTAURANT_ADMIN);
 
-        // Create Super Admin for demo purposes (optional since AdminUserSeeder creates the main one)
-        $superAdmin = User::updateOrCreate(
+        // A second owner-level login, useful for demoing two people managing
+        // the same restaurant. Deliberately NOT super_admin: that is a platform
+        // role now, and handing it to a demo account would imply cross-tenant
+        // reach this user must not have. The real platform admin comes from
+        // AdminUserSeeder.
+        $secondOwner = User::updateOrCreate(
             ['email' => 'superadmin@demo.com'],
             [
-                'name' => 'Demo Super Admin',
+                'name' => 'Demo Owner',
                 'password' => $password,
                 'email_verified_at' => now(),
                 'location_id' => $locations->first()?->id,
                 'phone' => '01711000000',
             ]
         );
-        $superAdmin->assignRole('super_admin');
+        $secondOwner->assignRole(RoleDefinitions::RESTAURANT_ADMIN);
 
         // Create Branch Managers, POS Managers, and Chefs for each location
         foreach ($locations as $index => $location) {

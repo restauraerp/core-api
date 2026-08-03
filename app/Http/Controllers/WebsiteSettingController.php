@@ -15,7 +15,7 @@ class WebsiteSettingController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'key' => 'required|string|unique:website_settings|max:255',
+            'key' => ['required', 'string', 'max:255', $this->tenantUnique('website_settings')],
             'value' => 'nullable|string',
             'type' => 'nullable|string|max:255',
         ]);
@@ -32,7 +32,7 @@ class WebsiteSettingController extends Controller
     public function update(Request $request, WebsiteSetting $websiteSetting)
     {
         $validated = $request->validate([
-            'key' => 'sometimes|string|max:255|unique:website_settings,key,' . $websiteSetting->id,
+            'key' => ['sometimes', 'string', 'max:255', $this->tenantUnique('website_settings')->ignore($websiteSetting->id)],
             'value' => 'nullable|string',
             'type' => 'nullable|string|max:255',
         ]);

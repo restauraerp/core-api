@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
-         bootstrap="vendor/autoload.php"
+         bootstrap="tests/bootstrap.php"
          colors="true"
 >
     <testsuites>
@@ -18,16 +18,27 @@
         </include>
     </source>
     <php>
-        <env name="APP_ENV" value="testing"/>
+        <!--
+            force="true" is load-bearing on every DB setting below.
+
+            docker-compose starts core-api with `env_file: ./core-api/.env`, so
+            DB_DATABASE=restoraerp is a real process environment variable inside
+            the container. PHPUnit does NOT override an env var that already
+            exists unless force="true" - so without it these values are silently
+            ignored, the suite connects to the DEVELOPMENT database, and
+            RefreshDatabase wipes it on every run.
+        -->
+        <env name="APP_ENV" value="testing" force="true"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
-        <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="mysql"/>
-        <env name="DB_DATABASE" value="restoraerp_test"/>
-        <env name="DB_HOST" value="mysql"/>
-        <env name="DB_USERNAME" value="root"/>
-        <env name="DB_PASSWORD" value="secret"/>
+        <env name="CACHE_STORE" value="array" force="true"/>
+        <env name="DB_CONNECTION" value="mysql" force="true"/>
+        <env name="DB_DATABASE" value="restoraerp_test" force="true"/>
+        <env name="DB_HOST" value="mysql" force="true"/>
+        <env name="DB_PORT" value="3369" force="true"/>
+        <env name="DB_USERNAME" value="root" force="true"/>
+        <env name="DB_PASSWORD" value="secret" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
