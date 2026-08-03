@@ -123,6 +123,14 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    // Whether this deployment is the public demo. Off by default and
+    // deliberately separate from "DemoSeeder has been run": seeded demo data is
+    // harmless anywhere, but this flag is what publishes the credentials below
+    // over an unauthenticated endpoint, so it must never be true on a customer
+    // install. Read at request time, so toggling it needs no rebuild anywhere -
+    // the front discovers demo mode from the API rather than baking it in.
+    'demo_mode' => filter_var(env('DEMO_MODE', false), FILTER_VALIDATE_BOOLEAN),
+
     'demo_username' => env('DEMO_USERNAME', 'admin@demo.com'),
     'demo_password' => env('DEMO_PASSWORD', 'password'),
 

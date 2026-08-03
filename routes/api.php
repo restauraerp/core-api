@@ -28,6 +28,16 @@ Route::prefix('v1')->group(function () {
     // Public Order API
     Route::post('storefront/orders', [\App\Http\Controllers\OrderController::class, 'store']);
 
+    // Demo credentials, for clients that were asked for a demo (the front's
+    // /login?demo=true). 404s unless DEMO_MODE is on.
+    //
+    // ResolveTenant is skipped deliberately: it is appended to the whole api
+    // group and 400s any unauthenticated request without an X-Tenant-ID header,
+    // but which tenant the demo lives in is precisely what this call answers.
+    Route::get('demo-config', [\App\Http\Controllers\DemoController::class, 'show'])
+        ->middleware('throttle:30,1')
+        ->withoutMiddleware(\App\Http\Middleware\ResolveTenant::class);
+
     // Auth & Users API
     Route::post('auth/register', [\App\Http\Controllers\AuthController::class, 'register']);
     Route::post('auth/login', [\App\Http\Controllers\AuthController::class, 'login']);
