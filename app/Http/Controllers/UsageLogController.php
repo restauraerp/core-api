@@ -15,10 +15,15 @@ class UsageLogController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            
+            'user_id' => ['nullable', 'integer', $this->tenantExists('users')],
+            'action' => 'nullable|string|max:255',
+            'target_table' => 'nullable|string|max:255',
+            'target_id' => 'nullable|integer',
+            'ip_address' => 'nullable|string|max:45',
         ]);
 
         $usageLog = UsageLog::create($validated);
+
         return response()->json($usageLog, 201);
     }
 
@@ -30,16 +35,22 @@ class UsageLogController extends Controller
     public function update(Request $request, UsageLog $usageLog)
     {
         $validated = $request->validate([
-            
+            'user_id' => ['nullable', 'integer', $this->tenantExists('users')],
+            'action' => 'nullable|string|max:255',
+            'target_table' => 'nullable|string|max:255',
+            'target_id' => 'nullable|integer',
+            'ip_address' => 'nullable|string|max:45',
         ]);
 
         $usageLog->update($validated);
+
         return response()->json($usageLog);
     }
 
     public function destroy(UsageLog $usageLog)
     {
         $usageLog->delete();
+
         return response()->json(null, 204);
     }
 }

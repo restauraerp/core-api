@@ -20,7 +20,7 @@ class TenantFactory extends Factory
         return [
             'name' => $name,
             'slug' => Str::slug($name).'-'.Str::lower(Str::random(6)),
-            'plan' => 'cloud',
+            'plan' => 'enterprise',
             'status' => 'active',
             'max_outlets' => null,
             'contact_email' => fake()->safeEmail(),

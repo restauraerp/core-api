@@ -33,10 +33,15 @@ class AccountingLedgerController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            
+            'location_id' => ['required', 'integer', $this->tenantExists('locations')],
+            'transaction_type' => 'nullable|string|max:255',
+            'amount' => 'nullable|numeric',
+            'reference_id' => 'nullable|integer',
+            'description' => 'nullable|string',
         ]);
 
         $accountingLedger = AccountingLedger::create($validated);
+
         return response()->json($accountingLedger, 201);
     }
 
@@ -48,16 +53,22 @@ class AccountingLedgerController extends Controller
     public function update(Request $request, AccountingLedger $accountingLedger)
     {
         $validated = $request->validate([
-            
+            'location_id' => ['sometimes', 'required', 'integer', $this->tenantExists('locations')],
+            'transaction_type' => 'nullable|string|max:255',
+            'amount' => 'nullable|numeric',
+            'reference_id' => 'nullable|integer',
+            'description' => 'nullable|string',
         ]);
 
         $accountingLedger->update($validated);
+
         return response()->json($accountingLedger);
     }
 
     public function destroy(AccountingLedger $accountingLedger)
     {
         $accountingLedger->delete();
+
         return response()->json(null, 204);
     }
 }

@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Location;
-use App\Models\Image;
 use App\Enums\LocationType;
+use App\Models\Location;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rules\Enum;
 
@@ -22,6 +22,25 @@ class LocationController extends Controller
 
     public function store(Request $request)
     {
+        // The outlet cap is what a customer is actually buying between Starter
+        // and Business, and until now it was declared on the tenant and never
+        // checked - one restaurant was running five outlets on a two-outlet
+        // plan. Enforced here rather than in validation because it is not a
+        // problem with the request: the payload is fine, the subscription is
+        // not.
+        $tenant = app(TenantContext::class)->get();
+
+        if ($tenant !== null && $tenant->hasReachedOutletLimit()) {
+            return response()->json([
+                'message' => 'Your plan does not include another outlet.',
+                'error' => 'outlet_limit_reached',
+                'plan' => $tenant->plan,
+                'plan_name' => $tenant->planLabel(),
+                'outlet_limit' => $tenant->outletLimit(),
+                'outlets_used' => $tenant->locations()->count(),
+            ], 403);
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'type' => ['nullable', 'string', new Enum(LocationType::class)],
@@ -67,6 +86,7 @@ class LocationController extends Controller
     public function show($identifier)
     {
         $location = Location::where('id', $identifier)->orWhere('slug', $identifier)->firstOrFail();
+
         return response()->json($location->load(['halls', 'tables', 'cctvCameras', 'images', 'videos', 'featuredImage', 'featuredVideo']));
     }
 
@@ -123,6 +143,7 @@ class LocationController extends Controller
     public function destroy(Location $location)
     {
         $location->delete();
+
         return response()->json(null, 204);
     }
 }

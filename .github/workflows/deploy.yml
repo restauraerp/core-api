@@ -80,7 +80,12 @@ jobs:
 
       - name: Activate release (link shared, migrate, flip current, restart)
         run: |
-          ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" "RELEASE='$RELEASE' bash -s" <<'DEPLOY'
+          # Keepalives: the demo refresh at the end of this script reseeds two
+          # years of orders and can hold the connection open for minutes with
+          # no output. Without them an idle timeout kills otherwise fine deploys.
+          ssh -i ~/.ssh/id_deploy \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
+            "$DEPLOY_USER@$DEPLOY_HOST" "RELEASE='$RELEASE' bash -s" <<'DEPLOY'
           set -euo pipefail
           APP=/var/www/core-api
           REL="$APP/releases/$RELEASE"
@@ -122,8 +127,14 @@ jobs:
 
           cd "$REL"
           php artisan version:copy
-          nohup ./demodata.sh > /dev/null 2>&1 &
           php artisan storage:link
+
+          # Schema, on every box, every release. This used to happen only as a
+          # side effect of demodata.sh's `migrate:fresh` - which is also why a
+          # tag push wiped the production database. Plain `migrate` applies
+          # what is pending and drops nothing.
+          php artisan migrate --force
+
           php artisan optimize
 
           # Atomic cutover.
@@ -142,4 +153,18 @@ jobs:
           cd "$APP/releases"
           ls -1dt */ | tail -n +6 | xargs -r rm -rf
           echo "Deployed $RELEASE"
+
+          # Demo data, last and only on the demo box.
+          #
+          # --if-demo makes this a no-op exiting 0 wherever DEMO_MODE is not
+          # true, so the same block is safe on a customer install. The command
+          # itself only ever rebuilds the demo tenant; every other restaurant
+          # on the box is left alone.
+          #
+          # Not backgrounded and not silenced, unlike the `nohup ./demodata.sh
+          # > /dev/null 2>&1 &` this replaces: a failed refresh now fails the
+          # job instead of disappearing. It runs after the health check so a
+          # seeding failure cannot hold back a release that is already serving.
+          cd "$APP/current"
+          php artisan demo:refresh --force --if-demo --isolated
           DEPLOY

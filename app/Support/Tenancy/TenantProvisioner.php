@@ -11,6 +11,7 @@ use App\Models\TaxRule;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WebsiteSetting;
+use App\Support\Billing\Plans;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -33,9 +34,7 @@ use Spatie\Permission\Models\Role;
  */
 class TenantProvisioner
 {
-    public function __construct(private TenantContext $context)
-    {
-    }
+    public function __construct(private TenantContext $context) {}
 
     /**
      * Create a tenant and populate it.
@@ -46,7 +45,8 @@ class TenantProvisioner
     {
         return DB::transaction(function () use ($attributes, $owner) {
             $attributes['slug'] ??= $this->uniqueSlug($attributes['name']);
-            $attributes['max_outlets'] ??= Tenant::PLAN_OUTLET_LIMITS[$attributes['plan'] ?? 'shared'] ?? 2;
+            $attributes['plan'] ??= Plans::default();
+            $attributes['max_outlets'] ??= Plans::outletLimit($attributes['plan']);
 
             $tenant = Tenant::create($attributes);
 
@@ -66,7 +66,7 @@ class TenantProvisioner
         // Everything below writes through the tenant global scope and Spatie's
         // team id, both of which runFor() sets and restores.
         return $this->context->runFor($tenant, function () use ($tenant, $owner) {
-            $this->createRoles();
+            $this->createRoles($tenant);
             $this->createDefaultLocation($tenant);
             $this->createProductCategories();
             $this->createTags();
@@ -86,9 +86,23 @@ class TenantProvisioner
      * Per-tenant copies of every role template. Permissions themselves stay
      * global - see RoleDefinitions.
      */
-    private function createRoles(): void
+    public function createRoles(?Tenant $tenant = null): void
     {
-        $allPermissions = Permission::whereIn('name', RoleDefinitions::permissions())->get();
+        $tenant ??= $this->context->get();
+
+        // Every role is capped by what the tenant's tier includes, so a Starter
+        // restaurant's owner simply has no CRM or HR permissions - and the
+        // front, which renders its navigation from the permission list, hides
+        // those modules without needing to know anything about plans.
+        //
+        // The API is guarded separately by the `module:` middleware: a role is
+        // editable by the tenant, so permissions alone would be an entitlement
+        // check the customer controls.
+        $entitled = $tenant !== null && Plans::exists((string) $tenant->plan)
+            ? Plans::permissions((string) $tenant->plan)
+            : RoleDefinitions::permissions();
+
+        $allPermissions = Permission::whereIn('name', $entitled)->get();
 
         foreach (RoleDefinitions::tenantRoles() as $roleName => $permissions) {
             $role = Role::firstOrCreate([
@@ -97,8 +111,8 @@ class TenantProvisioner
                 'tenant_id' => $this->context->id(),
             ]);
 
-            // null = every permission, so the owner role keeps picking up
-            // permissions added in later releases.
+            // null = every permission the tier includes, so the owner role
+            // keeps picking up permissions added in later releases.
             $role->syncPermissions(
                 $permissions === null
                     ? $allPermissions

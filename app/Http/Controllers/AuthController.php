@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Support\Billing\SubscriptionNotice;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -85,6 +86,12 @@ class AuthController extends Controller
         // to keep sending the right X-Tenant-ID after a reload.
         $user->tenant = $tenant->get();
         $user->is_platform_admin = $user->isPlatformAdmin();
+
+        // Billing state, so the admin can show a read-only banner on load
+        // rather than waiting for the user to lose work on a refused save.
+        $user->subscription = $tenant->get() !== null
+            ? SubscriptionNotice::status($tenant->get())
+            : null;
 
         return response()->json($user);
     }
