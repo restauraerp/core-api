@@ -18,7 +18,34 @@ class CreateTenant extends Command
         {--owner-password= : Owner password (generated and printed if omitted)}
         {--owner-phone= : Owner phone number}';
 
-    protected $description = 'Create a new tenant and populate it with the data a restaurant needs to start';
+    protected $description = 'Create a new tenant and populate it with the data a restaurant needs to start [--slug= --plan= --owner-*]';
+
+    protected $help = <<<'HELP'
+        Creates the tenant and provisions it: roles, a head-office location, product
+        categories, tags, starter website content and pages, loyalty settings and an
+        inactive VAT rule. It starts on a 14-day trial.
+
+        The slug is the restaurant code the owner types on the login form and the value
+        sent in the X-Tenant-ID header. Omit it and one is derived from the name, with a
+        numeric suffix if that slug is taken.
+
+        Passing --owner-email also creates a restaurant_admin user. Without
+        --owner-password a password is generated and printed once - copy it before the
+        output scrolls away.
+
+        Examples:
+          <info>php artisan tenants:create "Bangla Bistro"</info>
+            Slug derived from the name, shared plan, no owner user.
+
+          <info>php artisan tenants:create "Bangla Bistro" --slug=bangla-bistro --plan=dedicated</info>
+            Explicit restaurant code, 5-outlet plan.
+
+          <info>php artisan tenants:create "Spice Garden" --owner-email=owner@spicegarden.com</info>
+            Creates the owner too, printing a generated password.
+
+          <info>php artisan tenants:create "Spice Garden" --plan=cloud --owner-email=owner@spicegarden.com --owner-name="Rahim Uddin" --owner-password='s3cret!' --owner-phone=+8801700000000</info>
+            Everything set explicitly - unlimited outlets, no generated password.
+        HELP;
 
     public function handle(TenantProvisioner $provisioner): int
     {
