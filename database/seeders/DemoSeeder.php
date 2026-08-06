@@ -8,17 +8,24 @@ use App\Support\Tenancy\TenantProvisioner;
 use Illuminate\Database\Seeder;
 
 /**
- * Demo content for the public demo box, reseeded nightly by the cron in
- * infra/templates/user_data.sh.tpl.
+ * Demo content for the public demo box, rebuilt by `demo:refresh` - nightly
+ * from the cron in infra/templates/user_data.sh.tpl, and on every deploy.
  *
- * Two tenants, not one. The demo is the only place tenant isolation is
- * continuously exercised against realistic data, and a scoping regression is
- * obvious here in a way it never is with a single tenant: the second
- * restaurant's orders start showing up in the first one's dashboard.
+ * One tenant, not two. This used to build a second restaurant ("Spice Garden")
+ * on the argument that a scoping regression would show up as one restaurant's
+ * orders appearing in the other's dashboard. That check now lives in
+ * tests/Feature/TenantIsolationTest.php, where it fails a build instead of
+ * waiting for someone to notice a wrong number on a demo dashboard. What was
+ * left was a second fictional restaurant that confused visitors and doubled a
+ * reseed that already inserts two years of orders.
  *
- * The per-tenant seeders below are unchanged in spirit - they still use
- * Eloquent models, so running them inside TenantContext::runFor() is enough to
- * scope every read and stamp tenant_id on every write.
+ * The per-tenant seeders below use Eloquent models, so running them inside
+ * TenantContext::runFor() is enough to scope every read and stamp tenant_id on
+ * every write.
+ *
+ * Not idempotent, by way of OrderSeeder - seeding a tenant that already has
+ * orders adds a second set rather than updating them. `demo:refresh` deletes
+ * the tenant before calling this, which is the supported way to re-run it.
  */
 class DemoSeeder extends Seeder
 {
@@ -43,43 +50,34 @@ class DemoSeeder extends Seeder
 
     public function run(): void
     {
-        $tenants = [
-            [
-                'name' => 'Bangla Bistro',
-                'slug' => config('app.demo_tenant_slug'),
-                'plan' => 'cloud',
-            ],
-            [
-                'name' => 'Spice Garden',
-                'slug' => config('app.demo_tenant_secondary_slug'),
-                'plan' => 'shared',
-            ],
+        $attributes = [
+            'name' => 'Bangla Bistro',
+            'slug' => config('app.demo_tenant_slug'),
+            'plan' => 'cloud',
         ];
 
         $context = app(TenantContext::class);
         $provisioner = app(TenantProvisioner::class);
 
-        foreach ($tenants as $attributes) {
-            $tenant = Tenant::where('slug', $attributes['slug'])->first();
+        $tenant = Tenant::where('slug', $attributes['slug'])->first();
 
-            if ($tenant === null) {
-                $tenant = $provisioner->create($attributes + [
-                    'status' => 'active',
-                    'contact_email' => config('app.demo_username'),
-                ]);
-            } else {
-                $provisioner->provision($tenant);
-            }
-
-            $this->command?->info("── Seeding demo tenant \"{$tenant->name}\" (code: {$tenant->slug}) ──");
-
-            $context->runFor($tenant, function () {
-                foreach (self::PER_TENANT_SEEDERS as $seeder) {
-                    $this->call($seeder);
-                }
-            });
+        if ($tenant === null) {
+            $tenant = $provisioner->create($attributes + [
+                'status' => 'active',
+                'contact_email' => config('app.demo_username'),
+            ]);
+        } else {
+            $provisioner->provision($tenant);
         }
 
-        $this->command?->info('✅ DemoSeeder: '.count($tenants).' demo tenants seeded.');
+        $this->command?->info("── Seeding demo tenant \"{$tenant->name}\" (code: {$tenant->slug}) ──");
+
+        $context->runFor($tenant, function () {
+            foreach (self::PER_TENANT_SEEDERS as $seeder) {
+                $this->call($seeder);
+            }
+        });
+
+        $this->command?->info("✅ DemoSeeder: \"{$tenant->name}\" (code: {$tenant->slug}) seeded.");
     }
 }

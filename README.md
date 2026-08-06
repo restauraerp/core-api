@@ -54,11 +54,11 @@ php artisan tenants:create "Bangla Bistro"
 php artisan tenants:create "Bangla Bistro" --slug=bangla-bistro --plan=dedicated
 
 # Creates the owner too, printing a generated password
-php artisan tenants:create "Spice Garden" --owner-email=owner@spicegarden.com
+php artisan tenants:create "Dhaka Grill House" --owner-email=owner@dhakagrill.com
 
 # Everything set explicitly
-php artisan tenants:create "Spice Garden" --plan=cloud \
-    --owner-email=owner@spicegarden.com --owner-name="Rahim Uddin" \
+php artisan tenants:create "Dhaka Grill House" --plan=cloud \
+    --owner-email=owner@dhakagrill.com --owner-name="Rahim Uddin" \
     --owner-password='s3cret!' --owner-phone=+8801700000000
 ```
 
@@ -176,6 +176,95 @@ php artisan tenants:remove 7 --force
 # Drop the rows, keep the files
 php artisan tenants:remove 7 --keep-assets
 ```
+
+### `demo:refresh` — rebuild the demo restaurant
+
+```bash
+php artisan demo:refresh [--force] [--if-demo] [--dry-run] [--keep-assets] [--skip-baseline]
+```
+
+Takes no arguments — which tenant is the demo comes from `DEMO_TENANT_SLUG`.
+
+| Parameter | Required | Value | Description |
+| --- | --- | --- | --- |
+| `--force` | no | flag, no value | Skip the confirmation prompt. Required from cron and CI: with no TTY the prompt defaults to "no" and the refresh silently does nothing. |
+| `--if-demo` | no | flag, no value | On a box where `DEMO_MODE` is not true, print a notice and exit 0 instead of failing. Lets one deploy pipeline and one cron line be safe on every box. |
+| `--dry-run` | no | flag, no value | Report what would be rebuilt and change nothing — no migrations, no seeding, no deletion. |
+| `--keep-assets` | no | flag, no value | Leave the demo tenant's uploaded files on disk while its rows are rebuilt. |
+| `--skip-baseline` | no | flag, no value | Skip the `migrate` + baseline seed step. Rarely needed; they are cheap and idempotent. |
+| `--isolated` | no | flag, no value | Standard Laravel isolation lock. Stops the 04:00 cron colliding with a release tagged at 04:00. |
+
+**This is the only supported way to (re)import demo data.** `demodata.sh`, the deploy
+workflow and the production cron all funnel through it.
+
+What it does, in order:
+
+1. `migrate --force` — **never** `migrate:fresh`. Applies what is pending, drops nothing.
+2. `db:seed --force` — the baseline (global permissions, the install tenant, the platform
+   admin). All find-or-create, so it is safe on a populated database; `AdminUserSeeder`
+   only sets a password on first creation, so a changed one survives.
+3. `tenants:remove <demo-slug> --force` — the demo tenant's rows, sessions, tokens and
+   uploaded files, plus any legacy demo tenant listed in `DEMO_LEGACY_TENANT_SLUGS`.
+4. `db:seed --class=DemoSeeder --force` — rebuilds Bangla Bistro from scratch.
+
+**It never drops a table and never touches a tenant other than the demo one.** That is
+the entire point: this replaced `migrate:fresh --seed`, which dropped every table in the
+database and destroyed a real customer tenant created with `tenants:create`.
+
+Step 3 deletes rather than re-seeding over the top because `OrderSeeder` derives its IDs
+from `MAX(id)+1` and bulk-inserts two years of orders — seeding a tenant that already has
+data doubles it. A clean tenant is what `migrate:fresh` was really providing.
+
+#### The DEMO_MODE gate
+
+The command only runs where `DEMO_MODE=true`. That is deliberately a property of the
+**box**, not of the command line: a cron entry, a deploy script or a copy-pasted command
+cannot carry the permission with it to a customer install. `DEMO_MODE` already means
+exactly this — `config/app.php` documents it as "must never be true on a customer
+install", it defaults to `false`, and `GET /api/v1/demo-config` 404s without it.
+
+`--force` stays orthogonal: it means "no TTY, don't prompt", nothing more. Without
+`--if-demo` a non-demo box gets a hard, non-zero failure; with it, a notice and exit 0.
+
+Two further guards cannot be flagged past: the command refuses if `DEMO_TENANT_SLUG` is
+empty, or if it equals `INSTALL_TENANT_SLUG` — a `.env` typo must not be able to point
+the deletion at the install tenant.
+
+Note the demo tenant gets a **new numeric ID on every refresh**; its slug is the stable
+identifier clients send as `X-Tenant-ID`. Demo logins and API tokens are invalidated each
+time. `DEMO_LEGACY_TENANT_SLUGS` can be emptied once every box has refreshed once.
+
+```
++----------------------+---------------+-------+--------+
+| Rebuilt from scratch | Code          | Users | Orders |
++----------------------+---------------+-------+--------+
+| #5 Bangla Bistro     | bangla-bistro | 47    | 50653  |
++----------------------+---------------+-------+--------+
++----------------+---------------+-------+--------+
+| Left untouched | Code          | Users | Orders |
++----------------+---------------+-------+--------+
+| #1 RestoraERP  | default       | 1     | 0      |
+| #4 Acme Bistro | acme-bistro   | 1     | 0      |
++----------------+---------------+-------+--------+
+```
+
+```bash
+# Report only — changes nothing
+php artisan demo:refresh --dry-run
+
+# Prompt, then rebuild
+php artisan demo:refresh
+
+# Cron and CI
+php artisan demo:refresh --force --if-demo --isolated
+
+# Same thing through the wrapper script
+./demodata.sh --force
+```
+
+`demodata.sh` is a thin `set -euo pipefail` wrapper that `exec`s this command, so the
+artisan exit code is the script's exit code. It used to be the `migrate:fresh` that caused
+all of this; nothing in the deploy or in cron may run `migrate:fresh` again.
 
 ## About Laravel
 

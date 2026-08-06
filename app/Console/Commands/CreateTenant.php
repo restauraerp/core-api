@@ -40,10 +40,10 @@ class CreateTenant extends Command
           <info>php artisan tenants:create "Bangla Bistro" --slug=bangla-bistro --plan=dedicated</info>
             Explicit restaurant code, 5-outlet plan.
 
-          <info>php artisan tenants:create "Spice Garden" --owner-email=owner@spicegarden.com</info>
+          <info>php artisan tenants:create "Dhaka Grill House" --owner-email=owner@dhakagrill.com</info>
             Creates the owner too, printing a generated password.
 
-          <info>php artisan tenants:create "Spice Garden" --plan=cloud --owner-email=owner@spicegarden.com --owner-name="Rahim Uddin" --owner-password='s3cret!' --owner-phone=+8801700000000</info>
+          <info>php artisan tenants:create "Dhaka Grill House" --plan=cloud --owner-email=owner@dhakagrill.com --owner-name="Rahim Uddin" --owner-password='s3cret!' --owner-phone=+8801700000000</info>
             Everything set explicitly - unlimited outlets, no generated password.
         HELP;
 
