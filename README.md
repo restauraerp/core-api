@@ -95,6 +95,73 @@ count. An unknown `--status` or `--plan` fails with the accepted values.
   2 tenant(s).
 ```
 
+### `tenants:reset-password` — set a new password for a tenant user
+
+```bash
+php artisan tenants:reset-password <id|slug> [--email=] [--password=] [--keep-sessions] [--force]
+```
+
+| Parameter | Required | Value | Description |
+| --- | --- | --- | --- |
+| `<id\|slug>` | yes | integer or string | Which tenant the user belongs to. All-digit values match `tenants.id`, anything else the slug. Soft-deleted tenants are matched too. |
+| `--email=` | no | email | The user to reset. Must belong to *this* tenant — another tenant's user with that address is not found. Omit it and the tenant's owner is reset. |
+| `--password=` | no | string | The new password, minimum 8 characters (what the API enforces on every password field). When omitted a 16-character password is generated and printed once. |
+| `--keep-sessions` | no | flag, no value | Leave the user's existing logins and API tokens working. By default they are revoked. |
+| `--force` | no | flag, no value | Skip the confirmation prompt. Required in scripts: run non-interactively without it and the prompt defaults to "no", so nothing changes. |
+
+**This is the support path for a locked-out owner.** There is no self-service
+forgotten-password flow, and the API only lets an authenticated user of the tenant change
+a password — which is exactly what someone locked out cannot do. Re-running
+`tenants:create` does not help either: provisioning is idempotent and deliberately never
+overwrites the password of a user that already exists.
+
+Without `--email` the command resets **the tenant's owner** — the single user holding the
+`restaurant_admin` role. If the tenant has several admins there is no obvious owner, so it
+refuses to guess and lists them with the flag to copy:
+
+```
+Tenant [acme-bistro] has 2 admins, so there is no single owner to reset. Pick one with --email:
+  --email=owner@acme.test  (Rahim Uddin)
+  --email=partner@acme.test  (Karim Chowdhury)
+```
+
+**Existing sessions and API tokens are revoked by default.** A reset usually follows a
+lost or leaked credential, so leaving the old logins alive would defeat the point — anyone
+holding the old password is signed out immediately. Pass `--keep-sessions` when the reset
+is routine and you do not want to interrupt whoever is currently on the till.
+
+The lookup runs inside the tenant's context, so `--email` can only ever reach a user of
+the tenant named on the command line — there is no way to reset the wrong restaurant's
+owner by typing an address twice.
+
+```
+Tenant #7 "Acme Bistro" (code: acme-bistro, status: active)
+  User: Rahim Uddin <owner@acme.test> (#42)
+  Roles: restaurant_admin
+  Sessions and API tokens to revoke: 3
+
+Password reset for owner@acme.test.
+  New password: kQ2vX9mBt4LpZr7s
+  This is shown once. Store it now.
+  3 session(s) and token(s) revoked - everyone holding the old password is signed out.
+```
+
+```bash
+# Owner reset with a generated password, after confirming
+php artisan tenants:reset-password acme-bistro
+
+# Owner reset to a chosen password
+php artisan tenants:reset-password acme-bistro --password='s3cret!'
+
+# A specific user, no prompt (scripts)
+php artisan tenants:reset-password 7 --email=manager@acme.test --force
+
+# New password, existing logins left alone
+php artisan tenants:reset-password 7 --email=manager@acme.test --keep-sessions
+```
+
+A generated password is printed **once**. Copy it before the output scrolls away.
+
 ### `tenants:plan` — change a tenant's subscription tier
 
 ```bash
