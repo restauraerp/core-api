@@ -15,10 +15,14 @@ class PaymentController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            
+            'order_id' => ['required', 'integer', $this->tenantExists('orders')],
+            'method' => 'nullable|string|max:255',
+            'amount' => 'nullable|numeric|min:0',
+            'status' => 'nullable|string|max:255',
         ]);
 
         $payment = Payment::create($validated);
+
         return response()->json($payment, 201);
     }
 
@@ -30,16 +34,21 @@ class PaymentController extends Controller
     public function update(Request $request, Payment $payment)
     {
         $validated = $request->validate([
-            
+            'order_id' => ['sometimes', 'required', 'integer', $this->tenantExists('orders')],
+            'method' => 'nullable|string|max:255',
+            'amount' => 'nullable|numeric|min:0',
+            'status' => 'nullable|string|max:255',
         ]);
 
         $payment->update($validated);
+
         return response()->json($payment);
     }
 
     public function destroy(Payment $payment)
     {
         $payment->delete();
+
         return response()->json(null, 204);
     }
 }

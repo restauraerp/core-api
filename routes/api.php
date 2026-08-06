@@ -67,13 +67,18 @@ Route::prefix('v1')->group(function () {
     Route::apiResource('locations.tables', TableController::class)->shallow();
     Route::apiResource('locations.cctv-cameras', CctvCameraController::class)->shallow();
 
-    // Website & CMS API
+    // Settings API.
     //
-    // Gated as a whole, reads included: "Website" is sold as online presence,
-    // so a tier without it has no storefront content to serve rather than an
-    // admin screen it cannot open.
+    // Deliberately NOT behind module:website despite the table name.
+    // website_settings holds currency_symbol and site_name, which POS, the
+    // catalog and the settings screen all read on load - gating it took the
+    // till offline on tiers that had simply not bought a storefront.
+    Route::apiResource('website-settings', WebsiteSettingController::class);
+
+    // Website & CMS API - the storefront itself, which is what the Website
+    // module actually sells. Gated whole, reads included: a tier without it has
+    // no public site to serve, not merely an admin screen it cannot open.
     Route::middleware('module:website')->group(function () {
-        Route::apiResource('website-settings', WebsiteSettingController::class);
         Route::apiResource('social-links', SocialLinkController::class);
         Route::apiResource('pages', PageController::class);
         Route::apiResource('google-reviews', GoogleReviewController::class);

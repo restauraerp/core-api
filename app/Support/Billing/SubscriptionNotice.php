@@ -108,6 +108,31 @@ class SubscriptionNotice
     }
 
     /**
+     * The current state, for a client to render on load rather than after a
+     * refused save. Returned by GET /auth/me.
+     *
+     * @return array<string, mixed>
+     */
+    public static function status(Tenant $tenant): array
+    {
+        $subscription = $tenant->subscription();
+
+        return match ($subscription['state']) {
+            Subscription::READ_ONLY => self::readOnly($tenant),
+            Subscription::GRACE => self::grace($tenant),
+            Subscription::BLOCKED => self::blocked($tenant),
+            default => [
+                'error' => null,
+                'message' => null,
+                'read_only' => false,
+                'state' => Subscription::FULL,
+                'expired_at' => $subscription['expires_at']?->toIso8601String(),
+                'billing_cycle' => $subscription['cycle'],
+            ],
+        } + ['state' => $subscription['state']];
+    }
+
+    /**
      * @param  array<string, mixed>  $extra
      * @return array<string, mixed>
      */
