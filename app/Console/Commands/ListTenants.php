@@ -3,13 +3,14 @@
 namespace App\Console\Commands;
 
 use App\Models\Tenant;
+use App\Support\Billing\Plans;
 use Illuminate\Console\Command;
 
 class ListTenants extends Command
 {
     protected $signature = 'tenants:list
         {--status= : Only show tenants with this status (trialing|active|suspended|cancelled)}
-        {--plan= : Only show tenants on this plan (shared|dedicated|cloud)}
+        {--plan= : Only show tenants on this plan (starter|growth|business|enterprise)}
         {--with-trashed : Include soft-deleted tenants}
         {--json : Output raw JSON instead of a table}';
 
@@ -23,7 +24,7 @@ class ListTenants extends Command
         Examples:
           <info>php artisan tenants:list</info>
           <info>php artisan tenants:list --status=trialing</info>
-          <info>php artisan tenants:list --plan=cloud --with-trashed</info>
+          <info>php artisan tenants:list --plan=enterprise --with-trashed</info>
           <info>php artisan tenants:list --json</info>
         HELP;
 
@@ -40,8 +41,8 @@ class ListTenants extends Command
             return self::FAILURE;
         }
 
-        if ($plan !== null && ! array_key_exists($plan, Tenant::PLAN_OUTLET_LIMITS)) {
-            $this->error("Unknown plan [{$plan}]. Expected one of: ".implode(', ', array_keys(Tenant::PLAN_OUTLET_LIMITS)));
+        if ($plan !== null && ! Plans::exists($plan)) {
+            $this->error("Unknown plan [{$plan}]. Expected one of: ".implode(', ', Plans::tiers()));
 
             return self::FAILURE;
         }
@@ -74,7 +75,11 @@ class ListTenants extends Command
                 $tenant->slug,
                 $tenant->plan,
                 $tenant->status,
-                $tenant->locations_count.'/'.($tenant->max_outlets ?? '∞'),
+                // "!" marks a tenant over its cap - grandfathered from before
+                // the limit was enforced, or moved to a smaller tier. They keep
+                // the outlets they have; the next one is refused.
+                $tenant->locations_count.'/'.($tenant->outletLimit() ?? '∞')
+                    .($tenant->hasReachedOutletLimit() ? ' !' : ''),
                 $tenant->users_count,
                 $tenant->contact_email ?? '-',
                 $tenant->trial_ends_at?->toDateString() ?? '-',

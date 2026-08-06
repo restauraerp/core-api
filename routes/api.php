@@ -1,5 +1,57 @@
 <?php
 
+use App\Http\Controllers\AccountingLedgerController;
+use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CctvCameraController;
+use App\Http\Controllers\ChatMessageController;
+use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\DeliveryController;
+use App\Http\Controllers\DemoController;
+use App\Http\Controllers\DiscountController;
+use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\GoogleReviewController;
+use App\Http\Controllers\HallController;
+use App\Http\Controllers\InventoryItemController;
+use App\Http\Controllers\LeaveController;
+use App\Http\Controllers\LocationController;
+use App\Http\Controllers\LoyaltySettingController;
+use App\Http\Controllers\LoyaltyTransactionController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\OrderController;
+use App\Http\Controllers\OrderItemController;
+use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\PageController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\ProductCategoryController;
+use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductMediaController;
+use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\PurchaseOrderItemController;
+use App\Http\Controllers\PurchaseReturnController;
+use App\Http\Controllers\QuotationController;
+use App\Http\Controllers\QuotationItemController;
+use App\Http\Controllers\RecipeController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\ReservationController;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\SocialLinkController;
+use App\Http\Controllers\StockTransferController;
+use App\Http\Controllers\StockTransferItemController;
+use App\Http\Controllers\StorageUnitController;
+use App\Http\Controllers\StorageUnitItemController;
+use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\SupportTicketController;
+use App\Http\Controllers\TableController;
+use App\Http\Controllers\TagController;
+use App\Http\Controllers\TaxRuleController;
+use App\Http\Controllers\UsageLogController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\WasteLogController;
+use App\Http\Controllers\WebsiteSettingController;
+use App\Http\Middleware\ResolveTenant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -9,24 +61,30 @@ Route::get('/user', function (Request $request) {
 
 Route::prefix('v1')->group(function () {
     // Locations API
-    Route::get('location-types', [\App\Http\Controllers\LocationController::class, 'types']);
-    Route::apiResource('locations', \App\Http\Controllers\LocationController::class);
-    Route::apiResource('locations.halls', \App\Http\Controllers\HallController::class)->shallow();
-    Route::apiResource('locations.tables', \App\Http\Controllers\TableController::class)->shallow();
-    Route::apiResource('locations.cctv-cameras', \App\Http\Controllers\CctvCameraController::class)->shallow();
+    Route::get('location-types', [LocationController::class, 'types']);
+    Route::apiResource('locations', LocationController::class);
+    Route::apiResource('locations.halls', HallController::class)->shallow();
+    Route::apiResource('locations.tables', TableController::class)->shallow();
+    Route::apiResource('locations.cctv-cameras', CctvCameraController::class)->shallow();
 
     // Website & CMS API
-    Route::apiResource('website-settings', \App\Http\Controllers\WebsiteSettingController::class);
-    Route::apiResource('social-links', \App\Http\Controllers\SocialLinkController::class);
-    Route::apiResource('pages', \App\Http\Controllers\PageController::class);
-    Route::apiResource('google-reviews', \App\Http\Controllers\GoogleReviewController::class);
+    //
+    // Gated as a whole, reads included: "Website" is sold as online presence,
+    // so a tier without it has no storefront content to serve rather than an
+    // admin screen it cannot open.
+    Route::middleware('module:website')->group(function () {
+        Route::apiResource('website-settings', WebsiteSettingController::class);
+        Route::apiResource('social-links', SocialLinkController::class);
+        Route::apiResource('pages', PageController::class);
+        Route::apiResource('google-reviews', GoogleReviewController::class);
+    });
 
     // Public Catalog API
-    Route::apiResource('product-categories', \App\Http\Controllers\ProductCategoryController::class)->only(['index', 'show']);
-    Route::apiResource('products', \App\Http\Controllers\ProductController::class)->only(['index', 'show']);
-    
+    Route::apiResource('product-categories', ProductCategoryController::class)->only(['index', 'show']);
+    Route::apiResource('products', ProductController::class)->only(['index', 'show']);
+
     // Public Order API
-    Route::post('storefront/orders', [\App\Http\Controllers\OrderController::class, 'store']);
+    Route::post('storefront/orders', [OrderController::class, 'store']);
 
     // Demo credentials, for clients that were asked for a demo (the front's
     // /login?demo=true). 404s unless DEMO_MODE is on.
@@ -34,81 +92,92 @@ Route::prefix('v1')->group(function () {
     // ResolveTenant is skipped deliberately: it is appended to the whole api
     // group and 400s any unauthenticated request without an X-Tenant-ID header,
     // but which tenant the demo lives in is precisely what this call answers.
-    Route::get('demo-config', [\App\Http\Controllers\DemoController::class, 'show'])
+    Route::get('demo-config', [DemoController::class, 'show'])
         ->middleware('throttle:30,1')
-        ->withoutMiddleware(\App\Http\Middleware\ResolveTenant::class);
+        ->withoutMiddleware(ResolveTenant::class);
 
     // Auth & Users API
-    Route::post('auth/register', [\App\Http\Controllers\AuthController::class, 'register']);
-    Route::post('auth/login', [\App\Http\Controllers\AuthController::class, 'login']);
-    
-    Route::middleware('auth:sanctum')->group(function () {
-        Route::post('auth/logout', [\App\Http\Controllers\AuthController::class, 'logout']);
-        Route::get('auth/me', [\App\Http\Controllers\AuthController::class, 'me']);
+    Route::post('auth/register', [AuthController::class, 'register']);
+    Route::post('auth/login', [AuthController::class, 'login']);
 
-        Route::apiResource('users', \App\Http\Controllers\UserController::class);
-        
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('auth/logout', [AuthController::class, 'logout']);
+        Route::get('auth/me', [AuthController::class, 'me']);
+
+        Route::apiResource('users', UserController::class);
+
         // Roles & Permissions API
-        Route::apiResource('roles', \App\Http\Controllers\RoleController::class);
-        Route::apiResource('permissions', \App\Http\Controllers\PermissionController::class);
+        Route::apiResource('roles', RoleController::class);
+        Route::apiResource('permissions', PermissionController::class);
 
         // HR API
-        Route::apiResource('attendances', \App\Http\Controllers\AttendanceController::class);
-        Route::apiResource('leaves', \App\Http\Controllers\LeaveController::class);
-        Route::apiResource('payrolls', \App\Http\Controllers\PayrollController::class);
+        Route::middleware('module:hr')->group(function () {
+            Route::apiResource('attendances', AttendanceController::class);
+            Route::apiResource('leaves', LeaveController::class);
+            Route::apiResource('payrolls', PayrollController::class);
+        });
 
         // Catalog API (Protected Routes)
-        Route::apiResource('product-categories', \App\Http\Controllers\ProductCategoryController::class)->except(['index', 'show']);
-        Route::apiResource('tags', \App\Http\Controllers\TagController::class);
-        Route::apiResource('products', \App\Http\Controllers\ProductController::class)->except(['index', 'show']);
-        Route::apiResource('products.media', \App\Http\Controllers\ProductMediaController::class)->shallow();
+        Route::apiResource('product-categories', ProductCategoryController::class)->except(['index', 'show']);
+        Route::apiResource('tags', TagController::class);
+        Route::apiResource('products', ProductController::class)->except(['index', 'show']);
+        Route::apiResource('products.media', ProductMediaController::class)->shallow();
 
         // Inventory API
-        Route::apiResource('inventory-items', \App\Http\Controllers\InventoryItemController::class);
-        Route::apiResource('storage-units', \App\Http\Controllers\StorageUnitController::class);
-        Route::apiResource('storage-units.items', \App\Http\Controllers\StorageUnitItemController::class)->shallow();
+        Route::apiResource('inventory-items', InventoryItemController::class);
+        Route::apiResource('storage-units', StorageUnitController::class);
+        Route::apiResource('storage-units.items', StorageUnitItemController::class)->shallow();
 
         // Recipe & Stock Operations API
-        Route::apiResource('recipes', \App\Http\Controllers\RecipeController::class);
-        Route::apiResource('stock-transfers', \App\Http\Controllers\StockTransferController::class);
-        Route::apiResource('stock-transfers.items', \App\Http\Controllers\StockTransferItemController::class)->shallow();
-        Route::apiResource('waste-logs', \App\Http\Controllers\WasteLogController::class);
+        Route::apiResource('recipes', RecipeController::class);
+        Route::apiResource('stock-transfers', StockTransferController::class);
+        Route::apiResource('stock-transfers.items', StockTransferItemController::class)->shallow();
+        Route::apiResource('waste-logs', WasteLogController::class);
 
         // Procurement & Accounting API
-        Route::apiResource('suppliers', \App\Http\Controllers\SupplierController::class);
-        Route::apiResource('purchase-orders', \App\Http\Controllers\PurchaseOrderController::class);
-        Route::apiResource('purchase-orders.items', \App\Http\Controllers\PurchaseOrderItemController::class)->shallow();
-        Route::apiResource('purchase-returns', \App\Http\Controllers\PurchaseReturnController::class);
-        Route::apiResource('accounting-ledgers', \App\Http\Controllers\AccountingLedgerController::class);
-        Route::apiResource('expenses', \App\Http\Controllers\ExpenseController::class);
-        Route::apiResource('tax-rules', \App\Http\Controllers\TaxRuleController::class);
+        Route::apiResource('suppliers', SupplierController::class);
+        Route::apiResource('purchase-orders', PurchaseOrderController::class);
+        Route::apiResource('purchase-orders.items', PurchaseOrderItemController::class)->shallow();
+        Route::apiResource('purchase-returns', PurchaseReturnController::class);
+        Route::apiResource('accounting-ledgers', AccountingLedgerController::class);
+        Route::apiResource('expenses', ExpenseController::class);
+        Route::apiResource('tax-rules', TaxRuleController::class);
 
-        // CRM & Sales API
-        Route::apiResource('organizations', \App\Http\Controllers\OrganizationController::class);
-        Route::apiResource('customers', \App\Http\Controllers\CustomerController::class);
-        Route::apiResource('loyalty-settings', \App\Http\Controllers\LoyaltySettingController::class);
-        Route::apiResource('loyalty-transactions', \App\Http\Controllers\LoyaltyTransactionController::class);
-        Route::apiResource('reservations', \App\Http\Controllers\ReservationController::class);
-        Route::apiResource('quotations', \App\Http\Controllers\QuotationController::class);
-        Route::apiResource('quotations.items', \App\Http\Controllers\QuotationItemController::class)->shallow();
-        Route::apiResource('discounts', \App\Http\Controllers\DiscountController::class);
-        Route::apiResource('orders', \App\Http\Controllers\OrderController::class);
-        Route::apiResource('orders.items', \App\Http\Controllers\OrderItemController::class)->shallow();
-        Route::apiResource('payments', \App\Http\Controllers\PaymentController::class);
-        Route::apiResource('deliveries', \App\Http\Controllers\DeliveryController::class);
+        // CRM API
+        Route::middleware('module:crm')->group(function () {
+            Route::apiResource('organizations', OrganizationController::class);
+            Route::apiResource('customers', CustomerController::class);
+            Route::apiResource('loyalty-settings', LoyaltySettingController::class);
+            Route::apiResource('loyalty-transactions', LoyaltyTransactionController::class);
+            Route::apiResource('reservations', ReservationController::class);
+            Route::apiResource('quotations', QuotationController::class);
+            Route::apiResource('quotations.items', QuotationItemController::class)->shallow();
+        });
+
+        // Sales API - part of Orders, which every tier includes. Discounts and
+        // payments belong to taking money, not to CRM.
+        Route::apiResource('discounts', DiscountController::class);
+        Route::apiResource('orders', OrderController::class);
+        Route::apiResource('orders.items', OrderItemController::class)->shallow();
+        Route::apiResource('payments', PaymentController::class);
+
+        // Delivery API
+        Route::middleware('module:delivery')->group(function () {
+            Route::apiResource('deliveries', DeliveryController::class);
+        });
 
         // Reporting API (aggregated server-side; see ReportController)
         Route::prefix('reports')->group(function () {
-            Route::get('sales', [\App\Http\Controllers\ReportController::class, 'sales']);
-            Route::get('products', [\App\Http\Controllers\ReportController::class, 'products']);
-            Route::get('hourly', [\App\Http\Controllers\ReportController::class, 'hourly']);
-            Route::get('inventory', [\App\Http\Controllers\ReportController::class, 'inventory']);
+            Route::get('sales', [ReportController::class, 'sales']);
+            Route::get('products', [ReportController::class, 'products']);
+            Route::get('hourly', [ReportController::class, 'hourly']);
+            Route::get('inventory', [ReportController::class, 'inventory']);
         });
 
         // Support & System API
-        Route::apiResource('support-tickets', \App\Http\Controllers\SupportTicketController::class);
-        Route::apiResource('support-tickets.messages', \App\Http\Controllers\ChatMessageController::class)->shallow();
-        Route::apiResource('notifications', \App\Http\Controllers\NotificationController::class);
-        Route::apiResource('usage-logs', \App\Http\Controllers\UsageLogController::class);
+        Route::apiResource('support-tickets', SupportTicketController::class);
+        Route::apiResource('support-tickets.messages', ChatMessageController::class)->shallow();
+        Route::apiResource('notifications', NotificationController::class);
+        Route::apiResource('usage-logs', UsageLogController::class);
     });
 });

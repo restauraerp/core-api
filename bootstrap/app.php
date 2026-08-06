@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Middleware\EnforceSubscription;
+use App\Http\Middleware\EnsureModuleEnabled;
+use App\Http\Middleware\ResolveTenant;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -16,7 +20,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // Runs on every API request, including the public storefront endpoints
         // that have no auth middleware of their own.
         $middleware->api(append: [
-            \App\Http\Middleware\ResolveTenant::class,
+            ResolveTenant::class,
+            // After ResolveTenant, which is what puts the tenant in context.
+            EnforceSubscription::class,
         ]);
 
         // Group order is not enough. Laravel sorts the resolved middleware
@@ -29,9 +35,23 @@ return Application::configure(basePath: dirname(__DIR__))
         // Registering ResolveTenant immediately before AuthenticatesRequests
         // puts it back in front of authentication on every route.
         $middleware->prependToPriorityList(
-            before: \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
-            prepend: \App\Http\Middleware\ResolveTenant::class,
+            before: AuthenticatesRequests::class,
+            prepend: ResolveTenant::class,
         );
+
+        // Same reasoning one step later: the subscription check needs the
+        // tenant ResolveTenant establishes, and must still run ahead of the
+        // route's own auth so a lapsed write is refused with a billing message
+        // rather than reaching a controller.
+        $middleware->prependToPriorityList(
+            before: AuthenticatesRequests::class,
+            prepend: EnforceSubscription::class,
+        );
+
+        // Plan entitlement, applied per route group as `module:crm`.
+        $middleware->alias([
+            'module' => EnsureModuleEnabled::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

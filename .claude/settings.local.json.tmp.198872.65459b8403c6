@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker exec restoraerp_core_api php artisan tinker '--execute= *)",
+      "Bash(docker exec *)",
+      "Bash(docker port *)",
+      "Bash(grep -vE \"^\\\\s*#|^\\\\s*$\" /home/aihimel/Projects/restauraerp.com/.env)",
+      "Bash(docker compose *)",
+      "Bash(python3 -c ' *)",
+      "Bash(xargs -I{} echo \"demo/admin vars in process env: {} \\(expect 0\\)\")",
+      "Bash(curl -s -o /tmp/claude-1000/-home-aihimel-Projects-restauraerp-com-core-api/4146f75e-cc96-4884-affc-2a2aa7bd271e/scratchpad/f.json -w \"%{http_code}\" -X POST \"http://localhost:3029/api/v1/auth/login\" -H \"Content-Type: application/json\" -H \"Accept: application/json\" -H \"X-Tenant-ID: bangla-bistro\" -d '{\"email\":\"demo@banglabistro.com.bd\",\"password\":\"demo\"}' --max-time 25)",
+      "Bash(xargs -n1 basename)",
+      "Read(//home/aihimel/Projects/restauraerp.com/docs/**)",
+      "Read(//home/aihimel/Projects/restauraerp.com/**)",
+      "Bash(python3 -)",
+      "Bash(awk '/<!-- Dedicated Plan -->/,/<!-- Cloud Setup Plan -->/' resources/views/home/below-fold.blade.php)",
+      "Bash(terraform fmt *)",
+      "Bash(terraform validate *)",
+      "Bash(awk '{print $2}')",
+      "Bash(tee /tmp/claude-1000/-home-aihimel-Projects-restauraerp-com-core-api/8eb98536-4dff-467b-9803-91bda1872b46/scratchpad/unintended.txt)",
+      "Bash(xargs -a /tmp/claude-1000/-home-aihimel-Projects-restauraerp-com-core-api/8eb98536-4dff-467b-9803-91bda1872b46/scratchpad/unintended.txt git checkout --)",
+      "Bash(xargs -a /tmp/claude-1000/-home-aihimel-Projects-restauraerp-com-core-api/8eb98536-4dff-467b-9803-91bda1872b46/scratchpad/revert.txt git checkout --)",
+      "Bash(cp -r app/Support/Billing app/Console/Commands/ChangeTenantPlan.php app/Console/Commands/ExpireTenants.php app/Http/Middleware/EnsureModuleEnabled.php config/plans.php database/migrations/2026_08_06_120000_rename_plan_tiers_on_tenants.php tests/Feature/PlanEntitlementTest.php /tmp/claude-1000/-home-aihimel-Projects-restauraerp-com-core-api/8eb98536-4dff-467b-9803-91bda1872b46/scratchpad/backup/)",
+      "Bash(git stash *)"
+    ]
+  }
+}

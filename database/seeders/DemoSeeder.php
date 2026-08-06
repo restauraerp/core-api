@@ -53,7 +53,7 @@ class DemoSeeder extends Seeder
         $attributes = [
             'name' => 'Bangla Bistro',
             'slug' => config('app.demo_tenant_slug'),
-            'plan' => 'cloud',
+            'plan' => 'enterprise',
         ];
 
         $context = app(TenantContext::class);

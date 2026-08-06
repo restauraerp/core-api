@@ -33,7 +33,7 @@ php artisan tenants:create <name> [--slug=] [--plan=] [--owner-email=] [--owner-
 | --- | --- | --- | --- |
 | `<name>` | yes | string | The restaurant name, e.g. `"Bangla Bistro"`. Quote it if it contains spaces. Also seeds the head-office location name, `site_name` and `meta_title`. |
 | `--slug=` | no | string | URL-safe restaurant code / `X-Tenant-ID` value, e.g. `bangla-bistro`. Derived from `<name>` when omitted, with a numeric suffix (`-2`, `-3`, …) if that slug is taken. Must be unique. |
-| `--plan=` | no | `shared` \| `dedicated` \| `cloud` | Outlet cap: `shared` = 2, `dedicated` = 5, `cloud` = unlimited. Defaults to `shared`. An unknown value aborts before anything is created. |
+| `--plan=` | no | `starter` \| `growth` \| `business` \| `enterprise` | Subscription tier, from `config/plans.php`. Outlet cap: `starter` = 1, `growth` = 1, `business` = 3, `enterprise` = unlimited. Starter gets the six core modules; the rest get all twelve. Defaults to `starter`. An unknown value aborts before anything is created. |
 | `--owner-email=` | no | email | Creates a `restaurant_admin` user with this email and stores it as the tenant's contact email. Omit it and the tenant is created with no users. |
 | `--owner-name=` | no | string | Display name for the owner. Defaults to `<name> Owner`. Ignored without `--owner-email`. |
 | `--owner-password=` | no | string | Owner password. When omitted a 16-character password is generated and printed once. Ignored without `--owner-email`. |
@@ -75,12 +75,13 @@ Takes no arguments — every option is a filter or an output switch.
 | Parameter | Required | Value | Description |
 | --- | --- | --- | --- |
 | `--status=` | no | `trialing` \| `active` \| `suspended` \| `cancelled` | Show only tenants in this status. An unknown value aborts with the accepted list. |
-| `--plan=` | no | `shared` \| `dedicated` \| `cloud` | Show only tenants on this plan. An unknown value aborts with the accepted list. |
+| `--plan=` | no | `starter` \| `growth` \| `business` \| `enterprise` | Show only tenants on this tier. An unknown value aborts with the accepted list. |
 | `--with-trashed` | no | flag, no value | Include soft-deleted tenants; their name is suffixed `(deleted)`. Excluded by default. |
 | `--json` | no | flag, no value | Print the tenant records as pretty JSON instead of a table. Filters still apply. |
 
 Columns: ID, name, restaurant code, plan, status, outlets used against the plan cap
-(`∞` when `max_outlets` is `NULL`), user count, contact email and trial end date. Counts
+(`∞` when unlimited, `!` when the tenant is at or over it), user count, contact email
+and trial end date. Counts
 come from a single `withCount`, so the listing stays one query regardless of tenant
 count. An unknown `--status` or `--plan` fails with the accepted values.
 
@@ -93,6 +94,154 @@ count. An unknown `--status` or `--plan` fails with the accepted values.
 +----+---------------+--------------------+--------+----------+---------+-------+-----------------------+------------+
   2 tenant(s).
 ```
+
+### `tenants:plan` — change a tenant's subscription tier
+
+```bash
+php artisan tenants:plan <id|slug> <tier> [--keep-outlet-limit] [--dry-run]
+```
+
+| Parameter | Required | Value | Description |
+| --- | --- | --- | --- |
+| `<id\|slug>` | yes | integer or string | Which tenant to move. All-digit values match `tenants.id`, anything else matches the slug. |
+| `<tier>` | yes | `starter` \| `growth` \| `business` \| `enterprise` | The tier to move to. Unknown values abort with the accepted list. |
+| `--keep-outlet-limit` | no | flag, no value | Leave `max_outlets` alone instead of resetting it to the tier default. For a support exception — a restaurant granted more outlets than its tier normally allows. |
+| `--dry-run` | no | flag, no value | Print the before/after table and change nothing. |
+
+**Editing the `plan` column by hand is not enough**, which is why this exists: the
+outlet cap is stored per tenant and role permissions are synced from the tier, so a
+hand-edited row leaves a customer paying for Growth with Starter's permissions and
+Starter's cap. This command updates all three.
+
+Downgrades never delete data. A restaurant dropping to a smaller tier keeps the outlets
+it has — the cap only refuses the next one — and its CRM and HR records stay in the
+database, simply out of reach until it upgrades again.
+
+```bash
+php artisan tenants:plan acme-bistro growth --dry-run
+php artisan tenants:plan acme-bistro growth
+php artisan tenants:plan 7 enterprise
+```
+
+### `tenants:subscribe` — start or renew a paid subscription
+
+```bash
+php artisan tenants:subscribe <id|slug> [--monthly] [--yearly] [--until=YYYY-MM-DD] [--dry-run]
+```
+
+| Parameter | Required | Value | Description |
+| --- | --- | --- | --- |
+| `<id\|slug>` | yes | integer or string | Which tenant. All-digit values match `tenants.id`, anything else the slug. |
+| `--monthly` | one of these | flag | Extends by one month and records a monthly cycle (7-day grace). |
+| `--yearly` | one of these | flag | Extends by one year and records a yearly cycle (14-day grace). |
+| `--until=` | one of these | `YYYY-MM-DD` | Explicit end date instead of a cycle length. A past date is refused. |
+| `--dry-run` | no | flag | Show the before/after table and change nothing. |
+
+**This is the one command for every paid transition** — converting a trial, renewing
+before expiry, renewing after expiry, and reviving a tenant the nightly sweep has already
+suspended. It sets `status=active`, records `billing_cycle`, moves `subscription_ends_at`,
+and drops the tenant's cached entitlement so access is restored on the very next request
+rather than when the cache expires.
+
+**Renewing early never costs paid days.** The new period runs from the later of today and
+the current end date, so paying a week early buys a month from the old end date. Renewing
+after expiry runs from today, since the old period is gone.
+
+```bash
+php artisan tenants:subscribe acme-bistro --monthly     # trial → paid, or renew
+php artisan tenants:subscribe acme-bistro --yearly
+php artisan tenants:subscribe 7 --until=2027-03-31
+```
+
+### The subscription lifecycle
+
+A billing problem makes a restaurant **read-only**; it does not lock it out. A manager
+whose invoice is late can still log in, see every order and read every setting — they
+just cannot save anything new, and they are told why and who to call.
+
+| State | Login | Read | Write |
+| --- | --- | --- | --- |
+| Trial running (7 days from creation) | ✓ | ✓ | ✓ |
+| Trial ended | ✓ | ✓ | **✗** — immediately, trials get no grace |
+| Subscription running | ✓ | ✓ | ✓ |
+| Monthly expired, within 7-day grace | ✓ | ✓ | ✓ (with a countdown warning) |
+| Yearly expired, within 14-day grace | ✓ | ✓ | ✓ (with a countdown warning) |
+| Past grace | ✓ | ✓ | **✗** |
+| `suspended` | ✓ | ✓ | **✗** |
+| `cancelled` | **✗** | **✗** | **✗** |
+
+Enforcement is by HTTP method, not endpoint: `GET`/`HEAD`/`OPTIONS` always pass,
+`POST`/`PUT`/`PATCH`/`DELETE` are refused in read-only states. New controllers are covered
+the day they are written. `auth/login` and `auth/logout` are the deliberate exceptions —
+blocking login would stop a customer reaching the message telling them to pay.
+
+Refusals return `403` with a machine-readable `error` (`trial_expired`,
+`subscription_expired`, `account_suspended`, `subscription_cancelled`), prose explaining
+that existing data is safe, and a `contact` block from `config/support.php`:
+
+```json
+{
+  "error": "subscription_expired",
+  "message": "Your monthly subscription ended on Jul 28, 2026 and the 7-day grace period ran out on Aug 4, 2026, so new data cannot be saved. Everything you have already entered is still here and fully readable - renew and saving resumes immediately.",
+  "read_only": true, "reads_allowed": true, "writes_allowed": false,
+  "contact": { "email": "support@restauraerp.com", "url": "https://restauraerp.com/#pricing" }
+}
+```
+
+While a subscription is **in grace**, successful writes carry a `subscription_warning`
+object with `days_remaining`, so a client can nag before anything actually stops working.
+
+State is resolved on every request and cached in Redis (`config/billing.php`). The entry
+is never allowed to outlive the next transition, and every command that changes billing
+forgets it outright. Trial length and both grace windows are config, not code.
+
+### `tenants:expire` — suspend lapsed tenants
+
+```bash
+php artisan tenants:expire [--dry-run]
+```
+
+Moves tenants past their `trial_ends_at` (while trialing) or `subscription_ends_at`
+(once active) to `suspended`. **Tenants still inside their grace window are left alone**,
+since grace is full access, not a stale status. Runs daily from the scheduler.
+
+**Enforcement does not depend on it running.** State is evaluated at request time, so a
+tenant goes read-only the moment its date passes. This command exists so the `status`
+column stops saying "trialing" about an account that has been read-only for a week.
+Suspending changes nothing about access — suspended and past-grace are both read-only.
+
+A tenant with no end date recorded is open-ended, not expired, and is left alone —
+otherwise every tenant created before billing dates were tracked would be locked out.
+
+⚠️ This needs `php artisan schedule:run` in cron. core-api had no scheduler before
+this; see the core-api scheduler section in `infra/templates/user_data.sh.tpl`.
+
+### Plans and entitlement
+
+Tiers live in `config/plans.php` — outlet caps, module lists, prices — and are the one
+source of truth the API reads. `docs/Pricing.md` mirrors the marketing site.
+
+| Tier | Outlets | Modules |
+| --- | --- | --- |
+| `starter` | 1 | The six core: POS, Orders, Catalog, Inventory, Accounting, Reporting |
+| `growth` | 1 | All 12 |
+| `business` | 3 | All 12 |
+| `enterprise` | unlimited | All 12 |
+
+Two independent enforcement points:
+
+- **`module:<name>` middleware** on route groups in `routes/api.php` → `403
+  module_not_in_plan`. This checks the *tenant's tier*, deliberately separate from the
+  permission system: roles are editable by the tenant, so permissions alone would be an
+  entitlement check the customer controls. It is also the only API-side gate — the
+  permission catalogue currently drives the front's navigation, not route access.
+- **Role permissions capped by the tier** in `TenantProvisioner::createRoles()`, so the
+  admin front hides modules the tenant has not bought without knowing anything about
+  plans.
+
+`view_locations` and `update_location` are granted on every tier regardless: a
+restaurant must be able to correct its own address. What Location Management sells is
+*multi-branch*, and that is the outlet cap's job.
 
 ### `tenants:remove` — permanently erase a tenant
 

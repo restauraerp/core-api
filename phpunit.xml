@@ -33,6 +33,11 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array" force="true"/>
+        <!-- The subscription cache pins itself to redis in production, since
+             CACHE_STORE is unset on those boxes and would fall back to the
+             database. Tests keep it in-process for the same reason the line
+             above exists: the suite should not need a running Redis. -->
+        <env name="BILLING_CACHE_STORE" value="array" force="true"/>
         <env name="DB_CONNECTION" value="mysql" force="true"/>
         <env name="DB_DATABASE" value="restoraerp_test" force="true"/>
         <env name="DB_HOST" value="mysql" force="true"/>
