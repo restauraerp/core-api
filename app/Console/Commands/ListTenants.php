@@ -13,7 +13,19 @@ class ListTenants extends Command
         {--with-trashed : Include soft-deleted tenants}
         {--json : Output raw JSON instead of a table}';
 
-    protected $description = 'List all existing tenants';
+    protected $description = 'List all existing tenants [--status= --plan= --with-trashed --json]';
+
+    protected $help = <<<'HELP'
+        Prints one row per tenant: ID, name, restaurant code (the X-Tenant-ID header
+        value), plan, status, outlets used against the plan cap, user count, contact
+        email and trial end date.
+
+        Examples:
+          <info>php artisan tenants:list</info>
+          <info>php artisan tenants:list --status=trialing</info>
+          <info>php artisan tenants:list --plan=cloud --with-trashed</info>
+          <info>php artisan tenants:list --json</info>
+        HELP;
 
     private const STATUSES = ['trialing', 'active', 'suspended', 'cancelled'];
 
