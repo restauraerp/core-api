@@ -26,17 +26,14 @@ class DemoController extends Controller
         // 404, not 403: a disabled demo should not confirm that the endpoint
         // exists, and there is nothing here for a caller to authenticate into.
         if (! config('app.demo_mode')) {
-            throw new NotFoundHttpException();
+            throw new NotFoundHttpException;
         }
 
         return response()->json([
             // The "restaurant code" the login form needs alongside the
             // credentials - emails are unique per tenant, not platform-wide.
+            // Stable across refreshes; the demo tenant's numeric id is not.
             'tenant' => config('app.demo_tenant_slug'),
-            // The second tenant DemoSeeder builds. Returned so a client can
-            // offer both restaurants without a second round trip; the front
-            // currently prefills with the primary only.
-            'secondary_tenant' => config('app.demo_tenant_secondary_slug'),
             'email' => config('app.demo_username'),
             'password' => config('app.demo_password'),
         ]);

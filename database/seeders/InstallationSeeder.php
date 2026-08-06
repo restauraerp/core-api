@@ -27,7 +27,7 @@ class InstallationSeeder extends Seeder
             $tenant = $provisioner->create([
                 'name' => config('app.install_tenant_name'),
                 'slug' => $slug,
-                'plan' => 'cloud',
+                'plan' => 'enterprise',
                 'status' => 'active',
                 'contact_email' => config('app.admin_email'),
             ]);

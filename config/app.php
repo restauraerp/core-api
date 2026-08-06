@@ -143,10 +143,19 @@ return [
     'install_tenant_name' => env('INSTALL_TENANT_NAME', 'RestoraERP'),
     'install_tenant_slug' => env('INSTALL_TENANT_SLUG', 'default'),
 
-    // Demo box only - the two tenants DemoSeeder builds. Two, not one, so the
-    // demo actually demonstrates isolation and so any scoping regression shows
-    // up as one restaurant's data appearing in the other's dashboard.
+    // Demo box only - the single tenant DemoSeeder builds, and the one
+    // `demo:refresh` destroys and rebuilds. Everything else on the box is
+    // somebody's real restaurant, so this slug is the entire blast radius.
     'demo_tenant_slug' => env('DEMO_TENANT_SLUG', 'bangla-bistro'),
-    'demo_tenant_secondary_slug' => env('DEMO_TENANT_SECONDARY_SLUG', 'spice-garden'),
+
+    // Demo tenants from an earlier shape of the demo, swept up by
+    // `demo:refresh` so boxes provisioned back then converge on one demo
+    // restaurant. The demo used to build a second tenant ("Spice Garden") to
+    // show isolation; TenantIsolationTest asserts that in CI now. Safe to empty
+    // once every box has refreshed at least once.
+    'demo_legacy_tenant_slugs' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', (string) env('DEMO_LEGACY_TENANT_SLUGS', 'spice-garden')),
+    ))),
 
 ];

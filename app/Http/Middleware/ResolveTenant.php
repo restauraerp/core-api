@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Tenant;
+use App\Support\Billing\SubscriptionNotice;
 use App\Support\Tenancy\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
@@ -79,10 +80,14 @@ class ResolveTenant
             ], 400);
         }
 
-        if (! $tenant->isActive()) {
-            return response()->json([
-                'message' => "This account is {$tenant->status}. Please contact support.",
-            ], 403);
+        // Only a cancelled account is refused outright. An expired trial, a
+        // lapsed subscription and a suspended account all stay readable - they
+        // log in, see their orders and settings, and are stopped at the point
+        // of writing by EnforceSubscription. Locking a restaurant out of its
+        // own history over a late invoice costs more goodwill than the unpaid
+        // week is worth.
+        if ($tenant->isBlocked()) {
+            return response()->json(SubscriptionNotice::blocked($tenant), 403);
         }
 
         $context->set($tenant);

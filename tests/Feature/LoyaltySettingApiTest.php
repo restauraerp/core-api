@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -27,8 +28,8 @@ class LoyaltySettingApiTest extends TestCase
     public function test_loyalty_settings_index_returns_200_for_authenticated_user()
     {
         // Bypass foreign key constraints when testing
-        \Illuminate\Support\Facades\Schema::disableForeignKeyConstraints();
-        
+        Schema::disableForeignKeyConstraints();
+
         $user = User::factory()->create();
         Sanctum::actingAs($user);
 

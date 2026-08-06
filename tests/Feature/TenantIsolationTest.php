@@ -122,13 +122,33 @@ class TenantIsolationTest extends TestCase
         $this->assertSame(2, ProductCategory::withoutGlobalScopes()->where('slug', 'desserts')->count());
     }
 
-    public function test_suspended_tenant_is_refused(): void
+    public function test_suspended_tenant_can_read_but_not_write(): void
     {
+        // Suspension used to be a 403 on everything. It is now read-only:
+        // a restaurant behind on payment keeps access to its own records and is
+        // stopped at the point of writing, with a message explaining why. Only
+        // a cancelled tenant is refused outright - see
+        // SubscriptionLifecycleTest for the full state machine.
         $suspended = Tenant::factory()->suspended()->create();
 
         Sanctum::actingAs(User::factory()->forTenant($suspended)->create());
 
-        $this->getJson('/api/v1/product-categories')->assertForbidden();
+        $this->getJson('/api/v1/product-categories')->assertOk();
+
+        $this->postJson('/api/v1/product-categories', ['name' => 'Blocked', 'slug' => 'blocked'])
+            ->assertForbidden()
+            ->assertJsonPath('error', 'account_suspended');
+    }
+
+    public function test_cancelled_tenant_is_refused_outright(): void
+    {
+        $cancelled = Tenant::factory()->create(['status' => 'cancelled']);
+
+        Sanctum::actingAs(User::factory()->forTenant($cancelled)->create());
+
+        $this->getJson('/api/v1/product-categories')
+            ->assertForbidden()
+            ->assertJsonPath('error', 'subscription_cancelled');
     }
 
     public function test_unauthenticated_request_without_a_tenant_header_is_rejected(): void

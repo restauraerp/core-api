@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Support\Sales\TaxCalculator;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
@@ -44,6 +46,7 @@ class OrderController extends Controller
         if ($request->has('nopaginate')) {
             return response()->json($query->orderBy('created_at', 'desc')->get());
         }
+
         return response()->json($query->orderBy('created_at', 'desc')->paginate(15));
     }
 
@@ -55,10 +58,13 @@ class OrderController extends Controller
             'status' => 'required|string',
             'payment_status' => 'sometimes|string',
             'subtotal' => 'required|numeric',
-            'tax_amount' => 'required|numeric',
+            // Accepted for backwards compatibility and then ignored - both are
+            // recomputed below from the tenant's tax rules. A till that posts
+            // its own tax is posting a number it chose.
+            'tax_amount' => 'sometimes|numeric',
             'discount_amount' => 'required|numeric',
             'delivery_charge' => 'nullable|numeric',
-            'total' => 'required|numeric',
+            'total' => 'sometimes|numeric',
             'table_id' => ['nullable', 'integer', $this->tenantExists('tables')],
             'hall_id' => ['nullable', 'integer', $this->tenantExists('halls')],
             'customer_id' => ['nullable', 'integer', $this->tenantExists('customers')],
@@ -75,14 +81,21 @@ class OrderController extends Controller
             'items.*.notes' => 'nullable|string|max:500',
         ]);
 
-        $order = \Illuminate\Support\Facades\DB::transaction(function () use ($validated, $request) {
+        // Tax comes from the restaurant's own rules, not from the request. With
+        // no active rule the sale carries no tax at all, which is the seeded
+        // default until an owner sets a rate that is right for them.
+        $taxable = max(0, (float) $validated['subtotal'] - (float) $validated['discount_amount']);
+        $validated['tax_amount'] = TaxCalculator::on($taxable);
+        $validated['total'] = round($taxable + $validated['tax_amount'] + (float) ($validated['delivery_charge'] ?? 0), 2);
+
+        $order = DB::transaction(function () use ($validated, $request) {
             $orderData = collect($validated)->except(['items', 'payment_method'])->toArray();
             $orderData['user_id'] = $request->user() ? $request->user()->id : null;
-            
-            if (!empty($validated['payment_method'])) {
+
+            if (! empty($validated['payment_method'])) {
                 $orderData['payment_status'] = 'paid';
             }
-            
+
             $order = Order::create($orderData);
 
             foreach ($validated['items'] as $item) {
@@ -94,7 +107,7 @@ class OrderController extends Controller
                 ]);
             }
 
-            if (!empty($validated['payment_method'])) {
+            if (! empty($validated['payment_method'])) {
                 $order->payments()->create([
                     'method' => $validated['payment_method'],
                     'amount' => $validated['total'],
@@ -122,6 +135,8 @@ class OrderController extends Controller
             'discount_id' => ['sometimes', 'nullable', 'integer', $this->tenantExists('discounts')],
             'discount_amount' => 'sometimes|numeric',
             'delivery_charge' => 'sometimes|numeric',
+            // Accepted and ignored, as in store(): recomputed below when the
+            // money actually changes.
             'tax_amount' => 'sometimes|numeric',
             'total' => 'sometimes|numeric',
             'delivery_time' => 'sometimes|nullable|date',
@@ -130,13 +145,30 @@ class OrderController extends Controller
             'longitude' => 'sometimes|nullable|numeric',
         ]);
 
-        $order->update($request->only(['status', 'payment_status', 'discount_id', 'discount_amount', 'delivery_charge', 'tax_amount', 'total', 'delivery_time', 'delivery_address', 'latitude', 'longitude']));
+        $payload = collect($validated)
+            ->except(['payment_method', 'tax_amount', 'total'])
+            ->toArray();
+
+        // Only re-price when the sale itself is edited. Marking an old order
+        // delivered must not quietly rewrite the tax it was billed at - orders
+        // taken before tax was driven by the rules keep the figure they were
+        // charged, which is what the customer actually paid.
+        if ($request->hasAny(['discount_amount', 'delivery_charge'])) {
+            $discount = (float) ($payload['discount_amount'] ?? $order->discount_amount);
+            $delivery = (float) ($payload['delivery_charge'] ?? $order->delivery_charge);
+            $taxable = max(0, (float) $order->subtotal - $discount);
+
+            $payload['tax_amount'] = TaxCalculator::on($taxable);
+            $payload['total'] = round($taxable + $payload['tax_amount'] + $delivery, 2);
+        }
+
+        $order->update($payload);
 
         if ($request->filled('payment_method')) {
             $order->update(['payment_status' => 'paid']);
             // Ensure no duplicate completed payment exists for this order
             $existingPayment = $order->payments()->where('status', 'completed')->first();
-            if (!$existingPayment) {
+            if (! $existingPayment) {
                 $order->payments()->create([
                     'method' => $validated['payment_method'],
                     'amount' => $order->total,
@@ -151,6 +183,7 @@ class OrderController extends Controller
     public function destroy(Order $order)
     {
         $order->delete();
+
         return response()->json(null, 204);
     }
 }
