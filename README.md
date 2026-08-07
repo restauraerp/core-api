@@ -680,6 +680,32 @@ the start of its run. Cancelling still restores the stock of anything sold as bo
 Every order carries `next_statuses` (and `status_label`) in its JSON, so a till or kitchen
 display renders its buttons from the rule book instead of its own copy of it.
 
+### What the kitchen has to start now
+
+A scheduled order is no use to the kitchen if nobody notices it coming due. **How long
+before an order is due the kitchen needs to start it** is the restaurant's own number, kept
+in `website_settings` as `kitchen_lead_minutes` (default **60**, resolved by
+`App\Support\Orders\KitchenLead`) — a biryani wants ninety minutes, a sandwich ten.
+
+```http
+GET /api/v1/orders?statuses=pending&due_soon=1      # uses the restaurant's lead time
+GET /api/v1/orders?statuses=pending&due_within=90   # explicit horizon, in minutes
+```
+
+Both return orders due inside the window **and those already overdue** — an order does not
+stop being the kitchen's problem when its time passes. An order with **no** delivery time
+counts as due now: placed at the till without a time means ASAP, not "no rush".
+
+`KitchenLead` is deliberately not memoised: the window belongs to one restaurant, and the
+class outlives a single tenant in a queue or Octane worker, where a remembered value would
+be the wrong restaurant's.
+
+The kitchen display groups its board with these rules — **Cooking now**, **Start within the
+next N minutes** (amber, red once overdue, soonest first), and **Later** (muted, booked
+ahead) — and counts down live between polls. It sorts by **when the food is wanted**, not
+when the order was typed in; sorting by placement time used to pin a catering booking made
+last week to the top of the board, above food due in ten minutes.
+
 ### Renamed statuses
 
 `cooked` → **`ready_to_serve`** ("Ready to Serve") and `picked` → **`picked_up`** ("Picked

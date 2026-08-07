@@ -132,6 +132,30 @@ class OrderFlow
     }
 
     /**
+     * Minutes until the food is wanted. Negative once that moment has passed,
+     * and null for an order with no time on it - which is not "no rush", it is
+     * ASAP, so callers treat null as due now.
+     */
+    public function minutesUntilDue(?Carbon $deliveryTime): ?int
+    {
+        return $deliveryTime === null ? null : (int) round(now()->diffInSeconds($deliveryTime, false) / 60);
+    }
+
+    /**
+     * Whether the kitchen should be starting this now: it is due inside the
+     * lead window, or already overdue.
+     *
+     * An order with no delivery time is due immediately - a till order placed
+     * without a time is wanted as soon as it can be made.
+     */
+    public function isDueWithin(?Carbon $deliveryTime, int $leadMinutes): bool
+    {
+        $minutes = $this->minutesUntilDue($deliveryTime);
+
+        return $minutes === null || $minutes <= $leadMinutes;
+    }
+
+    /**
      * The stages an order at this status may move to next.
      *
      * One step forward only - skipping a stage would mean an order marked

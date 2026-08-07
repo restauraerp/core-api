@@ -65,6 +65,9 @@ class WebsiteSeeder extends Seeder
             ['key' => 'founded_year',      'value' => '2015',                          'type' => 'string'],
             ['key' => 'reservation_enabled', 'value' => 'true',                        'type' => 'boolean'],
             ['key' => 'currency_symbol',   'value' => '৳',                             'type' => 'string'],
+            // 45 minutes rather than the default hour, so the demo shows a
+            // restaurant that has tuned the window to its own kitchen.
+            ['key' => 'kitchen_lead_minutes', 'value' => '45',                          'type' => 'number'],
         ];
 
         foreach ($settings as $s) {

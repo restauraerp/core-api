@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Support\Inventory\SellableInventory;
+use App\Support\Orders\KitchenLead;
 use App\Support\Orders\OrderFlow;
 use App\Support\Sales\TaxCalculator;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ class OrderController extends Controller
     public function __construct(
         private readonly SellableInventory $sellable,
         private readonly OrderFlow $flow,
+        private readonly KitchenLead $lead,
     ) {}
 
     public function index(Request $request)
@@ -41,6 +43,23 @@ class OrderController extends Controller
         // Live floor view: everything still needing attention.
         if ($request->has('active_only')) {
             $query->active();
+        }
+
+        // What the kitchen has to start now: orders due inside the lead window
+        // (or already overdue), including the ones with no time on them, which
+        // are wanted as soon as they can be made.
+        //
+        // `due_soon` uses the restaurant's own lead time; `due_within=90`
+        // overrides it for a caller that wants a different horizon.
+        if ($request->has('due_soon') || $request->filled('due_within')) {
+            $window = $request->filled('due_within')
+                ? max(0, $request->integer('due_within'))
+                : $this->lead->minutes();
+
+            $query->where(function ($due) use ($window) {
+                $due->whereNull('delivery_time')
+                    ->orWhere('delivery_time', '<=', now()->addMinutes($window));
+            });
         }
 
         // The Completed tab. Deliberately applies no order_type filter - it

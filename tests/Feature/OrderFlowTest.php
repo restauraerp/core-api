@@ -7,6 +7,8 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\WebsiteSetting;
+use App\Support\Orders\KitchenLead;
 use App\Support\Orders\OrderFlow;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -312,6 +314,97 @@ class OrderFlowTest extends TestCase
 
         $this->assertSame(1, Order::completed()->count());
         $this->assertSame(0, Order::active()->count());
+    }
+
+    // --- What the kitchen has to start now -----------------------------------
+
+    /** Books an order due in the given number of minutes. */
+    private function due(int $minutes): array
+    {
+        return $this->place($this->dish, [
+            'order_type' => OrderFlow::TAKEAWAY,
+            'delivery_time' => now()->addMinutes($minutes)->toDateTimeString(),
+        ]);
+    }
+
+    private function dueSoonIds(?int $window = null): array
+    {
+        $query = $window === null ? 'due_soon=1' : "due_within={$window}";
+        $response = $this->getJson("/api/v1/orders?nopaginate=1&statuses=pending&{$query}")->json();
+
+        return array_column($response['data'] ?? $response, 'id');
+    }
+
+    public function test_due_soon_lists_only_what_falls_inside_the_lead_window(): void
+    {
+        $soon = $this->due(30);
+        $later = $this->due(5 * 60);
+
+        $ids = $this->dueSoonIds();
+
+        $this->assertContains($soon['id'], $ids);
+        $this->assertNotContains($later['id'], $ids, 'An order due in five hours is not something to start now.');
+    }
+
+    public function test_an_overdue_order_is_still_something_to_start_now(): void
+    {
+        $overdue = $this->place($this->dish, [
+            'order_type' => OrderFlow::TAKEAWAY,
+            'delivery_time' => now()->addMinutes(30)->toDateTimeString(),
+        ]);
+
+        // The clock moves on; the order does not stop being the kitchen's problem.
+        $this->travel(90)->minutes();
+
+        $this->assertContains($overdue['id'], $this->dueSoonIds());
+    }
+
+    public function test_the_window_comes_from_the_restaurants_own_setting(): void
+    {
+        $later = $this->due(90);
+
+        $this->assertNotContains($later['id'], $this->dueSoonIds(), 'The default hour should not reach 90 minutes out.');
+
+        app(TenantContext::class)->runFor(
+            $this->tenant,
+            fn () => WebsiteSetting::create(['key' => KitchenLead::SETTING, 'value' => '120', 'type' => 'number']),
+        );
+
+        $this->assertContains($later['id'], $this->dueSoonIds(), 'A two-hour kitchen should see it.');
+    }
+
+    public function test_an_explicit_window_overrides_the_setting(): void
+    {
+        $later = $this->due(3 * 60);
+
+        $this->assertNotContains($later['id'], $this->dueSoonIds());
+        $this->assertContains($later['id'], $this->dueSoonIds(240));
+    }
+
+    public function test_an_order_with_no_time_on_it_is_due_now(): void
+    {
+        // Placed at the till with no delivery time: ASAP, not "no rush".
+        $flow = app(OrderFlow::class);
+
+        $this->assertTrue($flow->isDueWithin(null, 60));
+        $this->assertNull($flow->minutesUntilDue(null));
+    }
+
+    public function test_the_lead_time_falls_back_and_stays_sane(): void
+    {
+        $lead = app(KitchenLead::class);
+
+        app(TenantContext::class)->runFor($this->tenant, function () use ($lead) {
+            // Nothing configured.
+            $this->assertSame(KitchenLead::DEFAULT_MINUTES, $lead->minutes());
+        });
+
+        app(TenantContext::class)->runFor($this->tenant, function () {
+            WebsiteSetting::create(['key' => KitchenLead::SETTING, 'value' => 'soon-ish', 'type' => 'string']);
+
+            // Nonsense in the settings table must not empty the kitchen board.
+            $this->assertSame(KitchenLead::DEFAULT_MINUTES, app(KitchenLead::class)->minutes());
+        });
     }
 
     public function test_status_labels_read_the_way_staff_speak(): void
