@@ -95,6 +95,73 @@ count. An unknown `--status` or `--plan` fails with the accepted values.
   2 tenant(s).
 ```
 
+### `tenants:reset-password` — set a new password for a tenant user
+
+```bash
+php artisan tenants:reset-password <id|slug> [--email=] [--password=] [--keep-sessions] [--force]
+```
+
+| Parameter | Required | Value | Description |
+| --- | --- | --- | --- |
+| `<id\|slug>` | yes | integer or string | Which tenant the user belongs to. All-digit values match `tenants.id`, anything else the slug. Soft-deleted tenants are matched too. |
+| `--email=` | no | email | The user to reset. Must belong to *this* tenant — another tenant's user with that address is not found. Omit it and the tenant's owner is reset. |
+| `--password=` | no | string | The new password, minimum 8 characters (what the API enforces on every password field). When omitted a 16-character password is generated and printed once. |
+| `--keep-sessions` | no | flag, no value | Leave the user's existing logins and API tokens working. By default they are revoked. |
+| `--force` | no | flag, no value | Skip the confirmation prompt. Required in scripts: run non-interactively without it and the prompt defaults to "no", so nothing changes. |
+
+**This is the support path for a locked-out owner.** There is no self-service
+forgotten-password flow, and the API only lets an authenticated user of the tenant change
+a password — which is exactly what someone locked out cannot do. Re-running
+`tenants:create` does not help either: provisioning is idempotent and deliberately never
+overwrites the password of a user that already exists.
+
+Without `--email` the command resets **the tenant's owner** — the single user holding the
+`restaurant_admin` role. If the tenant has several admins there is no obvious owner, so it
+refuses to guess and lists them with the flag to copy:
+
+```
+Tenant [acme-bistro] has 2 admins, so there is no single owner to reset. Pick one with --email:
+  --email=owner@acme.test  (Rahim Uddin)
+  --email=partner@acme.test  (Karim Chowdhury)
+```
+
+**Existing sessions and API tokens are revoked by default.** A reset usually follows a
+lost or leaked credential, so leaving the old logins alive would defeat the point — anyone
+holding the old password is signed out immediately. Pass `--keep-sessions` when the reset
+is routine and you do not want to interrupt whoever is currently on the till.
+
+The lookup runs inside the tenant's context, so `--email` can only ever reach a user of
+the tenant named on the command line — there is no way to reset the wrong restaurant's
+owner by typing an address twice.
+
+```
+Tenant #7 "Acme Bistro" (code: acme-bistro, status: active)
+  User: Rahim Uddin <owner@acme.test> (#42)
+  Roles: restaurant_admin
+  Sessions and API tokens to revoke: 3
+
+Password reset for owner@acme.test.
+  New password: kQ2vX9mBt4LpZr7s
+  This is shown once. Store it now.
+  3 session(s) and token(s) revoked - everyone holding the old password is signed out.
+```
+
+```bash
+# Owner reset with a generated password, after confirming
+php artisan tenants:reset-password acme-bistro
+
+# Owner reset to a chosen password
+php artisan tenants:reset-password acme-bistro --password='s3cret!'
+
+# A specific user, no prompt (scripts)
+php artisan tenants:reset-password 7 --email=manager@acme.test --force
+
+# New password, existing logins left alone
+php artisan tenants:reset-password 7 --email=manager@acme.test --keep-sessions
+```
+
+A generated password is printed **once**. Copy it before the output scrolls away.
+
 ### `tenants:plan` — change a tenant's subscription tier
 
 ```bash
@@ -414,6 +481,251 @@ php artisan demo:refresh --force --if-demo --isolated
 `demodata.sh` is a thin `set -euo pipefail` wrapper that `exec`s this command, so the
 artisan exit code is the script's exit code. It used to be the `migrate:fresh` that caused
 all of this; nothing in the deploy or in cron may run `migrate:fresh` again.
+
+## Purchase Orders & Inventory Stock
+
+**A purchase order is the only thing that puts stock in a restaurant.** Levels are not
+typed in anywhere: they are what the deliveries say they are, so every figure on the
+inventory screens has a document behind it that names the supplier, the outlet, the
+quantity and the price paid.
+
+### The document
+
+One order is written in one request — header, line rows and receipt images together, in a
+single transaction. A header with no lines is not a purchase, so `items` is required and
+must hold at least one row.
+
+```http
+POST /api/v1/purchase-orders          multipart/form-data or JSON
+```
+
+| Field | Required | Value | Description |
+| --- | --- | --- | --- |
+| `supplier_id` | yes | integer | Must belong to the caller's tenant. |
+| `location_id` | yes | integer | The outlet the delivery arrives at. Its stock is what moves. |
+| `status` | no | `pending` \| `approved` \| `received` \| `cancelled` | Defaults to `received`. Only `cancelled` is special — see below. |
+| `notes` | no | string (≤ 2000) | Delivery note number, driver, anything worth remembering. |
+| `items[]` | yes | array, min 1 | The line rows. |
+| `items[].inventory_item_id` | yes | integer | Must belong to the caller's tenant. |
+| `items[].quantity` | yes | numeric > 0 | In the item's own unit (kg, litre, bundle). |
+| `items[].price` | yes | numeric ≥ 0 | The price of **one unit**, not the row total. |
+| `receipts[]` | no | up to 10 images, ≤ 5 MB each | Photos or scans of the supplier's paperwork. |
+| `remove_receipt_ids[]` | no | integer array | Update only: receipts to detach. Ids from another order are ignored. |
+| `created_by` | no | integer | Defaults to the authenticated user. |
+
+`total_amount` is **not accepted from the request**. It is the sum of quantity × price over
+the lines, computed on write — a total that disagrees with its own lines is a total nobody
+can audit. Each line also carries a derived `line_total` in responses.
+
+`GET /api/v1/purchase-orders` returns 15 per page with the supplier, outlet, creator, line
+rows (each with its inventory item) and receipts already loaded; `?nopaginate` returns them
+all, and `?status=`, `?supplier_id=` and `?location_id=` filter.
+
+### What happens to stock
+
+Writing the order moves the goods. There is no separate "receive" step to forget:
+
+| Action | Effect on inventory |
+| --- | --- |
+| Create | Quantities are added to `inventory_item_location` for the order's outlet. |
+| Edit a quantity, item, or outlet | The old version is taken back out and the new one put in — including moving stock between outlets when `location_id` changes. |
+| Set status to `cancelled` | Taken back out. The order is kept for the record. |
+| Set a cancelled order back to any other status | Put back in. |
+| Delete | Taken back out. A deleted order never happened, so neither did its delivery. |
+
+Every one of these is the same reverse-then-apply operation
+(`App\Support\Inventory\PurchaseOrderStock`), guarded by a `stock_applied` flag on the
+order so quantities can never be counted twice or removed twice.
+
+`inventory_items.current_stock` is **recomputed from the outlets** after every move, so the
+headline figure can never drift from the per-outlet ones. Lines naming the same item twice
+are summed before inventory is touched.
+
+Reversing a delivery whose goods have since been cooked can push a level **negative**. That
+is deliberate and left visible: it means the books say the kitchen used stock it never
+received, and rounding it up to zero would hide the mistake that caused it.
+
+### Cost per unit follows the last delivery
+
+`inventory_items.cost_per_unit` is **not typed in either**. After every purchase-order
+write it is set to the price on the most recent non-cancelled line for that item, so it is
+always what the last invoice charged.
+
+Recomputed from the newest line rather than copied off whichever order is being saved,
+which means correcting last month's invoice cannot overwrite this week's price, and
+deleting the newest order falls back to the one before it. If no line is left to price an
+item from, the last known cost stands rather than being blanked.
+
+### What the inventory endpoints will no longer do
+
+`POST`/`PUT /api/v1/inventory-items` accept the item's *description* — title, description,
+SKU, unit, minimum level, image — plus **which outlets carry it** and whether it is
+**sold at the till**. They no longer accept `current_stock`, `locations[].quantity` or
+`cost_per_unit`; all three are silently ignored rather than rejected, so an older client
+does not break, but nothing it sends can change a level or a price paid. Existing
+quantities survive every edit, including switching an outlet off, and an outlet added to
+an item starts at zero until something is delivered to it.
+
+`name` is now `description`, widened to TEXT. The column was never a second name — it held
+the longer "Whole Black Pepper" wording next to the short "Black Pepper" title, which is a
+description. An item has one name, and that is its `title`.
+
+## Stock Sold As Bought
+
+Some stock is sold exactly as it arrived — a bottle of water, a can of cola, a packet of
+crisps. Ticking **`is_sellable`** on an inventory item (with a `selling_price`, which is
+then required) puts it on the till.
+
+It gets there as a **real product**: ticking the box creates and maintains a `products` row
+linked back by `products.inventory_item_id`. Orders, order lines, receipts and every sales
+report already speak product, so one mirrored row buys all of them at once, and the item
+also appears in Catalog → Products.
+
+| What you do | What happens |
+| --- | --- |
+| Tick `is_sellable`, set a price | A product is created: name from `title`, description, price from `selling_price`, the item's image, type `merchandise`, available at the outlets that stock the item. |
+| Rename, reprice, re-image the item | The product follows. Ticking again reuses the same row — there is never a second one. |
+| Untick `is_sellable` | The product is **deactivated, never deleted**. Past orders point at it, and deleting a row a receipt references would leave a hole in sales history. |
+| Sell one at the till | That outlet's stock goes down by the quantity sold. |
+| Cancel or delete the order | The stock goes back. |
+
+Only lines whose product mirrors a stock item move anything. A cooked dish is made of
+ingredients no order line can know about — that is what recipes are for — so selling one
+moves no stock.
+
+`products.inventory_item_id` is deliberately **not mass-assignable**: which item a product
+mirrors is decided by `App\Support\Inventory\SellableInventory`, never by a request body.
+
+All stock movement — deliveries in, sales out — goes through
+`App\Support\Inventory\StockLevels`, so there is one definition of what "on hand" means and
+one place that recomputes `current_stock` from the outlets.
+
+The demo carries three such items (bottled water, a cola can, a packet of crisps), priced
+and stocked like the rest, so the till has something sold-as-bought on it.
+
+The single-line endpoints (`/purchase-orders/{id}/items`, `/purchase-order-items/{id}`)
+carry the same two obligations as the document endpoints: they recompute the order's total
+and re-state inventory.
+
+### In the demo data
+
+Demo stock levels are generated the same way, so the demo cannot show a number that
+contradicts the rule:
+
+- `InventoryItemSeeder` creates every item at **zero** in every outlet.
+- `OrderSeeder` writes two years of purchase orders, plus one **opening delivery per outlet**
+  dated at the start of the stock window, covering every item at a quantity pitched against
+  its minimum level — roughly one item in six lands below its minimum, so the low-stock
+  warnings have something to show.
+- On-hand is then set from the deliveries inside the last **7 days**
+  (`OrderSeeder::STOCK_WINDOW_DAYS`); everything older counts as cooked and sold. Without a
+  window like this, two years of demo deliveries would leave the kitchen holding tonnes of
+  rice.
+- The opening delivery at each outlet carries sample receipt images from
+  `database/seeders/images/receipts/`, so the receipts gallery is not empty.
+
+## Order Flow
+
+An order runs on **two independent tracks**. `payment_status` (paid/unpaid) is one; being
+paid finishes nothing. `status` is the fulfilment track described here, and
+`App\Support\Orders\OrderFlow` is the whole rule book — it used to live in three places at
+once (the till, the storefront checkout and the orders screen), with the API accepting
+whatever word arrived.
+
+### Where an order opens
+
+Decided by the API at creation, first rule that matches. A `status` in the request is
+accepted and ignored, the same way `tax_amount` and `total` are:
+
+| Condition | Opens at |
+| --- | --- |
+| `delivery_time` is set and in the future | `pending` |
+| Any line's product has `needs_cooking` | `cooking` |
+| Otherwise | `ready_to_serve` |
+
+**Scheduled orders wait.** Takeaway, delivery and catering carry a delivery time (empty
+means ASAP); cooking a catering order the moment it is booked is how food for Saturday gets
+made on Tuesday. A waiting order is started **by hand** — the "Start Cooking" button on the
+kitchen kiosk. Nothing starts it automatically.
+
+**Orders with nothing to prepare never reach the kitchen.** `products.needs_cooking` marks
+what involves the kitchen; an order of a bottle of water and a packet of crisps has no
+cooking stage in its run at all, so it opens at `ready_to_serve` and never appears on the
+kitchen display — including when it was scheduled for later.
+
+The answer is recorded on the order as `orders.needs_cooking` at creation. Asking the line
+items on every read would turn a list of fifty orders into fifty joins, and would let a
+later edit of the catalogue rewrite the history of an order that has already been cooked.
+
+### The runs
+
+| Type | Flow |
+| --- | --- |
+| Dine-In | `[pending] → cooking → ready_to_serve → served` |
+| Takeaway | `[pending] → cooking → ready_to_serve → packed` |
+| Delivery | `[pending] → cooking → ready_to_serve → packed → picked_up → delivered` |
+| Catering | same as Delivery |
+
+`pending` is only in the run for a scheduled order; `cooking` only when something needs
+preparing. **One step at a time** — `PUT /api/v1/orders/{id}` refuses a jump with 422 and
+says what is allowed:
+
+```json
+{ "message": "A dine in order cannot go from Cooking to Delivered. Next: Ready to Serve." }
+```
+
+`cancelled` is reachable from any stage, and reopening a cancelled order puts it back at
+the start of its run. Cancelling still restores the stock of anything sold as bought.
+
+Every order carries `next_statuses` (and `status_label`) in its JSON, so a till or kitchen
+display renders its buttons from the rule book instead of its own copy of it.
+
+### What the kitchen has to start now
+
+A scheduled order is no use to the kitchen if nobody notices it coming due. **How long
+before an order is due the kitchen needs to start it** is the restaurant's own number, kept
+in `website_settings` as `kitchen_lead_minutes` (default **60**, resolved by
+`App\Support\Orders\KitchenLead`) — a biryani wants ninety minutes, a sandwich ten.
+
+```http
+GET /api/v1/orders?statuses=pending&due_soon=1      # uses the restaurant's lead time
+GET /api/v1/orders?statuses=pending&due_within=90   # explicit horizon, in minutes
+```
+
+Both return orders due inside the window **and those already overdue** — an order does not
+stop being the kitchen's problem when its time passes. An order with **no** delivery time
+counts as due now: placed at the till without a time means ASAP, not "no rush".
+
+`KitchenLead` is deliberately not memoised: the window belongs to one restaurant, and the
+class outlives a single tenant in a queue or Octane worker, where a remembered value would
+be the wrong restaurant's.
+
+The kitchen display groups its board with these rules — **Cooking now**, **Start within the
+next N minutes** (amber, red once overdue, soonest first), and **Later** (muted, booked
+ahead) — and counts down live between polls. It sorts by **when the food is wanted**, not
+when the order was typed in; sorting by placement time used to pin a catering booking made
+last week to the top of the board, above food due in ten minutes.
+
+### Renamed statuses
+
+`cooked` → **`ready_to_serve`** ("Ready to Serve") and `picked` → **`picked_up`** ("Picked
+Up By Delivery"): staff already said those words while the screen said something else.
+Existing rows were rewritten by migration, and `OrderFlow::normalise()` still resolves the
+old spellings (plus `canceled`/`void` → `cancelled`), so an un-updated client keeps working.
+
+An order finishes at the end of its own run — `served`, `packed` for takeaway, `delivered`
+for delivery and catering. `Order::scopeCompleted()`/`scopeActive()` and the table-occupancy
+count in `TableController` all read those stages from `OrderFlow`.
+
+### Turning it on
+
+**Nothing is marked `needs_cooking` by default** — the migration backfills nothing on
+purpose, since guessing from `type` would quietly send the wrong things to the kitchen
+display on day one. Until dishes are ticked in Catalog → Products, every order opens at
+`ready_to_serve` and the kitchen queue stays empty. The demo seeder is the exception: every
+dish on the demo menu is ticked, and `OrderSeeder` applies the same two rules to the history
+it writes, so scheduled demo orders sit at `pending` and drink-only orders never show a
+cooking stage.
 
 ## About Laravel
 

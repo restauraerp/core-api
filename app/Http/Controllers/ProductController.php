@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Product;
 use App\Models\Image;
+use App\Models\Product;
 use Illuminate\Http\Request;
 
 class ProductController extends Controller
@@ -11,15 +11,16 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $query = Product::with(['images', 'locations']);
-        
+
         if ($request->has('search')) {
             $search = $request->input('search');
             $query->where('name', 'like', "%{$search}%");
         }
-        
+
         if ($request->has('nopaginate')) {
             return response()->json($query->get());
         }
+
         return response()->json($query->paginate(15));
     }
 
@@ -33,13 +34,17 @@ class ProductController extends Controller
             'price' => 'nullable|numeric',
             'sale_price' => 'nullable|numeric',
             'type' => 'nullable|string',
+            // Whether this goes to the kitchen. A dish prepared to order does;
+            // a bottled drink handed straight over does not, and an order made
+            // only of those skips the cooking stage entirely.
+            'needs_cooking' => 'nullable|boolean',
             'is_active' => 'boolean',
             'recipe_id' => 'nullable|integer',
             'image' => 'nullable|image|max:5120',
             'image_url' => 'nullable|string',
             'locations' => 'nullable|array',
             'locations.*.location_id' => 'required_with:locations|integer',
-            'locations.*.is_available' => 'required_with:locations|boolean'
+            'locations.*.is_available' => 'required_with:locations|boolean',
         ]);
 
         if ($request->hasFile('image')) {
@@ -48,7 +53,7 @@ class ProductController extends Controller
         }
 
         $product = Product::create($validated);
-        
+
         if (isset($validated['locations'])) {
             $syncData = [];
             foreach ($validated['locations'] as $loc) {
@@ -57,12 +62,12 @@ class ProductController extends Controller
             $product->locations()->sync($syncData);
         }
 
-        if (isset($validated['image_url']) && !empty($validated['image_url'])) {
+        if (isset($validated['image_url']) && ! empty($validated['image_url'])) {
             Image::create([
                 'imageable_id' => $product->id,
                 'imageable_type' => Product::class,
                 'type' => 'image',
-                'url' => $validated['image_url']
+                'url' => $validated['image_url'],
             ]);
         }
 
@@ -84,13 +89,17 @@ class ProductController extends Controller
             'price' => 'nullable|numeric',
             'sale_price' => 'nullable|numeric',
             'type' => 'nullable|string',
+            // Whether this goes to the kitchen. A dish prepared to order does;
+            // a bottled drink handed straight over does not, and an order made
+            // only of those skips the cooking stage entirely.
+            'needs_cooking' => 'nullable|boolean',
             'is_active' => 'boolean',
             'recipe_id' => 'nullable|integer',
             'image' => 'nullable|image|max:5120',
             'image_url' => 'nullable|string',
             'locations' => 'nullable|array',
             'locations.*.location_id' => 'required_with:locations|integer',
-            'locations.*.is_available' => 'required_with:locations|boolean'
+            'locations.*.is_available' => 'required_with:locations|boolean',
         ]);
 
         if ($request->hasFile('image')) {
@@ -125,6 +134,7 @@ class ProductController extends Controller
     public function destroy(Product $product)
     {
         $product->delete();
+
         return response()->json(null, 204);
     }
 }

@@ -3,12 +3,24 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Support\Inventory\SellableInventory;
+use App\Support\Orders\KitchenLead;
+use App\Support\Orders\OrderFlow;
 use App\Support\Sales\TaxCalculator;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
+    public function __construct(
+        private readonly SellableInventory $sellable,
+        private readonly OrderFlow $flow,
+        private readonly KitchenLead $lead,
+    ) {}
+
     public function index(Request $request)
     {
         $query = Order::with(['items.product.images', 'payments', 'customer', 'table']);
@@ -33,6 +45,23 @@ class OrderController extends Controller
             $query->active();
         }
 
+        // What the kitchen has to start now: orders due inside the lead window
+        // (or already overdue), including the ones with no time on them, which
+        // are wanted as soon as they can be made.
+        //
+        // `due_soon` uses the restaurant's own lead time; `due_within=90`
+        // overrides it for a caller that wants a different horizon.
+        if ($request->has('due_soon') || $request->filled('due_within')) {
+            $window = $request->filled('due_within')
+                ? max(0, $request->integer('due_within'))
+                : $this->lead->minutes();
+
+            $query->where(function ($due) use ($window) {
+                $due->whereNull('delivery_time')
+                    ->orWhere('delivery_time', '<=', now()->addMinutes($window));
+            });
+        }
+
         // The Completed tab. Deliberately applies no order_type filter - it
         // lists finished orders of every type together.
         //
@@ -54,8 +83,11 @@ class OrderController extends Controller
     {
         $validated = $request->validate([
             'location_id' => ['required', $this->tenantExists('locations')],
-            'order_type' => 'required|string',
-            'status' => 'required|string',
+            'order_type' => ['required', 'string', Rule::in([OrderFlow::DINE_IN, OrderFlow::TAKEAWAY, OrderFlow::DELIVERY, OrderFlow::CATERING])],
+            // Accepted for backwards compatibility and then ignored, like the
+            // money below: where an order starts depends on what is on it and
+            // when it is due, which is not the till's call to make.
+            'status' => 'sometimes|string',
             'payment_status' => 'sometimes|string',
             'subtotal' => 'required|numeric',
             // Accepted for backwards compatibility and then ignored - both are
@@ -88,6 +120,15 @@ class OrderController extends Controller
         $validated['tax_amount'] = TaxCalculator::on($taxable);
         $validated['total'] = round($taxable + $validated['tax_amount'] + (float) ($validated['delivery_charge'] ?? 0), 2);
 
+        // Where the order opens: waiting if it is not due yet, the kitchen if
+        // something on it has to be prepared, otherwise straight to ready.
+        $deliveryTime = ! empty($validated['delivery_time']) ? Carbon::parse($validated['delivery_time']) : null;
+
+        $validated['needs_cooking'] = $this->flow->productsNeedCooking(
+            array_column($validated['items'], 'product_id'),
+        );
+        $validated['status'] = $this->flow->openingStatus($deliveryTime, $validated['needs_cooking']);
+
         $order = DB::transaction(function () use ($validated, $request) {
             $orderData = collect($validated)->except(['items', 'payment_method'])->toArray();
             $orderData['user_id'] = $request->user() ? $request->user()->id : null;
@@ -106,6 +147,11 @@ class OrderController extends Controller
                     'notes' => $item['notes'] ?? null,
                 ]);
             }
+
+            // Anything sold as bought - a bottle, a packet - leaves the shelf
+            // it was sold from. Cooked dishes are made of ingredients this
+            // cannot know about and are left to recipes.
+            $this->sellable->deductForOrder($order);
 
             if (! empty($validated['payment_method'])) {
                 $order->payments()->create([
@@ -145,6 +191,30 @@ class OrderController extends Controller
             'longitude' => 'sometimes|nullable|numeric',
         ]);
 
+        if (array_key_exists('status', $validated)) {
+            $requested = $this->flow->normalise($validated['status']);
+
+            // One step at a time. Jumping stages would leave an order marked
+            // delivered that nobody packed, and no report could tell afterwards
+            // which of the two actually happened.
+            if (! $this->flow->canTransition((string) $order->order_type, $order->status, $requested, (bool) $order->needs_cooking)) {
+                throw ValidationException::withMessages([
+                    'status' => sprintf(
+                        'A %s order cannot go from %s to %s. Next: %s.',
+                        str_replace('_', ' ', (string) $order->order_type),
+                        $this->flow->label($order->status),
+                        $this->flow->label($requested),
+                        implode(', ', array_map(
+                            fn (string $status) => $this->flow->label($status),
+                            $this->flow->next((string) $order->order_type, $order->status, (bool) $order->needs_cooking),
+                        )) ?: 'nothing, it is finished',
+                    ),
+                ]);
+            }
+
+            $validated['status'] = $requested;
+        }
+
         $payload = collect($validated)
             ->except(['payment_method', 'tax_amount', 'total'])
             ->toArray();
@@ -162,7 +232,17 @@ class OrderController extends Controller
             $payload['total'] = round($taxable + $payload['tax_amount'] + $delivery, 2);
         }
 
+        $wasCancelled = $this->isCancelled($order->getOriginal('status'));
+
         $order->update($payload);
+
+        // A cancelled sale did not happen, so the bottle is back on the shelf -
+        // and un-cancelling takes it off again.
+        if (! $wasCancelled && $this->isCancelled($order->status)) {
+            $this->sellable->restoreForOrder($order);
+        } elseif ($wasCancelled && ! $this->isCancelled($order->status)) {
+            $this->sellable->deductForOrder($order);
+        }
 
         if ($request->filled('payment_method')) {
             $order->update(['payment_status' => 'paid']);
@@ -182,8 +262,19 @@ class OrderController extends Controller
 
     public function destroy(Order $order)
     {
+        // A deleted order never happened; whatever it sold goes back on the
+        // shelf, unless it was already cancelled and put back then.
+        if (! $this->isCancelled($order->status)) {
+            $this->sellable->restoreForOrder($order);
+        }
+
         $order->delete();
 
         return response()->json(null, 204);
+    }
+
+    private function isCancelled(?string $status): bool
+    {
+        return $this->flow->normalise($status) === OrderFlow::CANCELLED;
     }
 }

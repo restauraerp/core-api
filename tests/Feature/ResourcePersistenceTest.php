@@ -111,17 +111,22 @@ class ResourcePersistenceTest extends TestCase
 
     public function test_purchase_order_create_persists_its_fields(): void
     {
-        $supplier = app(TenantContext::class)->runFor(
-            $this->tenant,
-            fn () => Supplier::create(['name' => 'Acme Wholesale']),
-        );
-        $location = $this->location();
+        [$supplier, $location, $item] = app(TenantContext::class)->runFor($this->tenant, fn () => [
+            Supplier::create(['name' => 'Acme Wholesale']),
+            $this->location(),
+            InventoryItem::create(['title' => 'Basmati Rice', 'unit' => 'kg']),
+        ]);
 
+        // A purchase order is a document: it is written with its lines, and its
+        // total is the sum of them rather than a field the client sends. See
+        // PurchaseOrderApiTest for what those lines then do to stock.
         $this->assertPersists('purchase-orders', fn () => [
             'supplier_id' => $supplier->id,
             'location_id' => $location->id,
-            'total_amount' => '1500.00',
             'status' => 'pending',
+            'items' => [
+                ['inventory_item_id' => $item->id, 'quantity' => 10, 'price' => 150],
+            ],
         ], ['supplier_id', 'location_id', 'status']);
     }
 
@@ -143,7 +148,7 @@ class ResourcePersistenceTest extends TestCase
     {
         $item = app(TenantContext::class)->runFor(
             $this->tenant,
-            fn () => InventoryItem::create(['name' => 'Tomato', 'unit' => 'kg']),
+            fn () => InventoryItem::create(['title' => 'Tomato', 'unit' => 'kg']),
         );
         $location = $this->location();
 
@@ -168,7 +173,7 @@ class ResourcePersistenceTest extends TestCase
     public function test_stock_transfer_create_persists_its_fields(): void
     {
         [$item, $from, $to] = app(TenantContext::class)->runFor($this->tenant, fn () => [
-            InventoryItem::create(['name' => 'Rice', 'unit' => 'kg']),
+            InventoryItem::create(['title' => 'Rice', 'unit' => 'kg']),
             StorageUnit::create(['name' => 'Dry Store', 'location_id' => $this->location()->id]),
             StorageUnit::create(['name' => 'Kitchen', 'location_id' => $this->location()->id]),
         ]);

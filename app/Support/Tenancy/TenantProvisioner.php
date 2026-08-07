@@ -12,6 +12,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WebsiteSetting;
 use App\Support\Billing\Plans;
+use App\Support\Orders\KitchenLead;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -224,6 +225,10 @@ class TenantProvisioner
             ['key' => 'founded_year', 'value' => '', 'type' => 'string'],
             ['key' => 'reservation_enabled', 'value' => 'true', 'type' => 'boolean'],
             ['key' => 'currency_symbol', 'value' => '৳', 'type' => 'string'],
+            // How long before an order is due the kitchen has to start it. The
+            // kitchen display groups scheduled orders by this - see
+            // App\Support\Orders\KitchenLead.
+            ['key' => KitchenLead::SETTING, 'value' => (string) KitchenLead::DEFAULT_MINUTES, 'type' => 'number'],
         ];
 
         foreach ($settings as $setting) {
