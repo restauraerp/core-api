@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\Table;
 use App\Models\User;
+use App\Support\Orders\OrderFlow;
 use Carbon\Carbon;
 use Database\Seeders\Concerns\SeedsTenantData;
 use Illuminate\Database\Seeder;
@@ -284,6 +285,10 @@ class OrderSeeder extends Seeder
             // A received order's quantities are in inventory - settling the
             // levels below is what makes that true.
             'stock_applied' => true,
+            // Null rather than omitted: a batch insert takes its column list
+            // from the first row, so every row in the batch must carry the same
+            // keys as the opening delivery below, which does set notes.
+            'notes' => null,
             'created_at' => $dateString,
             'updated_at' => $dateString,
         ];

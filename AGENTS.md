@@ -1,2 +1,3 @@
 ## Guideline
 * When trying to run a Laravel `artisan` command do it inside the docker container like this: `docker exec restoraerp_core_api php artisan <rest of the command>`
+* On the **production** server (`ssh resp`) artisan must run as the deploy account, from the `current` symlink: `sudo -u publicdeploy php /var/www/core-api/current/artisan <rest of the command>`. Running it as your own login (`resadmin`) leaves `bootstrap/cache/*` and `storage/logs/*` owned by `resadmin`, which the app — running as `publicdeploy` — can read but never rewrite. See "Running artisan on production" in `README.md`, including how to clean it up.
