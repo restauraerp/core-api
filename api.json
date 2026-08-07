@@ -3291,7 +3291,7 @@
                                             "null"
                                         ]
                                     },
-                                    "name": {
+                                    "description": {
                                         "type": [
                                             "string",
                                             "null"
@@ -3315,18 +3315,6 @@
                                             "null"
                                         ]
                                     },
-                                    "current_stock": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ]
-                                    },
-                                    "cost_per_unit": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ]
-                                    },
                                     "image": {
                                         "type": [
                                             "string",
@@ -3335,6 +3323,20 @@
                                         "format": "binary",
                                         "contentMediaType": "application/octet-stream",
                                         "maxLength": 5120
+                                    },
+                                    "is_sellable": {
+                                        "type": [
+                                            "boolean",
+                                            "null"
+                                        ]
+                                    },
+                                    "selling_price": {
+                                        "type": [
+                                            "number",
+                                            "null"
+                                        ],
+                                        "description": "A till cannot sell something with no price on it.",
+                                        "minimum": 0
                                     },
                                     "locations": {
                                         "type": [
@@ -3346,12 +3348,6 @@
                                             "properties": {
                                                 "location_id": {
                                                     "type": "integer"
-                                                },
-                                                "quantity": {
-                                                    "type": [
-                                                        "number",
-                                                        "null"
-                                                    ]
                                                 },
                                                 "is_active": {
                                                     "type": "boolean"
@@ -3448,7 +3444,7 @@
                                             "null"
                                         ]
                                     },
-                                    "name": {
+                                    "description": {
                                         "type": [
                                             "string",
                                             "null"
@@ -3472,18 +3468,6 @@
                                             "null"
                                         ]
                                     },
-                                    "current_stock": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ]
-                                    },
-                                    "cost_per_unit": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ]
-                                    },
                                     "image": {
                                         "type": [
                                             "string",
@@ -3492,6 +3476,20 @@
                                         "format": "binary",
                                         "contentMediaType": "application/octet-stream",
                                         "maxLength": 5120
+                                    },
+                                    "is_sellable": {
+                                        "type": [
+                                            "boolean",
+                                            "null"
+                                        ]
+                                    },
+                                    "selling_price": {
+                                        "type": [
+                                            "number",
+                                            "null"
+                                        ],
+                                        "description": "A till cannot sell something with no price on it.",
+                                        "minimum": 0
                                     },
                                     "locations": {
                                         "type": [
@@ -3503,12 +3501,6 @@
                                             "properties": {
                                                 "location_id": {
                                                     "type": "integer"
-                                                },
-                                                "quantity": {
-                                                    "type": [
-                                                        "number",
-                                                        "null"
-                                                    ]
                                                 },
                                                 "is_active": {
                                                     "type": "boolean"
@@ -8032,16 +8024,161 @@
                 "tags": [
                     "PurchaseOrder"
                 ],
+                "parameters": [
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "supplier_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 0
+                        }
+                    },
+                    {
+                        "name": "location_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 0
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "array",
-                                    "items": {
-                                        "$ref": "#/components/schemas/PurchaseOrder"
-                                    }
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/PurchaseOrder"
+                                                    }
+                                                },
+                                                "first_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "from": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 1
+                                                },
+                                                "last_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "links": {
+                                                    "type": "array",
+                                                    "description": "Generated paginator links.",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "url": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "active": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "url",
+                                                            "label",
+                                                            "active"
+                                                        ]
+                                                    }
+                                                },
+                                                "next_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "path": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Base path for paginator generated URLs."
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "description": "Number of items shown per page.",
+                                                    "minimum": 0
+                                                },
+                                                "prev_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "to": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "Number of the last item in the slice.",
+                                                    "minimum": 1
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "description": "Total number of items being paginated.",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "data",
+                                                "first_page_url",
+                                                "from",
+                                                "last_page_url",
+                                                "last_page",
+                                                "links",
+                                                "next_page_url",
+                                                "path",
+                                                "per_page",
+                                                "prev_page_url",
+                                                "to",
+                                                "total"
+                                            ]
+                                        },
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/PurchaseOrder"
+                                            }
+                                        }
+                                    ]
                                 }
                             }
                         }
@@ -8059,7 +8196,7 @@
                 "requestBody": {
                     "required": true,
                     "content": {
-                        "application/json": {
+                        "multipart/form-data": {
                             "schema": {
                                 "type": "object",
                                 "properties": {
@@ -8075,24 +8212,78 @@
                                             "null"
                                         ]
                                     },
-                                    "total_amount": {
-                                        "type": [
-                                            "number",
-                                            "null"
-                                        ],
-                                        "minimum": 0
-                                    },
                                     "status": {
                                         "type": [
                                             "string",
                                             "null"
                                         ],
-                                        "maxLength": 255
+                                        "enum": [
+                                            "pending",
+                                            "approved",
+                                            "received",
+                                            "cancelled"
+                                        ]
+                                    },
+                                    "notes": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 2000
+                                    },
+                                    "receipts": {
+                                        "type": [
+                                            "array",
+                                            "null"
+                                        ],
+                                        "items": {
+                                            "type": "string",
+                                            "format": "binary",
+                                            "contentMediaType": "application/octet-stream",
+                                            "maxLength": 5120
+                                        },
+                                        "maxItems": 10
+                                    },
+                                    "remove_receipt_ids": {
+                                        "type": [
+                                            "array",
+                                            "null"
+                                        ],
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "items": {
+                                        "type": "array",
+                                        "description": "An order with no lines buys nothing, so at least one is required.",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "inventory_item_id": {
+                                                    "type": "integer"
+                                                },
+                                                "quantity": {
+                                                    "type": "number",
+                                                    "minimum": 0.01
+                                                },
+                                                "price": {
+                                                    "type": "number",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "inventory_item_id",
+                                                "quantity",
+                                                "price"
+                                            ]
+                                        },
+                                        "minItems": 1
                                     }
                                 },
                                 "required": [
                                     "supplier_id",
-                                    "location_id"
+                                    "location_id",
+                                    "items"
                                 ]
                             }
                         }
@@ -8172,7 +8363,7 @@
                 ],
                 "requestBody": {
                     "content": {
-                        "application/json": {
+                        "multipart/form-data": {
                             "schema": {
                                 "type": "object",
                                 "properties": {
@@ -8188,19 +8379,72 @@
                                             "null"
                                         ]
                                     },
-                                    "total_amount": {
-                                        "type": [
-                                            "number",
-                                            "null"
-                                        ],
-                                        "minimum": 0
-                                    },
                                     "status": {
                                         "type": [
                                             "string",
                                             "null"
                                         ],
-                                        "maxLength": 255
+                                        "enum": [
+                                            "pending",
+                                            "approved",
+                                            "received",
+                                            "cancelled"
+                                        ]
+                                    },
+                                    "notes": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 2000
+                                    },
+                                    "receipts": {
+                                        "type": [
+                                            "array",
+                                            "null"
+                                        ],
+                                        "items": {
+                                            "type": "string",
+                                            "format": "binary",
+                                            "contentMediaType": "application/octet-stream",
+                                            "maxLength": 5120
+                                        },
+                                        "maxItems": 10
+                                    },
+                                    "remove_receipt_ids": {
+                                        "type": [
+                                            "array",
+                                            "null"
+                                        ],
+                                        "items": {
+                                            "type": "integer"
+                                        }
+                                    },
+                                    "items": {
+                                        "type": "array",
+                                        "description": "An order with no lines buys nothing, so at least one is required.",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "inventory_item_id": {
+                                                    "type": "integer"
+                                                },
+                                                "quantity": {
+                                                    "type": "number",
+                                                    "minimum": 0.01
+                                                },
+                                                "price": {
+                                                    "type": "number",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "inventory_item_id",
+                                                "quantity",
+                                                "price"
+                                            ]
+                                        },
+                                        "minItems": 1
                                     }
                                 }
                             }
@@ -8258,7 +8502,7 @@
                 }
             }
         },
-        "/v1/purchase-orders/{purchase_order}/items": {
+        "/v1/purchase-orders/{purchaseOrder}/items": {
             "get": {
                 "operationId": "purchase-orders.items.index",
                 "tags": [
@@ -8266,11 +8510,12 @@
                 ],
                 "parameters": [
                     {
-                        "name": "purchase_order",
+                        "name": "purchaseOrder",
                         "in": "path",
                         "required": true,
+                        "description": "The purchase order ID",
                         "schema": {
-                            "type": "string"
+                            "type": "integer"
                         }
                     }
                 ],
@@ -8288,6 +8533,9 @@
                             }
                         }
                     },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
                     }
@@ -8300,11 +8548,12 @@
                 ],
                 "parameters": [
                     {
-                        "name": "purchase_order",
+                        "name": "purchaseOrder",
                         "in": "path",
                         "required": true,
+                        "description": "The purchase order ID",
                         "schema": {
-                            "type": "string"
+                            "type": "integer"
                         }
                     }
                 ],
@@ -8315,30 +8564,22 @@
                             "schema": {
                                 "type": "object",
                                 "properties": {
-                                    "purchase_order_id": {
-                                        "type": "integer"
-                                    },
                                     "inventory_item_id": {
                                         "type": "integer"
                                     },
                                     "quantity": {
-                                        "type": [
-                                            "number",
-                                            "null"
-                                        ],
-                                        "minimum": 0
+                                        "type": "number",
+                                        "minimum": 0.01
                                     },
                                     "price": {
-                                        "type": [
-                                            "number",
-                                            "null"
-                                        ],
+                                        "type": "number",
                                         "minimum": 0
                                     }
                                 },
                                 "required": [
-                                    "purchase_order_id",
-                                    "inventory_item_id"
+                                    "inventory_item_id",
+                                    "quantity",
+                                    "price"
                                 ]
                             }
                         }
@@ -8357,6 +8598,9 @@
                     },
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -9462,7 +9706,7 @@
         "/v1/reports/inventory": {
             "get": {
                 "operationId": "report.inventory",
-                "description": "Stock lives on the inventory_item_location pivot, not on\ninventory_items.current_stock (which is null for every row). When a\nbranch is selected we report that branch's quantity; otherwise the total\nacross branches.\n\nGET /reports/inventory?location_id=",
+                "description": "Stock lives on the inventory_item_location pivot; inventory_items.current_stock\nmirrors the sum of it (maintained by PurchaseOrderStock) and is not read\nhere, so a branch filter and the all-branches total come from the same\nplace. When a branch is selected we report that branch's quantity;\notherwise the total across branches.\n\nGET /reports/inventory?location_id=",
                 "summary": "Stock on hand, lowest first",
                 "tags": [
                     "Report"
@@ -13787,13 +14031,22 @@
                             "null"
                         ]
                     },
+                    "is_sellable": {
+                        "type": "boolean"
+                    },
+                    "selling_price": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
                     "current_stock": {
                         "type": [
                             "string",
                             "null"
                         ]
                     },
-                    "name": {
+                    "description": {
                         "type": [
                             "string",
                             "null"
@@ -13835,8 +14088,10 @@
                     "image",
                     "sku",
                     "cost_per_unit",
+                    "is_sellable",
+                    "selling_price",
                     "current_stock",
-                    "name",
+                    "description",
                     "unit",
                     "min_stock_level",
                     "created_at",
@@ -14687,6 +14942,12 @@
                             "null"
                         ]
                     },
+                    "inventory_item_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
                     "name": {
                         "type": [
                             "string",
@@ -14741,6 +15002,7 @@
                 "required": [
                     "id",
                     "category_id",
+                    "inventory_item_id",
                     "name",
                     "description",
                     "price",
@@ -14897,6 +15159,15 @@
                             "null"
                         ]
                     },
+                    "stock_applied": {
+                        "type": "boolean"
+                    },
+                    "notes": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
                     "created_at": {
                         "type": [
                             "string",
@@ -14922,6 +15193,8 @@
                     "created_by",
                     "total_amount",
                     "status",
+                    "stock_applied",
+                    "notes",
                     "created_at",
                     "updated_at",
                     "tenant_id"
@@ -14954,6 +15227,23 @@
                     },
                     "tenant_id": {
                         "type": "integer"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "line_total": {
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -14962,7 +15252,10 @@
                     "inventory_item_id",
                     "quantity",
                     "price",
-                    "tenant_id"
+                    "tenant_id",
+                    "created_at",
+                    "updated_at",
+                    "line_total"
                 ],
                 "title": "PurchaseOrderItem"
             },

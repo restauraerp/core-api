@@ -3,12 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Support\Inventory\SellableInventory;
 use App\Support\Sales\TaxCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
+    public function __construct(private readonly SellableInventory $sellable) {}
+
     public function index(Request $request)
     {
         $query = Order::with(['items.product.images', 'payments', 'customer', 'table']);
@@ -107,6 +110,11 @@ class OrderController extends Controller
                 ]);
             }
 
+            // Anything sold as bought - a bottle, a packet - leaves the shelf
+            // it was sold from. Cooked dishes are made of ingredients this
+            // cannot know about and are left to recipes.
+            $this->sellable->deductForOrder($order);
+
             if (! empty($validated['payment_method'])) {
                 $order->payments()->create([
                     'method' => $validated['payment_method'],
@@ -162,7 +170,17 @@ class OrderController extends Controller
             $payload['total'] = round($taxable + $payload['tax_amount'] + $delivery, 2);
         }
 
+        $wasCancelled = $this->isCancelled($order->getOriginal('status'));
+
         $order->update($payload);
+
+        // A cancelled sale did not happen, so the bottle is back on the shelf -
+        // and un-cancelling takes it off again.
+        if (! $wasCancelled && $this->isCancelled($order->status)) {
+            $this->sellable->restoreForOrder($order);
+        } elseif ($wasCancelled && ! $this->isCancelled($order->status)) {
+            $this->sellable->deductForOrder($order);
+        }
 
         if ($request->filled('payment_method')) {
             $order->update(['payment_status' => 'paid']);
@@ -182,8 +200,19 @@ class OrderController extends Controller
 
     public function destroy(Order $order)
     {
+        // A deleted order never happened; whatever it sold goes back on the
+        // shelf, unless it was already cancelled and put back then.
+        if (! $this->isCancelled($order->status)) {
+            $this->sellable->restoreForOrder($order);
+        }
+
         $order->delete();
 
         return response()->json(null, 204);
+    }
+
+    private function isCancelled(?string $status): bool
+    {
+        return in_array(strtolower((string) $status), ['cancelled', 'canceled', 'void'], true);
     }
 }

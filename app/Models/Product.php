@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use App\Models\Concerns\BelongsToTenant;
+use Illuminate\Database\Eloquent\Model;
 
 class Product extends Model
 {
@@ -24,6 +24,23 @@ class Product extends Model
     public function category()
     {
         return $this->belongsTo(ProductCategory::class, 'category_id');
+    }
+
+    /**
+     * Set when this product is the till-facing face of a stock item sold as
+     * bought (a bottle, a packet). Deliberately absent from $fillable: which
+     * item a product mirrors is decided by SellableInventory, never by a
+     * request body.
+     */
+    public function inventoryItem()
+    {
+        return $this->belongsTo(InventoryItem::class);
+    }
+
+    /** Whether selling this product should take stock off a shelf. */
+    public function isStockItem(): bool
+    {
+        return $this->inventory_item_id !== null;
     }
 
     public function images()

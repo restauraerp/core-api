@@ -2,25 +2,40 @@
 
 namespace Database\Seeders;
 
+use App\Models\Customer;
+use App\Models\InventoryItem;
+use App\Models\Location;
+use App\Models\Order;
+use App\Models\Product;
+use App\Models\PurchaseOrder;
+use App\Models\Table;
+use App\Models\User;
+use Carbon\Carbon;
 use Database\Seeders\Concerns\SeedsTenantData;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use App\Models\Order;
-use App\Models\Product;
-use App\Models\Customer;
-use App\Models\Table;
-use App\Models\Location;
-use App\Models\User;
-use App\Models\InventoryItem;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\File;
 
 class OrderSeeder extends Seeder
 {
     use SeedsTenantData;
 
     private int $nextOrderId = 1;
+
     private int $nextExpenseId = 1;
+
     private int $nextPurchaseOrderId = 1;
+
+    /**
+     * How much of the purchase history is still on the shelf.
+     *
+     * Purchase orders are what put goods in a restaurant, so the demo's stock
+     * levels are computed from them rather than invented separately. Summing
+     * two years of deliveries would leave the kitchen holding tonnes of rice,
+     * so everything older than this window counts as cooked and sold, and the
+     * opening delivery below lands inside it.
+     */
+    private const STOCK_WINDOW_DAYS = 7;
 
     public function run(): void
     {
@@ -36,13 +51,14 @@ class OrderSeeder extends Seeder
 
         if ($products->isEmpty() || $customers->isEmpty() || $tables->isEmpty()) {
             $this->command->warn('Ensure Products, Customers, and Tables are seeded before Orders.');
+
             return;
         }
 
         $this->nextOrderId = (DB::table('orders')->max('id') ?? 0) + 1;
         $this->nextExpenseId = (DB::table('expenses')->max('id') ?? 0) + 1;
         $this->nextPurchaseOrderId = (DB::table('purchase_orders')->max('id') ?? 0) + 1;
-        
+
         $ordersData = [];
         $orderItemsData = [];
         $paymentsData = [];
@@ -61,7 +77,7 @@ class OrderSeeder extends Seeder
 
             foreach ($locations as $location) {
                 $locationTables = $tables->where('location_id', $location->id);
-                
+
                 // 1. Generate Orders
                 if ($isRamadan) {
                     $numOrdersToday = $isWeekend ? rand(15, 25) : rand(8, 15);
@@ -73,15 +89,23 @@ class OrderSeeder extends Seeder
                     $orderTime = $this->getRandomOrderTime($date, $isRamadan);
                     $this->generateOrderData($ordersData, $orderItemsData, $paymentsData, $ledgersData, $location, $locationTables, $products, $customers, true, $orderTime);
                 }
-                
+
                 // 2. Generate Monthly Expenses on the 1st of the month
                 if ($date->day === 1) {
                     $this->generateMonthlyExpenses($date, $location, $admin, $expensesData, $ledgersData);
                 }
-                
+
                 // 3. Generate Random Purchase Orders (approx 10% chance per day)
                 if (rand(1, 100) <= 10) {
                     $this->generatePurchaseOrder($date, $location, $admin, $suppliers, $inventoryItems, $purchaseOrdersData, $purchaseItemsData, $ledgersData);
+                }
+
+                // 4. The delivery that stocks the kitchen for the week on show.
+                //    Every item arrives on one order, so every stock level in
+                //    the demo traces back to a purchase order a visitor can
+                //    open and read.
+                if ($daysBack === self::STOCK_WINDOW_DAYS - 1) {
+                    $this->generateOpeningDelivery($date, $location, $admin, $suppliers, $inventoryItems, $purchaseOrdersData, $purchaseItemsData, $ledgersData);
                 }
 
                 // Flush chunks to maintain speed & chronological insert boundaries
@@ -90,7 +114,7 @@ class OrderSeeder extends Seeder
                 }
             }
         }
-        
+
         // Generate a few active (uncompleted) orders for today
         foreach ($locations as $location) {
             $locationTables = $tables->where('location_id', $location->id);
@@ -102,7 +126,10 @@ class OrderSeeder extends Seeder
 
         // Insert remaining
         $this->insertChunks($ordersData, $orderItemsData, $paymentsData, $ledgersData, $expensesData, $purchaseOrdersData, $purchaseItemsData);
-        
+
+        $this->settleInventoryFromPurchases();
+        $this->attachReceiptsToRecentOrders();
+
         $this->command->info('✅ OrderSeeder: Chronologically Seeded Orders, Expenses, Purchases and Accounting Ledgers for 2 Years.');
     }
 
@@ -111,7 +138,9 @@ class OrderSeeder extends Seeder
         // Every insert below is a raw query-builder call, so BelongsToTenant
         // never sees these rows - stampTenant() supplies the tenant_id that the
         // creating hook would otherwise have added.
-        if (count($ordersData) > 0) DB::table('orders')->insert($this->stampTenant($ordersData));
+        if (count($ordersData) > 0) {
+            DB::table('orders')->insert($this->stampTenant($ordersData));
+        }
         foreach (array_chunk($orderItemsData, 2000) as $chunk) {
             DB::table('order_items')->insert($this->stampTenant($chunk));
         }
@@ -119,8 +148,12 @@ class OrderSeeder extends Seeder
             DB::table('payments')->insert($this->stampTenant($chunk));
         }
 
-        if (count($expensesData) > 0) DB::table('expenses')->insert($this->stampTenant($expensesData));
-        if (count($purchaseOrdersData) > 0) DB::table('purchase_orders')->insert($this->stampTenant($purchaseOrdersData));
+        if (count($expensesData) > 0) {
+            DB::table('expenses')->insert($this->stampTenant($expensesData));
+        }
+        if (count($purchaseOrdersData) > 0) {
+            DB::table('purchase_orders')->insert($this->stampTenant($purchaseOrdersData));
+        }
         foreach (array_chunk($purchaseItemsData, 2000) as $chunk) {
             DB::table('purchase_items')->insert($this->stampTenant($chunk));
         }
@@ -128,7 +161,7 @@ class OrderSeeder extends Seeder
         foreach (array_chunk($ledgersData, 2000) as $chunk) {
             DB::table('accounting_ledgers')->insert($this->stampTenant($chunk));
         }
-        
+
         $ordersData = [];
         $orderItemsData = [];
         $paymentsData = [];
@@ -214,7 +247,9 @@ class OrderSeeder extends Seeder
 
     private function generatePurchaseOrder($date, $location, $admin, $suppliers, $items, &$purchaseOrdersData, &$purchaseItemsData, &$ledgersData)
     {
-        if (empty($suppliers) || $items->isEmpty()) return;
+        if (empty($suppliers) || $items->isEmpty()) {
+            return;
+        }
         $dateString = (clone $date)->setTime(rand(10, 16), rand(0, 59))->toDateTimeString();
 
         $supplierId = $suppliers[array_rand($suppliers)];
@@ -228,12 +263,14 @@ class OrderSeeder extends Seeder
             $price = $item->cost_per_unit ?? rand(50, 500);
             $subtotal = $qty * $price;
             $totalAmount += $subtotal;
-            
+
             $orderItems[] = [
                 'purchase_order_id' => $this->nextPurchaseOrderId,
                 'inventory_item_id' => $item->id,
                 'quantity' => $qty,
                 'price' => $price,
+                'created_at' => $dateString,
+                'updated_at' => $dateString,
             ];
         }
 
@@ -244,10 +281,13 @@ class OrderSeeder extends Seeder
             'created_by' => $admin->id ?? 1,
             'total_amount' => $totalAmount,
             'status' => 'received',
+            // A received order's quantities are in inventory - settling the
+            // levels below is what makes that true.
+            'stock_applied' => true,
             'created_at' => $dateString,
             'updated_at' => $dateString,
         ];
-        
+
         foreach ($orderItems as $oi) {
             $purchaseItemsData[] = $oi;
         }
@@ -257,21 +297,167 @@ class OrderSeeder extends Seeder
             'transaction_type' => 'purchase',
             'amount' => -$totalAmount,
             'reference_id' => $this->nextPurchaseOrderId,
-            'description' => 'Inventory Purchase Order #' . $this->nextPurchaseOrderId,
+            'description' => 'Inventory Purchase Order #'.$this->nextPurchaseOrderId,
             'created_at' => $dateString,
             'updated_at' => $dateString,
         ];
         $this->nextPurchaseOrderId++;
     }
 
+    /**
+     * One delivery per outlet covering every inventory item, dated at the start
+     * of the stock window.
+     *
+     * The random deliveries above only touch a handful of items each, so
+     * without this most of the store cupboard would read zero. Quantities are
+     * pitched against each item's minimum level, and a few land below it - a
+     * demo where nothing is ever running low does not show the low-stock
+     * warnings off.
+     */
+    private function generateOpeningDelivery($date, $location, $admin, $suppliers, $items, &$purchaseOrdersData, &$purchaseItemsData, &$ledgersData)
+    {
+        if (empty($suppliers) || $items->isEmpty()) {
+            return;
+        }
+
+        $dateString = (clone $date)->setTime(8, 30)->toDateTimeString();
+        $supplierId = $suppliers[array_rand($suppliers)];
+        $totalAmount = 0;
+
+        foreach ($items as $item) {
+            $minimum = (float) ($item->min_stock_level ?: 10);
+            // Roughly one in six items arrives short of its minimum.
+            $factor = rand(1, 6) === 1 ? rand(30, 90) / 100 : rand(120, 320) / 100;
+            $qty = max(1, round($minimum * $factor, 2));
+            $price = $item->cost_per_unit ?? rand(50, 500);
+            $totalAmount += $qty * $price;
+
+            $purchaseItemsData[] = [
+                'purchase_order_id' => $this->nextPurchaseOrderId,
+                'inventory_item_id' => $item->id,
+                'quantity' => $qty,
+                'price' => $price,
+                'created_at' => $dateString,
+                'updated_at' => $dateString,
+            ];
+        }
+
+        $purchaseOrdersData[] = [
+            'id' => $this->nextPurchaseOrderId,
+            'supplier_id' => $supplierId,
+            'location_id' => $location->id,
+            'created_by' => $admin->id ?? 1,
+            'total_amount' => $totalAmount,
+            'status' => 'received',
+            'stock_applied' => true,
+            'notes' => 'Weekly restock - full store cupboard.',
+            'created_at' => $dateString,
+            'updated_at' => $dateString,
+        ];
+
+        $ledgersData[] = [
+            'location_id' => $location->id,
+            'transaction_type' => 'purchase',
+            'amount' => -$totalAmount,
+            'reference_id' => $this->nextPurchaseOrderId,
+            'description' => 'Inventory Purchase Order #'.$this->nextPurchaseOrderId,
+            'created_at' => $dateString,
+            'updated_at' => $dateString,
+        ];
+
+        $this->nextPurchaseOrderId++;
+    }
+
+    /**
+     * Set every stock level from the deliveries that are still inside the
+     * window, so the inventory screens and the purchase orders tell the same
+     * story.
+     */
+    private function settleInventoryFromPurchases(): void
+    {
+        $tenantId = $this->tenantId();
+        $since = now()->subDays(self::STOCK_WINDOW_DAYS)->startOfDay();
+
+        $delivered = DB::table('purchase_items as pi')
+            ->join('purchase_orders as po', 'po.id', '=', 'pi.purchase_order_id')
+            ->where('po.tenant_id', $tenantId)
+            ->where('po.status', 'received')
+            ->where('po.created_at', '>=', $since)
+            ->groupBy('po.location_id', 'pi.inventory_item_id')
+            ->selectRaw('po.location_id, pi.inventory_item_id, SUM(pi.quantity) as quantity')
+            ->get();
+
+        foreach ($delivered as $row) {
+            DB::table('inventory_item_location')
+                ->where('tenant_id', $tenantId)
+                ->where('location_id', $row->location_id)
+                ->where('inventory_item_id', $row->inventory_item_id)
+                ->update(['quantity' => $row->quantity, 'updated_at' => now()]);
+        }
+
+        // The headline figure is the sum of the outlets, never a number of its
+        // own - the same rule the API applies on every delivery.
+        DB::update(
+            'UPDATE inventory_items i SET i.current_stock = (
+                SELECT COALESCE(SUM(l.quantity), 0) FROM inventory_item_location l
+                WHERE l.inventory_item_id = i.id AND l.tenant_id = ?
+            ) WHERE i.tenant_id = ?',
+            [$tenantId, $tenantId]
+        );
+    }
+
+    /**
+     * Photograph-of-the-paperwork demo: the newest delivery at each outlet
+     * carries scanned receipts, so the receipts gallery is not empty.
+     */
+    private function attachReceiptsToRecentOrders(): void
+    {
+        $source = database_path('seeders/images/receipts');
+        $destination = storage_path('app/public/receipts');
+
+        if (! File::exists($source)) {
+            return;
+        }
+
+        if (! File::exists($destination)) {
+            File::makeDirectory($destination, 0755, true);
+        }
+
+        File::copyDirectory($source, $destination);
+
+        $receipts = collect(File::files($source))
+            ->map(fn ($file) => 'receipts/'.$file->getFilename())
+            ->values();
+
+        if ($receipts->isEmpty()) {
+            return;
+        }
+
+        // The opening delivery: the one order per outlet that carries every
+        // item, and the one a visitor is most likely to open.
+        $orders = PurchaseOrder::where('notes', 'Weekly restock - full store cupboard.')->get();
+
+        foreach ($orders as $order) {
+            foreach ($receipts as $url) {
+                $order->receipts()->create(['url' => $url, 'type' => 'receipt']);
+            }
+        }
+    }
+
     private function isRamadan(Carbon $date): bool
     {
         // Approximations for past 2 years (2024 to 2026 range)
         $year = $date->year;
-        if ($year == 2024 && $date->between(Carbon::create(2024, 3, 11), Carbon::create(2024, 4, 9))) return true;
-        if ($year == 2025 && $date->between(Carbon::create(2025, 3, 1), Carbon::create(2025, 3, 30))) return true;
-        if ($year == 2026 && $date->between(Carbon::create(2026, 2, 18), Carbon::create(2026, 3, 19))) return true;
-        
+        if ($year == 2024 && $date->between(Carbon::create(2024, 3, 11), Carbon::create(2024, 4, 9))) {
+            return true;
+        }
+        if ($year == 2025 && $date->between(Carbon::create(2025, 3, 1), Carbon::create(2025, 3, 30))) {
+            return true;
+        }
+        if ($year == 2026 && $date->between(Carbon::create(2026, 2, 18), Carbon::create(2026, 3, 19))) {
+            return true;
+        }
+
         return false;
     }
 
@@ -297,7 +483,7 @@ class OrderSeeder extends Seeder
         $rand = rand(1, 100);
         $cumulative = 0;
         $selectedSlot = $slots[0];
-        
+
         foreach ($slots as $slot) {
             $cumulative += $slot['weight'];
             if ($rand <= $cumulative) {
@@ -316,13 +502,13 @@ class OrderSeeder extends Seeder
     {
         $date = $date ? clone $date : now();
         $dateString = $date->toDateTimeString();
-        
+
         // Food type/Order type mapping for Bangladesh: heavily skewed towards delivery and dine_in
         $orderTypes = [
             'dine_in' => 40,
             'takeaway' => 20,
             'delivery' => 35,
-            'catering' => 5
+            'catering' => 5,
         ];
         $rand = rand(1, 100);
         $cumulative = 0;
@@ -334,10 +520,10 @@ class OrderSeeder extends Seeder
                 break;
             }
         }
-        
+
         $validStatuses = [];
         $paymentStatus = 'unpaid';
-        
+
         if ($isCompleted) {
             $paymentStatus = 'paid';
             if ($type === 'dine_in') {
@@ -352,7 +538,7 @@ class OrderSeeder extends Seeder
                 $validStatuses = ['pending', 'cooking', 'cooked', 'served'];
             } elseif ($type === 'takeaway') {
                 $validStatuses = ['pending', 'cooking', 'cooked', 'packed'];
-            } else { 
+            } else {
                 $validStatuses = ['pending', 'cooking', 'cooked', 'packed', 'picked', 'delivered'];
             }
             $status = $validStatuses[array_rand($validStatuses)];
@@ -362,13 +548,13 @@ class OrderSeeder extends Seeder
         $subtotal = 0;
         $orderId = $this->nextOrderId++;
         $itemCount = rand(2, 5);
-        
+
         for ($j = 0; $j < $itemCount; $j++) {
             $product = $products->random();
             $qty = rand(1, 3);
             $price = $product->sale_price ?? $product->price;
             $subtotal += $qty * $price;
-            
+
             $orderItemsData[] = [
                 'order_id' => $orderId,
                 'product_id' => $product->id,
@@ -403,7 +589,7 @@ class OrderSeeder extends Seeder
             'created_at' => $dateString,
             'updated_at' => $dateString,
         ];
-        
+
         if ($paymentStatus === 'paid') {
             $methods = ['cash', 'cash', 'mfs', 'mfs', 'card'];
             $paymentsData[] = [
@@ -414,13 +600,13 @@ class OrderSeeder extends Seeder
                 'created_at' => $dateString,
                 'updated_at' => $dateString,
             ];
-            
+
             $ledgersData[] = [
                 'location_id' => $location->id,
                 'transaction_type' => 'sale',
                 'amount' => $total,
                 'reference_id' => $orderId,
-                'description' => 'Sale from Order #' . $orderId,
+                'description' => 'Sale from Order #'.$orderId,
                 'created_at' => $dateString,
                 'updated_at' => $dateString,
             ];

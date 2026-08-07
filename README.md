@@ -482,6 +482,148 @@ php artisan demo:refresh --force --if-demo --isolated
 artisan exit code is the script's exit code. It used to be the `migrate:fresh` that caused
 all of this; nothing in the deploy or in cron may run `migrate:fresh` again.
 
+## Purchase Orders & Inventory Stock
+
+**A purchase order is the only thing that puts stock in a restaurant.** Levels are not
+typed in anywhere: they are what the deliveries say they are, so every figure on the
+inventory screens has a document behind it that names the supplier, the outlet, the
+quantity and the price paid.
+
+### The document
+
+One order is written in one request — header, line rows and receipt images together, in a
+single transaction. A header with no lines is not a purchase, so `items` is required and
+must hold at least one row.
+
+```http
+POST /api/v1/purchase-orders          multipart/form-data or JSON
+```
+
+| Field | Required | Value | Description |
+| --- | --- | --- | --- |
+| `supplier_id` | yes | integer | Must belong to the caller's tenant. |
+| `location_id` | yes | integer | The outlet the delivery arrives at. Its stock is what moves. |
+| `status` | no | `pending` \| `approved` \| `received` \| `cancelled` | Defaults to `received`. Only `cancelled` is special — see below. |
+| `notes` | no | string (≤ 2000) | Delivery note number, driver, anything worth remembering. |
+| `items[]` | yes | array, min 1 | The line rows. |
+| `items[].inventory_item_id` | yes | integer | Must belong to the caller's tenant. |
+| `items[].quantity` | yes | numeric > 0 | In the item's own unit (kg, litre, bundle). |
+| `items[].price` | yes | numeric ≥ 0 | The price of **one unit**, not the row total. |
+| `receipts[]` | no | up to 10 images, ≤ 5 MB each | Photos or scans of the supplier's paperwork. |
+| `remove_receipt_ids[]` | no | integer array | Update only: receipts to detach. Ids from another order are ignored. |
+| `created_by` | no | integer | Defaults to the authenticated user. |
+
+`total_amount` is **not accepted from the request**. It is the sum of quantity × price over
+the lines, computed on write — a total that disagrees with its own lines is a total nobody
+can audit. Each line also carries a derived `line_total` in responses.
+
+`GET /api/v1/purchase-orders` returns 15 per page with the supplier, outlet, creator, line
+rows (each with its inventory item) and receipts already loaded; `?nopaginate` returns them
+all, and `?status=`, `?supplier_id=` and `?location_id=` filter.
+
+### What happens to stock
+
+Writing the order moves the goods. There is no separate "receive" step to forget:
+
+| Action | Effect on inventory |
+| --- | --- |
+| Create | Quantities are added to `inventory_item_location` for the order's outlet. |
+| Edit a quantity, item, or outlet | The old version is taken back out and the new one put in — including moving stock between outlets when `location_id` changes. |
+| Set status to `cancelled` | Taken back out. The order is kept for the record. |
+| Set a cancelled order back to any other status | Put back in. |
+| Delete | Taken back out. A deleted order never happened, so neither did its delivery. |
+
+Every one of these is the same reverse-then-apply operation
+(`App\Support\Inventory\PurchaseOrderStock`), guarded by a `stock_applied` flag on the
+order so quantities can never be counted twice or removed twice.
+
+`inventory_items.current_stock` is **recomputed from the outlets** after every move, so the
+headline figure can never drift from the per-outlet ones. Lines naming the same item twice
+are summed before inventory is touched.
+
+Reversing a delivery whose goods have since been cooked can push a level **negative**. That
+is deliberate and left visible: it means the books say the kitchen used stock it never
+received, and rounding it up to zero would hide the mistake that caused it.
+
+### Cost per unit follows the last delivery
+
+`inventory_items.cost_per_unit` is **not typed in either**. After every purchase-order
+write it is set to the price on the most recent non-cancelled line for that item, so it is
+always what the last invoice charged.
+
+Recomputed from the newest line rather than copied off whichever order is being saved,
+which means correcting last month's invoice cannot overwrite this week's price, and
+deleting the newest order falls back to the one before it. If no line is left to price an
+item from, the last known cost stands rather than being blanked.
+
+### What the inventory endpoints will no longer do
+
+`POST`/`PUT /api/v1/inventory-items` accept the item's *description* — title, description,
+SKU, unit, minimum level, image — plus **which outlets carry it** and whether it is
+**sold at the till**. They no longer accept `current_stock`, `locations[].quantity` or
+`cost_per_unit`; all three are silently ignored rather than rejected, so an older client
+does not break, but nothing it sends can change a level or a price paid. Existing
+quantities survive every edit, including switching an outlet off, and an outlet added to
+an item starts at zero until something is delivered to it.
+
+`name` is now `description`, widened to TEXT. The column was never a second name — it held
+the longer "Whole Black Pepper" wording next to the short "Black Pepper" title, which is a
+description. An item has one name, and that is its `title`.
+
+## Stock Sold As Bought
+
+Some stock is sold exactly as it arrived — a bottle of water, a can of cola, a packet of
+crisps. Ticking **`is_sellable`** on an inventory item (with a `selling_price`, which is
+then required) puts it on the till.
+
+It gets there as a **real product**: ticking the box creates and maintains a `products` row
+linked back by `products.inventory_item_id`. Orders, order lines, receipts and every sales
+report already speak product, so one mirrored row buys all of them at once, and the item
+also appears in Catalog → Products.
+
+| What you do | What happens |
+| --- | --- |
+| Tick `is_sellable`, set a price | A product is created: name from `title`, description, price from `selling_price`, the item's image, type `merchandise`, available at the outlets that stock the item. |
+| Rename, reprice, re-image the item | The product follows. Ticking again reuses the same row — there is never a second one. |
+| Untick `is_sellable` | The product is **deactivated, never deleted**. Past orders point at it, and deleting a row a receipt references would leave a hole in sales history. |
+| Sell one at the till | That outlet's stock goes down by the quantity sold. |
+| Cancel or delete the order | The stock goes back. |
+
+Only lines whose product mirrors a stock item move anything. A cooked dish is made of
+ingredients no order line can know about — that is what recipes are for — so selling one
+moves no stock.
+
+`products.inventory_item_id` is deliberately **not mass-assignable**: which item a product
+mirrors is decided by `App\Support\Inventory\SellableInventory`, never by a request body.
+
+All stock movement — deliveries in, sales out — goes through
+`App\Support\Inventory\StockLevels`, so there is one definition of what "on hand" means and
+one place that recomputes `current_stock` from the outlets.
+
+The demo carries three such items (bottled water, a cola can, a packet of crisps), priced
+and stocked like the rest, so the till has something sold-as-bought on it.
+
+The single-line endpoints (`/purchase-orders/{id}/items`, `/purchase-order-items/{id}`)
+carry the same two obligations as the document endpoints: they recompute the order's total
+and re-state inventory.
+
+### In the demo data
+
+Demo stock levels are generated the same way, so the demo cannot show a number that
+contradicts the rule:
+
+- `InventoryItemSeeder` creates every item at **zero** in every outlet.
+- `OrderSeeder` writes two years of purchase orders, plus one **opening delivery per outlet**
+  dated at the start of the stock window, covering every item at a quantity pitched against
+  its minimum level — roughly one item in six lands below its minimum, so the low-stock
+  warnings have something to show.
+- On-hand is then set from the deliveries inside the last **7 days**
+  (`OrderSeeder::STOCK_WINDOW_DAYS`); everything older counts as cooked and sold. Without a
+  window like this, two years of demo deliveries would leave the kitchen holding tonnes of
+  rice.
+- The opening delivery at each outlet carries sample receipt images from
+  `database/seeders/images/receipts/`, so the receipts gallery is not empty.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
