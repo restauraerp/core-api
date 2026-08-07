@@ -4986,10 +4986,17 @@
                                         "type": "integer"
                                     },
                                     "order_type": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "enum": [
+                                            "dine_in",
+                                            "takeaway",
+                                            "delivery",
+                                            "catering"
+                                        ]
                                     },
                                     "status": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "description": "Accepted for backwards compatibility and then ignored, like the\nmoney below: where an order starts depends on what is on it and\nwhen it is due, which is not the till's call to make."
                                     },
                                     "payment_status": {
                                         "type": "string"
@@ -5103,7 +5110,6 @@
                                 "required": [
                                     "location_id",
                                     "order_type",
-                                    "status",
                                     "subtotal",
                                     "discount_amount",
                                     "items"
@@ -5291,10 +5297,17 @@
                                         "type": "integer"
                                     },
                                     "order_type": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "enum": [
+                                            "dine_in",
+                                            "takeaway",
+                                            "delivery",
+                                            "catering"
+                                        ]
                                     },
                                     "status": {
-                                        "type": "string"
+                                        "type": "string",
+                                        "description": "Accepted for backwards compatibility and then ignored, like the\nmoney below: where an order starts depends on what is on it and\nwhen it is due, which is not the till's call to make."
                                     },
                                     "payment_status": {
                                         "type": "string"
@@ -5408,7 +5421,6 @@
                                 "required": [
                                     "location_id",
                                     "order_type",
-                                    "status",
                                     "subtotal",
                                     "discount_amount",
                                     "items"
@@ -7178,6 +7190,13 @@
                                             "null"
                                         ]
                                     },
+                                    "needs_cooking": {
+                                        "type": [
+                                            "boolean",
+                                            "null"
+                                        ],
+                                        "description": "Whether this goes to the kitchen. A dish prepared to order does;\na bottled drink handed straight over does not, and an order made\nonly of those skips the cooking stage entirely."
+                                    },
                                     "is_active": {
                                         "type": "boolean"
                                     },
@@ -7341,6 +7360,13 @@
                                             "string",
                                             "null"
                                         ]
+                                    },
+                                    "needs_cooking": {
+                                        "type": [
+                                            "boolean",
+                                            "null"
+                                        ],
+                                        "description": "Whether this goes to the kitchen. A dish prepared to order does;\na bottled drink handed straight over does not, and an order made\nonly of those skips the cooking stage entirely."
                                     },
                                     "is_active": {
                                         "type": "boolean"
@@ -14507,6 +14533,9 @@
                             "null"
                         ]
                     },
+                    "needs_cooking": {
+                        "type": "boolean"
+                    },
                     "payment_status": {
                         "type": "string"
                     },
@@ -14581,6 +14610,12 @@
                     },
                     "tenant_id": {
                         "type": "integer"
+                    },
+                    "next_statuses": {
+                        "type": "string"
+                    },
+                    "status_label": {
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -14593,6 +14628,7 @@
                     "discount_id",
                     "order_type",
                     "status",
+                    "needs_cooking",
                     "payment_status",
                     "subtotal",
                     "tax_amount",
@@ -14605,7 +14641,9 @@
                     "delivery_address",
                     "latitude",
                     "longitude",
-                    "tenant_id"
+                    "tenant_id",
+                    "next_statuses",
+                    "status_label"
                 ],
                 "title": "Order"
             },
@@ -14978,6 +15016,9 @@
                             "null"
                         ]
                     },
+                    "needs_cooking": {
+                        "type": "boolean"
+                    },
                     "is_active": {
                         "type": "integer"
                     },
@@ -15008,6 +15049,7 @@
                     "price",
                     "sale_price",
                     "type",
+                    "needs_cooking",
                     "is_active",
                     "created_at",
                     "updated_at",

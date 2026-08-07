@@ -141,8 +141,8 @@ class OrderTaxTest extends TestCase
 
     public function test_a_status_change_does_not_reprice_a_historical_order(): void
     {
-        // An order billed under the old hardcoded 10%. Marking it delivered must
-        // leave what the customer actually paid alone.
+        // An order billed under the old hardcoded 10%. Moving it along its
+        // workflow must leave what the customer actually paid alone.
         $order = app(TenantContext::class)->runFor($this->tenant, fn () => Order::create([
             'location_id' => $this->location->id,
             'order_type' => 'dine_in',
@@ -153,7 +153,7 @@ class OrderTaxTest extends TestCase
             'total' => 1100,
         ]));
 
-        $this->putJson("/api/v1/orders/{$order->id}", ['status' => 'delivered'])->assertOk();
+        $this->putJson("/api/v1/orders/{$order->id}", ['status' => 'ready_to_serve'])->assertOk();
 
         $order->refresh();
 

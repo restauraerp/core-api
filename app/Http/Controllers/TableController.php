@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Table;
+use App\Support\Orders\OrderFlow;
 use Illuminate\Http\Request;
 
 class TableController extends Controller
@@ -12,8 +13,8 @@ class TableController extends Controller
         return response()->json(Table::where('location_id', $locationId)
             ->withCount(['orders' => function ($query) {
                 $query->where(function ($q) {
-                    $q->whereNotIn('status', ['served', 'delivered', 'packed', 'picked'])
-                      ->orWhere('payment_status', '!=', 'paid');
+                    $q->whereNotIn('status', [OrderFlow::SERVED, OrderFlow::DELIVERED, OrderFlow::PACKED, OrderFlow::PICKED_UP])
+                        ->orWhere('payment_status', '!=', 'paid');
                 });
             }])
             ->get());
@@ -27,8 +28,9 @@ class TableController extends Controller
         ]);
 
         $validated['location_id'] = $locationId;
-        
+
         $table = Table::create($validated);
+
         return response()->json($table, 201);
     }
 
@@ -45,12 +47,14 @@ class TableController extends Controller
         ]);
 
         $table->update($validated);
+
         return response()->json($table);
     }
 
     public function destroy(Table $table)
     {
         $table->delete();
+
         return response()->json(null, 204);
     }
 }

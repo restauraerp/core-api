@@ -624,6 +624,83 @@ contradicts the rule:
 - The opening delivery at each outlet carries sample receipt images from
   `database/seeders/images/receipts/`, so the receipts gallery is not empty.
 
+## Order Flow
+
+An order runs on **two independent tracks**. `payment_status` (paid/unpaid) is one; being
+paid finishes nothing. `status` is the fulfilment track described here, and
+`App\Support\Orders\OrderFlow` is the whole rule book — it used to live in three places at
+once (the till, the storefront checkout and the orders screen), with the API accepting
+whatever word arrived.
+
+### Where an order opens
+
+Decided by the API at creation, first rule that matches. A `status` in the request is
+accepted and ignored, the same way `tax_amount` and `total` are:
+
+| Condition | Opens at |
+| --- | --- |
+| `delivery_time` is set and in the future | `pending` |
+| Any line's product has `needs_cooking` | `cooking` |
+| Otherwise | `ready_to_serve` |
+
+**Scheduled orders wait.** Takeaway, delivery and catering carry a delivery time (empty
+means ASAP); cooking a catering order the moment it is booked is how food for Saturday gets
+made on Tuesday. A waiting order is started **by hand** — the "Start Cooking" button on the
+kitchen kiosk. Nothing starts it automatically.
+
+**Orders with nothing to prepare never reach the kitchen.** `products.needs_cooking` marks
+what involves the kitchen; an order of a bottle of water and a packet of crisps has no
+cooking stage in its run at all, so it opens at `ready_to_serve` and never appears on the
+kitchen display — including when it was scheduled for later.
+
+The answer is recorded on the order as `orders.needs_cooking` at creation. Asking the line
+items on every read would turn a list of fifty orders into fifty joins, and would let a
+later edit of the catalogue rewrite the history of an order that has already been cooked.
+
+### The runs
+
+| Type | Flow |
+| --- | --- |
+| Dine-In | `[pending] → cooking → ready_to_serve → served` |
+| Takeaway | `[pending] → cooking → ready_to_serve → packed` |
+| Delivery | `[pending] → cooking → ready_to_serve → packed → picked_up → delivered` |
+| Catering | same as Delivery |
+
+`pending` is only in the run for a scheduled order; `cooking` only when something needs
+preparing. **One step at a time** — `PUT /api/v1/orders/{id}` refuses a jump with 422 and
+says what is allowed:
+
+```json
+{ "message": "A dine in order cannot go from Cooking to Delivered. Next: Ready to Serve." }
+```
+
+`cancelled` is reachable from any stage, and reopening a cancelled order puts it back at
+the start of its run. Cancelling still restores the stock of anything sold as bought.
+
+Every order carries `next_statuses` (and `status_label`) in its JSON, so a till or kitchen
+display renders its buttons from the rule book instead of its own copy of it.
+
+### Renamed statuses
+
+`cooked` → **`ready_to_serve`** ("Ready to Serve") and `picked` → **`picked_up`** ("Picked
+Up By Delivery"): staff already said those words while the screen said something else.
+Existing rows were rewritten by migration, and `OrderFlow::normalise()` still resolves the
+old spellings (plus `canceled`/`void` → `cancelled`), so an un-updated client keeps working.
+
+An order finishes at the end of its own run — `served`, `packed` for takeaway, `delivered`
+for delivery and catering. `Order::scopeCompleted()`/`scopeActive()` and the table-occupancy
+count in `TableController` all read those stages from `OrderFlow`.
+
+### Turning it on
+
+**Nothing is marked `needs_cooking` by default** — the migration backfills nothing on
+purpose, since guessing from `type` would quietly send the wrong things to the kitchen
+display on day one. Until dishes are ticked in Catalog → Products, every order opens at
+`ready_to_serve` and the kitchen queue stays empty. The demo seeder is the exception: every
+dish on the demo menu is ticked, and `OrderSeeder` applies the same two rules to the history
+it writes, so scheduled demo orders sit at `pending` and drink-only orders never show a
+cooking stage.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:

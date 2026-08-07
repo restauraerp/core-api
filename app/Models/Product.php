@@ -9,6 +9,10 @@ class Product extends Model
 {
     use BelongsToTenant;
 
+    protected $casts = [
+        'needs_cooking' => 'boolean',
+    ];
+
     protected $fillable = [
         'category_id',
         'name',
@@ -17,6 +21,7 @@ class Product extends Model
         'price',
         'sale_price',
         'type',
+        'needs_cooking',
         'is_active',
         'recipe_id',
     ];

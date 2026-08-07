@@ -527,19 +527,23 @@ class OrderSeeder extends Seeder
         if ($isCompleted) {
             $paymentStatus = 'paid';
             if ($type === 'dine_in') {
-                $status = 'served';
+                $status = OrderFlow::SERVED;
             } elseif ($type === 'takeaway') {
-                $status = 'packed';
+                $status = OrderFlow::PACKED;
             } else {
-                $status = 'delivered';
+                $status = OrderFlow::DELIVERED;
             }
         } else {
+            // The stages an unfinished order can be sitting in, per type - the
+            // same runs OrderFlow enforces. `pending` is not among them here:
+            // an order only waits when it is scheduled for later, which is
+            // decided below from its delivery time.
             if ($type === 'dine_in') {
-                $validStatuses = ['pending', 'cooking', 'cooked', 'served'];
+                $validStatuses = [OrderFlow::COOKING, OrderFlow::READY_TO_SERVE, OrderFlow::SERVED];
             } elseif ($type === 'takeaway') {
-                $validStatuses = ['pending', 'cooking', 'cooked', 'packed'];
+                $validStatuses = [OrderFlow::COOKING, OrderFlow::READY_TO_SERVE, OrderFlow::PACKED];
             } else {
-                $validStatuses = ['pending', 'cooking', 'cooked', 'packed', 'picked', 'delivered'];
+                $validStatuses = [OrderFlow::COOKING, OrderFlow::READY_TO_SERVE, OrderFlow::PACKED, OrderFlow::PICKED_UP, OrderFlow::DELIVERED];
             }
             $status = $validStatuses[array_rand($validStatuses)];
         }
@@ -548,12 +552,14 @@ class OrderSeeder extends Seeder
         $subtotal = 0;
         $orderId = $this->nextOrderId++;
         $itemCount = rand(2, 5);
+        $needsCooking = false;
 
         for ($j = 0; $j < $itemCount; $j++) {
             $product = $products->random();
             $qty = rand(1, 3);
             $price = $product->sale_price ?? $product->price;
             $subtotal += $qty * $price;
+            $needsCooking = $needsCooking || (bool) $product->needs_cooking;
 
             $orderItemsData[] = [
                 'order_id' => $orderId,
@@ -568,6 +574,17 @@ class OrderSeeder extends Seeder
         $total = $subtotal + $tax + $deliveryCharge;
         $deliveryTime = in_array($type, ['takeaway', 'delivery', 'catering']) ? (clone $date)->addMinutes(rand(30, 90))->toDateTimeString() : null;
 
+        // The same two rules the API applies when a real order is placed: an
+        // order not due yet waits, and one with nothing to prepare never
+        // reaches the kitchen.
+        if (! $isCompleted) {
+            if ($deliveryTime !== null && Carbon::parse($deliveryTime)->isFuture()) {
+                $status = OrderFlow::PENDING;
+            } elseif (! $needsCooking && $status === OrderFlow::COOKING) {
+                $status = OrderFlow::READY_TO_SERVE;
+            }
+        }
+
         $ordersData[] = [
             'id' => $orderId,
             'location_id' => $location->id,
@@ -576,6 +593,7 @@ class OrderSeeder extends Seeder
             'table_id' => ($type === 'dine_in' && $locationTables->isNotEmpty()) ? $locationTables->random()->id : null,
             'order_type' => $type,
             'status' => $status,
+            'needs_cooking' => $needsCooking,
             'payment_status' => $paymentStatus,
             'subtotal' => $subtotal,
             'tax_amount' => $tax,
