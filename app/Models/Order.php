@@ -2,8 +2,9 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use App\Models\Concerns\BelongsToTenant;
+use App\Support\Orders\OrderFlow;
+use Illuminate\Database\Eloquent\Model;
 
 class Order extends Model
 {
@@ -13,13 +14,44 @@ class Order extends Model
 
     protected $casts = [
         'delivery_time' => 'datetime',
+        'needs_cooking' => 'boolean',
     ];
+
+    /**
+     * The stage this order may move to next, so a till or a kitchen display
+     * renders buttons from the rule book rather than from its own copy of it.
+     */
+    protected $appends = ['next_statuses', 'status_label'];
+
+    /**
+     * @return list<string>
+     */
+    public function nextStatuses(): array
+    {
+        return app(OrderFlow::class)->next(
+            (string) $this->order_type,
+            $this->status,
+            (bool) $this->needs_cooking,
+        );
+    }
+
+    /** @return list<string> */
+    public function getNextStatusesAttribute(): array
+    {
+        return $this->nextStatuses();
+    }
+
+    public function getStatusLabelAttribute(): string
+    {
+        return app(OrderFlow::class)->label($this->status);
+    }
 
     /**
      * An order is "completed" once it is paid AND has reached the end of its
      * own workflow - which differs by type: dine-in ends at `served`, delivery
      * at `delivered`, and takeaway at `packed` (nobody marks a takeaway bag
-     * "served" once the customer has walked out with it).
+     * "served" once the customer has walked out with it). OrderFlow owns which
+     * stage that is for each type.
      *
      * This definition drives both the Completed tab and, by complement, the
      * live floor view, so it lives here rather than being spelled out at each
@@ -29,10 +61,10 @@ class Order extends Model
     {
         return $query->where('payment_status', 'paid')
             ->where(function ($q) {
-                $q->whereIn('status', ['served', 'delivered'])
+                $q->whereIn('status', [OrderFlow::SERVED, OrderFlow::DELIVERED])
                     ->orWhere(function ($takeaway) {
-                        $takeaway->where('status', 'packed')
-                            ->where('order_type', 'takeaway');
+                        $takeaway->where('status', OrderFlow::PACKED)
+                            ->where('order_type', OrderFlow::TAKEAWAY);
                     });
             });
     }
@@ -55,10 +87,10 @@ class Order extends Model
             })->orWhere(function ($paidButUnfinished) {
                 $paidButUnfinished->where('payment_status', 'paid')
                     ->where(function ($statusQ) {
-                        $statusQ->whereNotIn('status', ['served', 'delivered'])
+                        $statusQ->whereNotIn('status', [OrderFlow::SERVED, OrderFlow::DELIVERED])
                             ->whereNot(function ($packed) {
-                                $packed->where('status', 'packed')
-                                    ->where('order_type', 'takeaway');
+                                $packed->where('status', OrderFlow::PACKED)
+                                    ->where('order_type', OrderFlow::TAKEAWAY);
                             });
                     });
             });

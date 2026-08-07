@@ -2,23 +2,40 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use App\Models\Concerns\BelongsToTenant;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class InventoryItem extends Model
 {
     use BelongsToTenant;
 
+    /**
+     * current_stock and cost_per_unit are deliberately absent: stock comes from
+     * purchase orders and cost is what the last delivery charged. Both are
+     * maintained by App\Support\Inventory\PurchaseOrderStock, so neither can be
+     * moved by a request body.
+     */
     protected $fillable = [
         'title',
         'image',
-        'name',
+        'description',
         'sku',
         'unit',
         'min_stock_level',
-        'current_stock',
-        'cost_per_unit',
+        'is_sellable',
+        'selling_price',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_sellable' => 'boolean',
+            'selling_price' => 'decimal:2',
+            'current_stock' => 'decimal:2',
+            'cost_per_unit' => 'decimal:2',
+        ];
+    }
 
     public function locations()
     {
@@ -27,5 +44,14 @@ class InventoryItem extends Model
                 ->withPivot('quantity', 'is_active')
                 ->withTimestamps()
         );
+    }
+
+    /**
+     * The catalogue entry that puts this item on the till, for items sold as
+     * bought. Kept in step by App\Support\Inventory\SellableInventory.
+     */
+    public function product(): HasOne
+    {
+        return $this->hasOne(Product::class);
     }
 }

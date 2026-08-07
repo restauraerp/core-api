@@ -2,11 +2,10 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use App\Models\ProductCategory;
-use App\Models\Product;
 use App\Models\Image;
-use Illuminate\Support\Str;
+use App\Models\Product;
+use App\Models\ProductCategory;
+use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\File;
 
 class ProductSeeder extends Seeder
@@ -17,7 +16,7 @@ class ProductSeeder extends Seeder
         $sourcePath = database_path('seeders/images/foods');
         $destinationPath = storage_path('app/public/foods');
 
-        if (!File::exists($destinationPath)) {
+        if (! File::exists($destinationPath)) {
             File::makeDirectory($destinationPath, 0755, true);
         }
 
@@ -40,7 +39,7 @@ class ProductSeeder extends Seeder
                 'sale_price' => 750,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/truffle_carbonara.png'
+                'image' => 'foods/truffle_carbonara.png',
             ],
             [
                 'category_id' => $pizzaCategory->id,
@@ -50,7 +49,7 @@ class ProductSeeder extends Seeder
                 'sale_price' => 550,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/margherita_verace.png'
+                'image' => 'foods/margherita_verace.png',
             ],
             [
                 'category_id' => $grillCategory->id,
@@ -59,7 +58,7 @@ class ProductSeeder extends Seeder
                 'price' => 3200,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/bistecca_fiorentina.png'
+                'image' => 'foods/bistecca_fiorentina.png',
             ],
             [
                 'category_id' => $dessertCategory->id,
@@ -69,7 +68,7 @@ class ProductSeeder extends Seeder
                 'sale_price' => 400,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/classic_tiramisu.png'
+                'image' => 'foods/classic_tiramisu.png',
             ],
             [
                 'category_id' => $pastaCategory->id,
@@ -78,7 +77,7 @@ class ProductSeeder extends Seeder
                 'price' => 750,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/gnocchi_pesto.png'
+                'image' => 'foods/gnocchi_pesto.png',
             ],
             [
                 'category_id' => $pastaCategory->id,
@@ -87,7 +86,7 @@ class ProductSeeder extends Seeder
                 'price' => 850,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/lasagna.png'
+                'image' => 'foods/lasagna.png',
             ],
             [
                 'category_id' => $pizzaCategory->id,
@@ -96,7 +95,7 @@ class ProductSeeder extends Seeder
                 'price' => 950,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/quattro_formaggi.png'
+                'image' => 'foods/quattro_formaggi.png',
             ],
             [
                 'category_id' => $pastaCategory->id,
@@ -105,7 +104,7 @@ class ProductSeeder extends Seeder
                 'price' => 800,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/risotto_funghi.png'
+                'image' => 'foods/risotto_funghi.png',
             ],
             [
                 'category_id' => $grillCategory->id, // Re-using grill for starters for simplicity, or we can just use a new one but let's keep it in existing categories or add to pasta
@@ -114,7 +113,7 @@ class ProductSeeder extends Seeder
                 'price' => 350,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/bruschetta.png'
+                'image' => 'foods/bruschetta.png',
             ],
             [
                 'category_id' => $dessertCategory->id,
@@ -123,7 +122,7 @@ class ProductSeeder extends Seeder
                 'price' => 400,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/panna_cotta.png'
+                'image' => 'foods/panna_cotta.png',
             ],
             [
                 'category_id' => $pizzaCategory->id,
@@ -132,7 +131,7 @@ class ProductSeeder extends Seeder
                 'price' => 750,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/calzone.png'
+                'image' => 'foods/calzone.png',
             ],
             [
                 'category_id' => $pastaCategory->id,
@@ -141,7 +140,7 @@ class ProductSeeder extends Seeder
                 'price' => 650,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/spaghetti_bolognese.png'
+                'image' => 'foods/spaghetti_bolognese.png',
             ],
             [
                 'category_id' => $pastaCategory->id,
@@ -150,7 +149,7 @@ class ProductSeeder extends Seeder
                 'price' => 700,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/fettuccine_alfredo.png'
+                'image' => 'foods/fettuccine_alfredo.png',
             ],
             [
                 'category_id' => $grillCategory->id,
@@ -159,7 +158,7 @@ class ProductSeeder extends Seeder
                 'price' => 350,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/minestrone.png'
+                'image' => 'foods/minestrone.png',
             ],
             [
                 'category_id' => $grillCategory->id,
@@ -168,7 +167,7 @@ class ProductSeeder extends Seeder
                 'price' => 550,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/caprese_salad.png'
+                'image' => 'foods/caprese_salad.png',
             ],
             [
                 'category_id' => $dessertCategory->id,
@@ -177,7 +176,7 @@ class ProductSeeder extends Seeder
                 'price' => 250,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/gelato.png'
+                'image' => 'foods/gelato.png',
             ],
             [
                 'category_id' => $pastaCategory->id,
@@ -186,7 +185,7 @@ class ProductSeeder extends Seeder
                 'price' => 850,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/ravioli.png'
+                'image' => 'foods/ravioli.png',
             ],
             [
                 'category_id' => $pizzaCategory->id,
@@ -195,7 +194,7 @@ class ProductSeeder extends Seeder
                 'price' => 800,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/pizza_diavola.png'
+                'image' => 'foods/pizza_diavola.png',
             ],
             [
                 'category_id' => $grillCategory->id,
@@ -204,8 +203,8 @@ class ProductSeeder extends Seeder
                 'price' => 1800,
                 'type' => 'Standard',
                 'is_active' => true,
-                'image' => 'foods/salmon_al_forno.png'
-            ]
+                'image' => 'foods/salmon_al_forno.png',
+            ],
         ];
 
         foreach ($productsData as $data) {
@@ -217,6 +216,11 @@ class ProductSeeder extends Seeder
                     'price' => $data['price'],
                     'sale_price' => $data['sale_price'] ?? null,
                     'type' => $data['type'],
+                    // Every dish on this menu is prepared to order, so the demo
+                    // shows the kitchen path. Stock sold as bought - the water,
+                    // cola and crisps from InventoryItemSeeder - stays unticked
+                    // and skips the kitchen entirely.
+                    'needs_cooking' => $data['needs_cooking'] ?? true,
                     'is_active' => $data['is_active'],
                 ]
             );

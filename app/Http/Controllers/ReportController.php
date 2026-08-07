@@ -242,10 +242,11 @@ class ReportController extends Controller
     /**
      * Stock on hand, lowest first.
      *
-     * Stock lives on the inventory_item_location pivot, not on
-     * inventory_items.current_stock (which is null for every row). When a
-     * branch is selected we report that branch's quantity; otherwise the total
-     * across branches.
+     * Stock lives on the inventory_item_location pivot; inventory_items.current_stock
+     * mirrors the sum of it (maintained by PurchaseOrderStock) and is not read
+     * here, so a branch filter and the all-branches total come from the same
+     * place. When a branch is selected we report that branch's quantity;
+     * otherwise the total across branches.
      *
      * GET /reports/inventory?location_id=
      */
@@ -264,7 +265,7 @@ class ReportController extends Controller
             ->selectRaw('inventory_item_id, COALESCE(SUM(quantity), 0) as quantity')
             ->pluck('quantity', 'inventory_item_id');
 
-        $items = InventoryItem::query()->orderBy('name')->get();
+        $items = InventoryItem::query()->orderBy('title')->get();
 
         $data = $items->map(function (InventoryItem $item) use ($stock) {
             $quantity = (float) ($stock[$item->id] ?? 0);
@@ -273,7 +274,7 @@ class ReportController extends Controller
 
             return [
                 'id' => $item->id,
-                'name' => $item->name ?: $item->title,
+                'name' => $item->title ?: $item->description,
                 'sku' => $item->sku,
                 'unit' => $item->unit,
                 'cost_per_unit' => $costPerUnit,
