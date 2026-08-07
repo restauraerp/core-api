@@ -20,8 +20,75 @@ Artisan runs inside the container:
 docker exec restoraerp_core_api php artisan <command>
 ```
 
+On the production server it runs as the deploy account instead — see
+[Running artisan on production](#running-artisan-on-production). Getting that wrong leaves
+files the app cannot rewrite.
+
 Every command below documents its own options — `php artisan help tenants:create` prints
 the full option list plus worked examples.
+
+## Running artisan on production
+
+**Always run artisan as `publicdeploy`, from `current`:**
+
+```bash
+ssh resp
+sudo -u publicdeploy php /var/www/core-api/current/artisan <command>
+```
+
+```bash
+# Worked examples
+sudo -u publicdeploy php /var/www/core-api/current/artisan migrate:status
+sudo -u publicdeploy php /var/www/core-api/current/artisan tenants:list
+sudo -u publicdeploy php /var/www/core-api/current/artisan tenants:create "Furomon Cafe" \
+    --plan=starter --owner-email=owner@example.com
+```
+
+### Why the prefix matters
+
+`publicdeploy` owns the application and is the user the app itself runs as
+(`User=publicdeploy` in `restoraerp-core-api.service`). Your login account, `resadmin`, is
+**not** in the `publicdeploy` group — it gets write access through POSIX ACLs instead, set
+up deliberately in `infra/templates/user_data.sh.tpl`. ACLs let resadmin write *into*
+publicdeploy's directories, but anything it creates is owned by `resadmin:resadmin`, and
+publicdeploy gets nothing back.
+
+So a bare `php artisan config:cache` (or `optimize`, `route:cache`, `event:cache`) writes
+`bootstrap/cache/*.php` as `resadmin` at mode 664. The app can still *read* them — it falls
+through to `other` — but it can never rewrite them, so the next `config:cache` in that
+release fails. The same applies to anything else artisan writes, `storage/logs/*` included.
+
+### Use `current`, not a release directory
+
+`/var/www/core-api/current` is the symlink the systemd unit points at, so it is always the
+live code. Running inside `releases/vX.XX.XX` caches config for a release that may not be
+serving traffic — and leaves that stale cache behind for whenever it is rolled back to.
+
+### If it happens anyway
+
+Check for anything the deploy account does not own:
+
+```bash
+ssh resp 'find /var/www/core-api/ ! -user publicdeploy'    # expect no output
+```
+
+Compiled caches are derived artifacts — delete them and let a deploy regenerate them as
+`publicdeploy`. This needs no `sudo`: resadmin owns the files and has ACL write on the
+directory.
+
+```bash
+rm /var/www/core-api/releases/<version>/bootstrap/cache/{config,routes-v7,events}.php
+```
+
+For anything that is not a derived artifact, correct the ownership instead — this one does
+prompt for your sudo password:
+
+```bash
+sudo chown publicdeploy:publicdeploy <path>
+```
+
+Laravel runs fine with no compiled cache present; it reads the config files directly until
+the next deploy rebuilds them.
 
 ### `tenants:create` — create and provision a tenant
 
