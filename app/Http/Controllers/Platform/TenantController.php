@@ -30,6 +30,69 @@ class TenantController extends Controller
     public function __construct(private TenantProvisioner $provisioner) {}
 
     /**
+     * The tenants, for the marketing site's admin panel.
+     *
+     * The website's tenant screens are all backed by this one listing: the
+     * status tab filters it, and the per-tab counts drive the badges on the
+     * tabs themselves. `status` values mirror the website's TenantController
+     * TABS, with 'trashed' meaning soft-deleted.
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $status = (string) $request->query('status', 'all');
+        $search = trim((string) $request->query('search', ''));
+        $perPage = max(1, min(100, (int) $request->query('per_page', 50)));
+
+        $statuses = ['all', 'trialing', 'active', 'suspended', 'cancelled', 'trashed'];
+
+        if (! in_array($status, $statuses, true)) {
+            $status = 'all';
+        }
+
+        $query = Tenant::query()->withCount(['users', 'locations']);
+
+        if ($status === 'trashed') {
+            $query->onlyTrashed();
+        } elseif ($status !== 'all') {
+            $query->withoutTrashed()->where('status', $status);
+        } else {
+            $query->withoutTrashed();
+        }
+
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('slug', 'like', "%{$search}%")
+                    ->orWhere('contact_email', 'like', "%{$search}%")
+                    ->orWhere('contact_phone', 'like', "%{$search}%");
+            });
+        }
+
+        $paginator = $query->orderByDesc('id')->paginate($perPage);
+
+        $counts = array_combine($statuses, array_map(
+            fn ($tab) => match ($tab) {
+                'trashed' => Tenant::onlyTrashed()->count(),
+                'all' => Tenant::withoutTrashed()->count(),
+                default => Tenant::withoutTrashed()->where('status', $tab)->count(),
+            },
+            $statuses
+        ));
+
+        return response()->json([
+            'tenants' => collect($paginator->items())
+                ->map(fn (Tenant $tenant) => $this->present($tenant))
+                ->values(),
+            'counts' => $counts,
+            'meta' => [
+                'total' => $paginator->total(),
+                'per_page' => $paginator->perPage(),
+                'current_page' => $paginator->currentPage(),
+            ],
+        ]);
+    }
+
+    /**
      * Creates a restaurant on trial and hands back everything its owner needs
      * to get in.
      *
@@ -108,10 +171,13 @@ class TenantController extends Controller
 
     /**
      * Reads a tenant back, by slug.
+     *
+     * Includes trashed tenants: the marketing site's admin panel has to open
+     * a restaurant that is in the trash to restore it or delete it for ever.
      */
     public function show(string $slug): JsonResponse
     {
-        $tenant = Tenant::where('slug', $slug)->firstOrFail();
+        $tenant = Tenant::withTrashed()->where('slug', $slug)->firstOrFail();
 
         return response()->json(['tenant' => $this->present($tenant)]);
     }
@@ -225,6 +291,50 @@ class TenantController extends Controller
         return response()->json(['login' => $this->loginPayload($tenant, $owner)]);
     }
 
+    /**
+     * Moves a tenant to the trash. Soft delete - nothing is destroyed, so this
+     * is always reversible and never needs a second confirmation step.
+     */
+    public function trash(string $slug): JsonResponse
+    {
+        $tenant = Tenant::where('slug', $slug)->firstOrFail();
+
+        $tenant->delete();
+
+        return response()->json(['tenant' => $this->present($tenant)]);
+    }
+
+    /**
+     * Restores a tenant from the trash, exactly as it was.
+     */
+    public function restore(string $slug): JsonResponse
+    {
+        $tenant = Tenant::onlyTrashed()->where('slug', $slug)->firstOrFail();
+
+        $tenant->restore();
+
+        return response()->json(['tenant' => $this->present($tenant->fresh())]);
+    }
+
+    /**
+     * Destroys a tenant and everything it owns.
+     *
+     * Refuses anything not already in the trash: wiping a live restaurant must
+     * always be the second deliberate step after moving it there, never the
+     * first.
+     */
+    public function purge(string $slug): JsonResponse
+    {
+        $tenant = Tenant::onlyTrashed()->where('slug', $slug)->firstOrFail();
+
+        $tenant->forceDelete();
+
+        return response()->json([
+            'deleted' => true,
+            'restaurant_code' => $slug,
+        ]);
+    }
+
     private function present(Tenant $tenant): array
     {
         return [
@@ -234,9 +344,16 @@ class TenantController extends Controller
             'plan' => $tenant->plan,
             'status' => $tenant->status,
             'billing_cycle' => $tenant->billing_cycle,
+            'contact_name' => $tenant->contact_name,
+            'contact_email' => $tenant->contact_email,
+            'contact_phone' => $tenant->contact_phone,
+            'max_outlets' => $tenant->max_outlets,
+            'locations_count' => $tenant->locations_count ?? $tenant->locations()->count(),
+            'users_count' => $tenant->users_count ?? $tenant->users()->count(),
             'trial_ends_at' => $tenant->trial_ends_at?->toIso8601String(),
             'subscription_ends_at' => $tenant->subscription_ends_at?->toIso8601String(),
-            'max_outlets' => $tenant->max_outlets,
+            'deleted_at' => $tenant->deleted_at?->toIso8601String(),
+            'created_at' => $tenant->created_at?->toIso8601String(),
         ];
     }
 

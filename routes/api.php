@@ -135,10 +135,14 @@ Route::prefix('v1')->group(function () {
             Route::get('plans', [PlatformPlanController::class, 'index']);
 
             Route::post('tenants', [PlatformTenantController::class, 'store']);
+            Route::get('tenants', [PlatformTenantController::class, 'index']);
             Route::get('tenants/{slug}', [PlatformTenantController::class, 'show']);
             Route::post('tenants/{slug}/subscribe', [PlatformTenantController::class, 'subscribe']);
             Route::post('tenants/{slug}/suspend', [PlatformTenantController::class, 'suspend']);
             Route::post('tenants/{slug}/reactivate', [PlatformTenantController::class, 'reactivate']);
+            Route::delete('tenants/{slug}', [PlatformTenantController::class, 'trash']);
+            Route::post('tenants/{slug}/restore', [PlatformTenantController::class, 'restore']);
+            Route::delete('tenants/{slug}/purge', [PlatformTenantController::class, 'purge']);
 
             // Redeeming a trial owner's upgrade link.
             Route::post('upgrade-tokens/redeem', [UpgradeLinkController::class, 'redeem']);
