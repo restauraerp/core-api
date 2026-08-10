@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnforceSubscription;
 use App\Http\Middleware\EnsureModuleEnabled;
+use App\Http\Middleware\EnsurePlatformToken;
 use App\Http\Middleware\ResolveTenant;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
@@ -51,6 +52,8 @@ return Application::configure(basePath: dirname(__DIR__))
         // Plan entitlement, applied per route group as `module:crm`.
         $middleware->alias([
             'module' => EnsureModuleEnabled::class,
+            // Shared-secret auth for the website's server-to-server calls.
+            'platform' => EnsurePlatformToken::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -8,6 +8,7 @@ use App\Http\Controllers\ChatMessageController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DeliveryController;
 use App\Http\Controllers\DemoController;
+use App\Http\Controllers\DemoLeadController;
 use App\Http\Controllers\DiscountController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\GoogleReviewController;
@@ -18,6 +19,9 @@ use App\Http\Controllers\LocationController;
 use App\Http\Controllers\LoyaltySettingController;
 use App\Http\Controllers\LoyaltyTransactionController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\OneTimeLoginController;
+use App\Http\Controllers\Platform\PlanController as PlatformPlanController;
+use App\Http\Controllers\Platform\TenantController as PlatformTenantController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderItemController;
 use App\Http\Controllers\OrganizationController;
@@ -47,10 +51,12 @@ use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\TableController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\TaxRuleController;
+use App\Http\Controllers\UpgradeLinkController;
 use App\Http\Controllers\UsageLogController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WasteLogController;
 use App\Http\Controllers\WebsiteSettingController;
+use App\Http\Middleware\EnforceSubscription;
 use App\Http\Middleware\ResolveTenant;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -101,13 +107,68 @@ Route::prefix('v1')->group(function () {
         ->middleware('throttle:30,1')
         ->withoutMiddleware(ResolveTenant::class);
 
+    // The demo app's 60-second Lead, on its way to the website's Conversions
+    // API. Same reasoning as demo-config for skipping tenant resolution: the
+    // caller is an anonymous demo visitor, not a restaurant.
+    Route::post('demo/lead', [DemoLeadController::class, 'store'])
+        ->middleware('throttle:60,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+
+    /*
+    |----------------------------------------------------------------------
+    | Platform API
+    |----------------------------------------------------------------------
+    |
+    | Called by the marketing website, server to server, to start trials and
+    | switch subscriptions on. Authenticated by the shared platform token, not
+    | by a user - there is no user yet when a restaurant is being created, and
+    | no customer should be able to activate their own subscription.
+    |
+    | ResolveTenant is skipped throughout: these calls are cross-tenant, and
+    | creating a tenant cannot name one in advance.
+    |
+    */
+    Route::prefix('platform')
+        ->middleware(['platform', 'throttle:60,1'])
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class])
+        ->group(function () {
+            Route::get('plans', [PlatformPlanController::class, 'index']);
+
+            Route::post('tenants', [PlatformTenantController::class, 'store']);
+            Route::get('tenants/{slug}', [PlatformTenantController::class, 'show']);
+            Route::post('tenants/{slug}/subscribe', [PlatformTenantController::class, 'subscribe']);
+            Route::post('tenants/{slug}/suspend', [PlatformTenantController::class, 'suspend']);
+            Route::post('tenants/{slug}/reactivate', [PlatformTenantController::class, 'reactivate']);
+
+            // Redeeming a trial owner's upgrade link.
+            Route::post('upgrade-tokens/redeem', [UpgradeLinkController::class, 'redeem']);
+            Route::post('tenants/{slug}/login-link', [PlatformTenantController::class, 'loginLink']);
+        });
+
     // Auth & Users API
     Route::post('auth/register', [AuthController::class, 'register']);
     Route::post('auth/login', [AuthController::class, 'login']);
 
+    // Redeeming a one-time login link. Skips tenant resolution for the same
+    // reason demo-config does: the caller has not been told a restaurant code
+    // yet, and the token is what carries the tenant.
+    Route::post('auth/one-time-login', [OneTimeLoginController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::get('auth/me', [AuthController::class, 'me']);
+
+        // Always writable: an account that must set a password would otherwise
+        // be unable to, if its trial lapsed before the owner ever got in.
+        Route::post('auth/password/set', [OneTimeLoginController::class, 'setPassword'])
+            ->withoutMiddleware([EnforceSubscription::class]);
+
+        // A trial owner asking to go and pay. Always writable: a lapsed tenant
+        // is exactly who needs to reach the payment page.
+        Route::post('billing/upgrade-link', [UpgradeLinkController::class, 'store'])
+            ->withoutMiddleware([EnforceSubscription::class]);
 
         Route::apiResource('users', UserController::class);
 

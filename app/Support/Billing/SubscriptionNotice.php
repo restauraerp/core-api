@@ -129,7 +129,24 @@ class SubscriptionNotice
                 'expired_at' => $subscription['expires_at']?->toIso8601String(),
                 'billing_cycle' => $subscription['cycle'],
             ],
-        } + ['state' => $subscription['state']];
+        } + [
+            'state' => $subscription['state'],
+            // A running trial reports state `full` - it is not in trouble - so
+            // the raw tenant status is the only thing that tells a client it is
+            // a trial at all. The upgrade prompt in the app needs to know.
+            'tenant_status' => $tenant->status,
+            // Whether this really is the demo restaurant. The front cannot work
+            // this out for itself: it only has a cookie set by ?demo=true, which
+            // survives for a day and follows the visitor into their own account
+            // once they sign up. Answering it here is what stops a paying
+            // customer being told they are looking at a demo.
+            'is_demo' => (bool) config('app.demo_mode')
+                && $tenant->slug === config('app.demo_tenant_slug'),
+            'trial_ends_at' => $tenant->trial_ends_at?->toIso8601String(),
+            'trial_days_remaining' => $tenant->status === 'trialing' && $tenant->trial_ends_at !== null
+                ? max(0, (int) ceil(now()->diffInDays($tenant->trial_ends_at, absolute: false)))
+                : null,
+        ];
     }
 
     /**
