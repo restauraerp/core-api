@@ -207,23 +207,36 @@ class TenantController extends Controller
      * Mirrors tenants:subscribe: an unexpired subscription is extended from
      * where it ends, not from today, so paying early never costs the customer
      * the days they already had.
+     *
+     * `starts_at` overrides that and runs the period from a date given by hand.
+     * It is what an admin recording an offline payment needs: money that
+     * arrived three weeks ago bought a month from three weeks ago, not a month
+     * from today. Because it can be back-dated far enough that the period has
+     * already elapsed, the resulting status is derived from the end date rather
+     * than assumed - see below.
      */
     public function subscribe(Request $request, string $slug): JsonResponse
     {
         $validated = $request->validate([
             'cycle' => ['required', Rule::in(['monthly', 'yearly'])],
             'plan' => ['nullable', 'string', Rule::in(Plans::tiers())],
+            'starts_at' => ['nullable', 'date'],
         ]);
 
         $tenant = Tenant::where('slug', $slug)->firstOrFail();
 
-        $from = $tenant->subscription_ends_at?->isFuture()
-            ? $tenant->subscription_ends_at->copy()
-            : Carbon::now();
+        // An explicit start replaces the running period rather than extending
+        // it: the admin is stating when this one began, and silently adding it
+        // to an existing window would hand out time nobody paid for.
+        $from = isset($validated['starts_at'])
+            ? Carbon::parse($validated['starts_at'])->startOfDay()
+            : ($tenant->subscription_ends_at?->isFuture()
+                ? $tenant->subscription_ends_at->copy()
+                : Carbon::now());
 
         $endsAt = $validated['cycle'] === 'yearly'
-            ? $from->addYear()
-            : $from->addMonth();
+            ? $from->copy()->addYear()
+            : $from->copy()->addMonth();
 
         if (isset($validated['plan']) && $validated['plan'] !== $tenant->plan) {
             $tenant->plan = $validated['plan'];
@@ -233,14 +246,36 @@ class TenantController extends Controller
             $this->provisioner->createRoles($tenant);
         }
 
-        $tenant->status = 'active';
+        // A back-dated period that has already run out must not switch the
+        // account on: the honest outcome is a recorded subscription that has
+        // lapsed. Reporting it active would give away time on the strength of a
+        // historical payment.
+        $lapsed = $endsAt->isPast();
+
+        if (! $lapsed) {
+            $tenant->status = 'active';
+        } elseif ($tenant->status === 'active') {
+            // Its access rested on a window we have just replaced with one that
+            // has already ended. tenants:expire would suspend it tonight; doing
+            // it here stops the column claiming a subscription that is over.
+            // A tenant still inside a trial is left alone - the trial is real
+            // and is not what this payment replaced.
+            $tenant->status = 'suspended';
+        }
+
         $tenant->billing_cycle = $validated['cycle'];
         $tenant->subscription_ends_at = $endsAt;
         $tenant->save();
 
         Subscription::forget($tenant);
 
-        return response()->json(['tenant' => $this->present($tenant->fresh())]);
+        return response()->json([
+            'tenant' => $this->present($tenant->fresh()),
+            // So the caller can say "recorded, but it had already expired"
+            // rather than claiming the restaurant is now subscribed.
+            'starts_at' => $from->toIso8601String(),
+            'lapsed' => $lapsed,
+        ]);
     }
 
     /**
