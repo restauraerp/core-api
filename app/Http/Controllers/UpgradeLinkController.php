@@ -35,7 +35,10 @@ class UpgradeLinkController extends Controller
             ], 400);
         }
 
-        $website = rtrim((string) config('platform.website_url'), '/');
+        // The public URL, not the one this application calls the website on:
+        // this is followed by the customer's browser, which cannot resolve a
+        // Docker service name. See config/platform.php.
+        $website = rtrim((string) config('platform.website_public_url'), '/');
 
         // Same reasoning as the login link: better an error the customer can
         // report than a button that silently goes nowhere.

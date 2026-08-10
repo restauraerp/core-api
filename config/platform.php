@@ -66,4 +66,24 @@ return [
 
     'website_url' => env('WEBSITE_URL', ''),
 
+    /*
+    |--------------------------------------------------------------------------
+    | The marketing site, as a customer's browser sees it
+    |--------------------------------------------------------------------------
+    |
+    | The same site as above, but this one goes into a URL we hand to a browser
+    | - the "renew your subscription" link. The two are not interchangeable:
+    | WEBSITE_URL has to be reachable from inside this application, which under
+    | Docker means the compose service name, and a browser on somebody's laptop
+    | cannot resolve `http://website:8030`. The link 200s, the button appears to
+    | work, and the page never loads.
+    |
+    | Falls back to WEBSITE_URL, because wherever the two are the same - any
+    | deployment not sitting behind a private hostname, production included -
+    | there is nothing to configure.
+    |
+    */
+
+    'website_public_url' => env('WEBSITE_PUBLIC_URL') ?: env('WEBSITE_URL', ''),
+
 ];
