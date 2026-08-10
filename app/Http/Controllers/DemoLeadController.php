@@ -30,6 +30,11 @@ class DemoLeadController extends Controller
             'fbp' => ['nullable', 'string', 'max:255'],
             'fbc' => ['nullable', 'string', 'max:255'],
             'source_url' => ['nullable', 'string', 'max:2000'],
+            // Opaque here on purpose: the website issued it and the website
+            // reads it. This side only carries it back, the same way it carries
+            // the Facebook cookies, so a demo Lead can be tied to the person
+            // who verified their email to get in.
+            'lead_ref' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $website = rtrim((string) config('platform.website_url'), '/');
