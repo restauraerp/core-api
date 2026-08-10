@@ -128,6 +128,14 @@ class SubscriptionNotice
                 'state' => Subscription::FULL,
                 'expired_at' => $subscription['expires_at']?->toIso8601String(),
                 'billing_cycle' => $subscription['cycle'],
+                // A healthy subscription needs describing too, not just a
+                // failing one: the profile screen tells a manager which package
+                // they are on and when it next falls due. Before this, those
+                // fields only existed on the refusal bodies, so the one screen
+                // that should always show them could never see them.
+                'plan' => $tenant->plan,
+                'plan_name' => $tenant->planLabel(),
+                'contact' => self::contact(),
             ],
         } + [
             'state' => $subscription['state'],
@@ -146,7 +154,41 @@ class SubscriptionNotice
             'trial_days_remaining' => $tenant->status === 'trialing' && $tenant->trial_ends_at !== null
                 ? max(0, (int) ceil(now()->diffInDays($tenant->trial_ends_at, absolute: false)))
                 : null,
+            // Named for what it is on a live account: the day the paid period
+            // runs out, which is also the day the next payment is due. The
+            // older `expired_at` says the same thing but reads as past tense,
+            // and clients already depend on it, so both are sent.
+            'expires_at' => $subscription['expires_at']?->toIso8601String(),
+            // How long saving keeps working past that date. Sent even while
+            // healthy so a client can say "due on the 3rd, stops on the 10th"
+            // rather than springing the deadline once it has passed.
+            'grace_ends_at' => $subscription['grace_ends_at']?->toIso8601String()
+                ?? $subscription['expires_at']?->copy()
+                    ->addDays(Subscription::graceDays($subscription['cycle']))
+                    ->toIso8601String(),
+            'grace_days' => Subscription::graceDays($subscription['cycle']),
+            // Whole days until the paid period ends; negative once it has.
+            'days_until_expiry' => $subscription['expires_at'] === null
+                ? null
+                : (int) ceil(now()->diffInDays($subscription['expires_at'], absolute: false)),
         ];
+    }
+
+    /**
+     * Who to talk to about billing. Shared by the refusal bodies and the
+     * healthy status, so the profile screen can offer the same routes out
+     * without waiting for something to go wrong first.
+     *
+     * @return array<string, string>
+     */
+    private static function contact(): array
+    {
+        return array_filter([
+            'email' => config('support.email'),
+            'phone' => config('support.phone'),
+            'whatsapp' => config('support.whatsapp'),
+            'url' => config('support.billing_url'),
+        ]);
     }
 
     /**
@@ -164,12 +206,7 @@ class SubscriptionNotice
             'plan_name' => $tenant->planLabel(),
             'billing_cycle' => $subscription['cycle'],
             'expired_at' => $subscription['expires_at']?->toIso8601String(),
-            'contact' => array_filter([
-                'email' => config('support.email'),
-                'phone' => config('support.phone'),
-                'whatsapp' => config('support.whatsapp'),
-                'url' => config('support.billing_url'),
-            ]),
+            'contact' => self::contact(),
         ], $extra);
     }
 }
