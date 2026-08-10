@@ -17,6 +17,11 @@ use Illuminate\Support\Str;
  */
 class OneTimeLoginToken extends Model
 {
+    /**
+     * Longest any login link may stay live, whatever is configured.
+     */
+    public const MAX_TTL_HOURS = 24;
+
     protected $fillable = [
         'user_id',
         'tenant_id',
@@ -47,6 +52,10 @@ class OneTimeLoginToken extends Model
      *
      * Any unspent token for the same user is expired first: handing out a
      * second link must invalidate the first, or a forwarded email stays live.
+     *
+     * The validity is clamped to 24 hours no matter what is configured: a login
+     * link is a credential, and one that lingers for days is a credential left
+     * lying around.
      */
     public static function issueFor(User $user, ?int $ttlHours = null): string
     {
@@ -62,7 +71,10 @@ class OneTimeLoginToken extends Model
             'tenant_id' => $user->tenant_id,
             'token_hash' => hash('sha256', $plain),
             'expires_at' => Carbon::now()->addHours(
-                $ttlHours ?? (int) config('platform.login_link_ttl_hours', 72),
+                min(
+                    (int) ($ttlHours ?? config('platform.login_link_ttl_hours', 24)),
+                    self::MAX_TTL_HOURS,
+                ),
             ),
         ]);
 

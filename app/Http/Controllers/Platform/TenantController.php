@@ -389,7 +389,10 @@ class TenantController extends Controller
             // Built here rather than by each caller so the front's route for
             // redeeming a link is defined in one place.
             'one_time_login_url' => $appUrl.'/login/one-time?token='.urlencode($token),
-            'expires_in_hours' => (int) config('platform.login_link_ttl_hours', 72),
+            'expires_in_hours' => min(
+                (int) config('platform.login_link_ttl_hours', 24),
+                OneTimeLoginToken::MAX_TTL_HOURS,
+            ),
         ];
     }
 }

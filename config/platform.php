@@ -30,7 +30,7 @@ return [
     |
     */
 
-    'login_link_ttl_hours' => (int) env('PLATFORM_LOGIN_LINK_TTL_HOURS', 72),
+    'login_link_ttl_hours' => (int) env('PLATFORM_LOGIN_LINK_TTL_HOURS', 24),
 
     /*
     |--------------------------------------------------------------------------
