@@ -71,6 +71,25 @@ class WebsiteNotifier
         }
     }
 
+    /**
+     * Asks the site to email somebody a link for setting a new password.
+     */
+    public function passwordReset(
+        string $email,
+        string $name,
+        string $resetUrl,
+        int $expiresInHours,
+        ?string $restaurantName = null,
+    ): void {
+        $this->post('notifications/password-reset', [
+            'email' => $email,
+            'name' => $name,
+            'reset_url' => $resetUrl,
+            'expires_in_hours' => $expiresInHours,
+            'restaurant_name' => $restaurantName,
+        ]);
+    }
+
     private function post(string $path, array $payload): void
     {
         $website = rtrim((string) config('platform.website_url'), '/');

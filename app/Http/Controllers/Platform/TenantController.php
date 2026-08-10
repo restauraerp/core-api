@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\OneTimeLoginToken;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\Auth\PasswordResetLink;
 use App\Support\Billing\Plans;
 use App\Support\Billing\Subscription;
 use App\Support\Tenancy\TenantContext;
@@ -343,6 +344,46 @@ class TenantController extends Controller
             ->firstOrFail();
 
         return response()->json(['login' => $this->loginPayload($tenant, $owner)]);
+    }
+
+    /**
+     * Emails the owner a link for setting a new password.
+     *
+     * The admin counterpart of "I have forgotten my password": support can send
+     * one on request without ever handling the password itself, and without
+     * reading a login link down a phone line.
+     *
+     * Unlike the public route this one answers honestly - the caller is our own
+     * admin panel, holding the platform token, so there is nothing to hide from
+     * it and plenty it needs to report back.
+     */
+    public function sendPasswordReset(string $slug, PasswordResetLink $links): JsonResponse
+    {
+        $tenant = Tenant::where('slug', $slug)->firstOrFail();
+
+        $owner = User::withoutGlobalScopes()
+            ->where('tenant_id', $tenant->getKey())
+            ->where('email', $tenant->contact_email)
+            ->first();
+
+        if ($owner === null) {
+            return response()->json([
+                'message' => 'No user matches this restaurant\'s contact email, so there is nobody to send a reset to.',
+                'error' => 'owner_missing',
+            ], 422);
+        }
+
+        if (! $links->send($owner, $tenant)) {
+            return response()->json([
+                'message' => 'The demo account cannot be reset - its credentials are published.',
+                'error' => 'account_not_resettable',
+            ], 422);
+        }
+
+        return response()->json([
+            'sent' => true,
+            'email' => $owner->email,
+        ]);
     }
 
     /**

@@ -20,6 +20,7 @@ use App\Http\Controllers\LoyaltySettingController;
 use App\Http\Controllers\LoyaltyTransactionController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OneTimeLoginController;
+use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\Platform\PlanController as PlatformPlanController;
 use App\Http\Controllers\Platform\TenantController as PlatformTenantController;
 use App\Http\Controllers\OrderController;
@@ -147,6 +148,9 @@ Route::prefix('v1')->group(function () {
             // Redeeming a trial owner's upgrade link.
             Route::post('upgrade-tokens/redeem', [UpgradeLinkController::class, 'redeem']);
             Route::post('tenants/{slug}/login-link', [PlatformTenantController::class, 'loginLink']);
+            // An admin sending the owner a reset link instead of reading one
+            // out to them over the phone.
+            Route::post('tenants/{slug}/password-reset', [PlatformTenantController::class, 'sendPasswordReset']);
         });
 
     // Auth & Users API
@@ -158,6 +162,13 @@ Route::prefix('v1')->group(function () {
     // yet, and the token is what carries the tenant.
     Route::post('auth/one-time-login', [OneTimeLoginController::class, 'store'])
         ->middleware('throttle:20,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+
+    // "I have forgotten my password." Unauthenticated and tenant-less - the
+    // address is all the caller has - and throttled hard, because it is the one
+    // public route that sends mail on demand.
+    Route::post('auth/password/forgot', [PasswordResetController::class, 'forgot'])
+        ->middleware('throttle:6,1')
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
 
     Route::middleware('auth:sanctum')->group(function () {
