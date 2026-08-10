@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\TracksUploadedAssets;
 
 class ProductCategory extends Model
 {
     use BelongsToTenant;
+    use TracksUploadedAssets;
 
     protected $fillable = [
         'parent_id',
@@ -35,5 +37,13 @@ class ProductCategory extends Model
     public function products()
     {
         return $this->hasMany(Product::class, 'category_id');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function uploadedAssetColumns(): array
+    {
+        return ['image_url'];
     }
 }

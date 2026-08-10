@@ -8,10 +8,12 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Billing\Plans;
 use App\Support\Billing\Subscription;
+use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantProvisioner;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -27,7 +29,10 @@ use RuntimeException;
  */
 class TenantController extends Controller
 {
-    public function __construct(private TenantProvisioner $provisioner) {}
+    public function __construct(
+        private TenantProvisioner $provisioner,
+        private TenantContext $context,
+    ) {}
 
     /**
      * The tenants, for the marketing site's admin panel.
@@ -49,26 +54,35 @@ class TenantController extends Controller
             $status = 'all';
         }
 
-        $query = Tenant::query()->withCount(['users', 'locations']);
+        // The whole query is built AND run without tenant scoping.
+        //
+        // withCount() compiles the related model's global scopes into a
+        // subquery when the query is built, not when it runs - so unscoping
+        // only the paginate() call leaves TenantScope's `1 = 0` already baked
+        // in and every count comes back zero. This endpoint is legitimately
+        // cross-tenant; the helper restores the previous scoping state after.
+        $paginator = $this->context->runWithoutScoping(function () use ($status, $search, $perPage) {
+            $query = Tenant::query()->withCount(['users', 'locations']);
 
-        if ($status === 'trashed') {
-            $query->onlyTrashed();
-        } elseif ($status !== 'all') {
-            $query->withoutTrashed()->where('status', $status);
-        } else {
-            $query->withoutTrashed();
-        }
+            if ($status === 'trashed') {
+                $query->onlyTrashed();
+            } elseif ($status !== 'all') {
+                $query->withoutTrashed()->where('status', $status);
+            } else {
+                $query->withoutTrashed();
+            }
 
-        if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('slug', 'like', "%{$search}%")
-                    ->orWhere('contact_email', 'like', "%{$search}%")
-                    ->orWhere('contact_phone', 'like', "%{$search}%");
-            });
-        }
+            if ($search !== '') {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                        ->orWhere('slug', 'like', "%{$search}%")
+                        ->orWhere('contact_email', 'like', "%{$search}%")
+                        ->orWhere('contact_phone', 'like', "%{$search}%");
+                });
+            }
 
-        $paginator = $query->orderByDesc('id')->paginate($perPage);
+            return $query->orderByDesc('id')->paginate($perPage);
+        });
 
         $counts = array_combine($statuses, array_map(
             fn ($tab) => match ($tab) {
@@ -174,10 +188,15 @@ class TenantController extends Controller
      *
      * Includes trashed tenants: the marketing site's admin panel has to open
      * a restaurant that is in the trash to restore it or delete it for ever.
+     *
+     * Counted inside runWithoutScoping for the reason index() documents.
      */
     public function show(string $slug): JsonResponse
     {
-        $tenant = Tenant::withTrashed()->where('slug', $slug)->firstOrFail();
+        $tenant = $this->context->runWithoutScoping(fn () => Tenant::withTrashed()
+            ->withCount(['users', 'locations'])
+            ->where('slug', $slug)
+            ->firstOrFail());
 
         return response()->json(['tenant' => $this->present($tenant)]);
     }
@@ -319,19 +338,37 @@ class TenantController extends Controller
     /**
      * Destroys a tenant and everything it owns.
      *
+     * Delegates to tenants:remove rather than force-deleting here. The FK
+     * cascade alone leaves behind everything no foreign key reaches - the
+     * users' sessions and API tokens, the model_has_* pivots, the uploaded
+     * files, the cached billing state, and the website's own records of the
+     * signup - and that command sweeps all of it. It also discovers
+     * tenant-owned tables from the schema, so a table added later is covered
+     * without anyone remembering to update this.
+     *
      * Refuses anything not already in the trash: wiping a live restaurant must
      * always be the second deliberate step after moving it there, never the
-     * first.
+     * first. A 422 rather than a 404, so the website can say why.
      */
     public function purge(string $slug): JsonResponse
     {
-        $tenant = Tenant::onlyTrashed()->where('slug', $slug)->firstOrFail();
+        $tenant = Tenant::onlyTrashed()->where('slug', $slug)->first();
 
-        $tenant->forceDelete();
+        if ($tenant === null) {
+            return response()->json([
+                'message' => 'Only a restaurant already in the trash can be permanently deleted.',
+                'error' => 'not_trashed',
+            ], 422);
+        }
+
+        Artisan::call('tenants:remove', ['tenant' => $slug, '--force' => true]);
 
         return response()->json([
             'deleted' => true,
             'restaurant_code' => $slug,
+            // The command's own report - which tables lost how many rows, how
+            // many files went - kept so a purge can be accounted for after.
+            'output' => trim(Artisan::output()),
         ]);
     }
 
@@ -348,8 +385,12 @@ class TenantController extends Controller
             'contact_email' => $tenant->contact_email,
             'contact_phone' => $tenant->contact_phone,
             'max_outlets' => $tenant->max_outlets,
-            'locations_count' => $tenant->locations_count ?? $tenant->locations()->count(),
-            'users_count' => $tenant->users_count ?? $tenant->users()->count(),
+            // Only present when the caller asked for them - index() and show()
+            // do. Deliberately not counted here as a fallback: users and
+            // locations are tenant-scoped, so a count taken outside a tenant
+            // context returns a confident, wrong zero rather than nothing.
+            'locations_count' => $tenant->locations_count ?? null,
+            'users_count' => $tenant->users_count ?? null,
             'trial_ends_at' => $tenant->trial_ends_at?->toIso8601String(),
             'subscription_ends_at' => $tenant->subscription_ends_at?->toIso8601String(),
             'deleted_at' => $tenant->deleted_at?->toIso8601String(),

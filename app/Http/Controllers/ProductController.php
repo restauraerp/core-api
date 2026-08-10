@@ -119,7 +119,10 @@ class ProductController extends Controller
 
         if (array_key_exists('image_url', $validated)) {
             if (empty($validated['image_url'])) {
-                $product->images()->delete();
+                // Deleted one by one, not as a mass delete: the model event is
+                // what removes the file from disk, and a query-builder delete
+                // does not fire it.
+                $product->images()->get()->each->delete();
             } else {
                 $product->images()->updateOrCreate(
                     ['imageable_id' => $product->id, 'imageable_type' => Product::class],
