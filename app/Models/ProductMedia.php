@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\TracksUploadedAssets;
 
 class ProductMedia extends Model
 {
     use BelongsToTenant;
+    use TracksUploadedAssets;
 
     protected $fillable = [
         'product_id',
@@ -19,5 +21,13 @@ class ProductMedia extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function uploadedAssetColumns(): array
+    {
+        return ['url'];
     }
 }

@@ -125,7 +125,8 @@ class PurchaseOrderController extends Controller
 
             // A deleted order never happened, so neither did its delivery.
             $this->stock->reverse($purchaseOrder);
-            $purchaseOrder->receipts()->delete();
+            // One by one, so each receipt's file leaves the disk with its row.
+            $purchaseOrder->receipts()->get()->each->delete();
             $purchaseOrder->delete();
 
             // Prices fall back to whatever the previous delivery charged.
@@ -211,6 +212,6 @@ class PurchaseOrderController extends Controller
 
         // Scoped through the relation, so an id belonging to another order -
         // or another tenant - deletes nothing.
-        $order->receipts()->whereIn((new Image)->getTable().'.id', $ids)->delete();
+        $order->receipts()->whereIn((new Image)->getTable().'.id', $ids)->get()->each->delete();
     }
 }

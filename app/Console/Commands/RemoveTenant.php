@@ -4,11 +4,13 @@ namespace App\Console\Commands;
 
 use App\Models\Tenant;
 use App\Models\User;
+use App\Services\WebsiteNotifier;
+use App\Support\Assets\ManagedAssets;
+use App\Support\Billing\Subscription;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 /**
  * Erases a tenant: every row that carries its tenant_id, the auth rows that
@@ -47,30 +49,12 @@ class RemoveTenant extends Command
           <info>php artisan tenants:remove 7 --keep-assets</info>   drop the rows, keep the files
         HELP;
 
-    /**
-     * Columns holding a path on the `public` disk. Uploads land in shared
-     * folders (foods/, users/, locations/, ...) rather than a per-tenant
-     * prefix, so assets have to be resolved row by row - there is no directory
-     * to drop.
-     *
-     * Deliberately excluded: cctv_cameras.stream_url, locations.map_url and
-     * social_links.url all hold third-party URLs, not uploads.
-     */
-    private const ASSET_COLUMNS = [
-        'images' => ['url'],
-        'location_media' => ['url'],
-        'product_media' => ['url'],
-        'product_categories' => ['image_url'],
-        'inventory_items' => ['image'],
-        'users' => ['image_url'],
-        'expenses' => ['receipt_url'],
-    ];
-
-    /**
-     * website_settings is key/value, so its assets live in rows rather than
-     * columns.
-     */
-    private const ASSET_SETTING_KEYS = ['logo_url', 'favicon_url', 'cover_image_url'];
+    public function __construct(
+        private ManagedAssets $assets,
+        private WebsiteNotifier $notifier,
+    ) {
+        parent::__construct();
+    }
 
     public function handle(): int
     {
@@ -130,11 +114,47 @@ class RemoveTenant extends Command
             }
         });
 
+        // The cached entitlement state is keyed by tenant id and lives in redis,
+        // so no foreign key reaches it. Left behind it is both a leftover copy
+        // of the tenant's billing dates and a trap: a tenant later created with
+        // the same id - after a restore, or a reset auto-increment - would read
+        // the deleted one's subscription state until the TTL ran out.
+        Subscription::forget($tenantId);
+
         $deletedAssets = $this->option('keep-assets') ? [] : $this->deleteAssets($assets['delete']);
 
         $this->report($rowCounts, $assets, 'removed', $deletedAssets);
+        $this->eraseWebsiteRecords($tenant->slug);
 
         return self::SUCCESS;
+    }
+
+    /**
+     * The signup records the marketing site still holds - the subscription
+     * orders and verification sessions, which carry the owner's name, phone,
+     * bKash transaction id and amount.
+     *
+     * No foreign key crosses between the two databases, so this is the only
+     * thing that removes them. A failure here is reported loudly rather than
+     * swallowed: the restaurant is gone but its personal and payment data is
+     * not, and somebody has to know that.
+     */
+    private function eraseWebsiteRecords(string $slug): void
+    {
+        $result = $this->notifier->tenantPurged($slug);
+
+        if ($result === null) {
+            $this->warn('  Could not reach the website to erase its records for this restaurant.');
+            $this->warn("  Its subscription orders and verification sessions are still there - remove them by hand (code: {$slug}).");
+
+            return;
+        }
+
+        $deleted = $result['deleted'] ?? [];
+
+        $this->line('  Website records removed: '
+            .collect($deleted)->map(fn ($n, $table) => "{$n} {$table}")->implode(', '));
+        $this->line('');
     }
 
     private function resolveTenant(string $identifier): ?Tenant
@@ -200,7 +220,7 @@ class RemoveTenant extends Command
         $mine = [];
         $theirs = [];
 
-        foreach (self::ASSET_COLUMNS as $table => $columns) {
+        foreach (ManagedAssets::COLUMNS as $table => $columns) {
             if (! Schema::hasTable($table)) {
                 continue;
             }
@@ -224,7 +244,7 @@ class RemoveTenant extends Command
         if (Schema::hasTable('website_settings')) {
             $settings = fn (bool $ours) => DB::table('website_settings')
                 ->where('tenant_id', $ours ? '=' : '!=', $tenantId)
-                ->whereIn('key', self::ASSET_SETTING_KEYS)
+                ->whereIn('key', ManagedAssets::SETTING_KEYS)
                 ->pluck('value')
                 ->all();
 
@@ -232,8 +252,8 @@ class RemoveTenant extends Command
             $theirs = array_merge($theirs, $settings(false));
         }
 
-        $mine = $this->normalisePaths($mine);
-        $theirs = $this->normalisePaths($theirs);
+        $mine = $this->assets->normaliseMany($mine);
+        $theirs = $this->assets->normaliseMany($theirs);
 
         $disk = Storage::disk('public');
         $plan = ['delete' => [], 'shared' => [], 'missing' => []];
@@ -249,24 +269,6 @@ class RemoveTenant extends Command
         }
 
         return $plan;
-    }
-
-    /**
-     * @param  list<?string>  $values
-     * @return list<string>
-     */
-    private function normalisePaths(array $values): array
-    {
-        return collect($values)
-            ->map(fn (?string $value) => ltrim(trim((string) $value), '/'))
-            ->filter()
-            // Remote URLs are not ours to delete, and a traversal segment in a
-            // stored path is not something to act on.
-            ->reject(fn (string $value) => Str::startsWith($value, ['http://', 'https://', 'data:'])
-                || Str::contains($value, '..'))
-            ->unique()
-            ->values()
-            ->all();
     }
 
     /**
