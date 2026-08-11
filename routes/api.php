@@ -22,6 +22,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OneTimeLoginController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\Platform\PlanController as PlatformPlanController;
+use App\Http\Controllers\Platform\StatsController as PlatformStatsController;
 use App\Http\Controllers\Platform\TenantController as PlatformTenantController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderItemController;
@@ -134,6 +135,9 @@ Route::prefix('v1')->group(function () {
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class])
         ->group(function () {
             Route::get('plans', [PlatformPlanController::class, 'index']);
+
+            // Billing state, counted, for the marketing site's daily report.
+            Route::get('stats', [PlatformStatsController::class, 'index']);
 
             Route::post('tenants', [PlatformTenantController::class, 'store']);
             Route::get('tenants', [PlatformTenantController::class, 'index']);
