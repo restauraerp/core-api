@@ -3,12 +3,14 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\TracksUploadedAssets;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class InventoryItem extends Model
 {
     use BelongsToTenant;
+    use TracksUploadedAssets;
 
     /**
      * current_stock and cost_per_unit are deliberately absent: stock comes from
@@ -53,5 +55,13 @@ class InventoryItem extends Model
     public function product(): HasOne
     {
         return $this->hasOne(Product::class);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function uploadedAssetColumns(): array
+    {
+        return ['image'];
     }
 }

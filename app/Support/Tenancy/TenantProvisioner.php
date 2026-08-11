@@ -284,7 +284,12 @@ class TenantProvisioner
         $slug = $base;
         $suffix = 2;
 
-        while (Tenant::where('slug', $slug)->exists()) {
+        // withTrashed, because the unique index does not care about soft
+        // deletes and this query otherwise cannot see them. Trash "Spice
+        // Garden" and let somebody sign up with that name, and the scoped
+        // version hands back a slug the database then refuses - a signup that
+        // dies on an SQL constraint violation for a reason nobody can see.
+        while (Tenant::withTrashed()->where('slug', $slug)->exists()) {
             $slug = "{$base}-{$suffix}";
             $suffix++;
         }

@@ -2093,6 +2093,106 @@
                 "security": []
             }
         },
+        "/v1/demo/lead": {
+            "post": {
+                "operationId": "demoLead.store",
+                "tags": [
+                    "DemoLead"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "event_id": {
+                                        "type": "string",
+                                        "maxLength": 100
+                                    },
+                                    "fbp": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 255
+                                    },
+                                    "fbc": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 255
+                                    },
+                                    "source_url": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 2000
+                                    },
+                                    "lead_ref": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "Opaque here on purpose: the website issued it and the website\nreads it. This side only carries it back, the same way it carries\nthe Facebook cookies, so a demo Lead can be tied to the person\nwho verified their email to get in.",
+                                        "maxLength": 2000
+                                    }
+                                },
+                                "required": [
+                                    "event_id"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The visitor is not waiting on this; never turn a tracking gap\ninto a visible error in the product.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "status": {
+                                                    "type": "string",
+                                                    "const": "accepted"
+                                                }
+                                            },
+                                            "required": [
+                                                "status"
+                                            ]
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "status": {
+                                                    "type": "string",
+                                                    "const": "skipped"
+                                                }
+                                            },
+                                            "required": [
+                                                "status"
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                },
+                "security": []
+            }
+        },
         "/v1/discounts": {
             "get": {
                 "operationId": "discounts.index",
@@ -4969,6 +5069,138 @@
                 }
             }
         },
+        "/v1/auth/one-time-login": {
+            "post": {
+                "operationId": "oneTimeLogin.store",
+                "tags": [
+                    "OneTimeLogin"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "token": {
+                                        "type": "string",
+                                        "maxLength": 128
+                                    }
+                                },
+                                "required": [
+                                    "token"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "user": {
+                                            "anyOf": [
+                                                {
+                                                    "$ref": "#/components/schemas/User"
+                                                },
+                                                {
+                                                    "type": "null"
+                                                }
+                                            ]
+                                        },
+                                        "tenant": {
+                                            "type": "string"
+                                        },
+                                        "token": {
+                                            "type": "string"
+                                        },
+                                        "must_set_password": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "user",
+                                        "tenant",
+                                        "token",
+                                        "must_set_password"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/auth/password/set": {
+            "post": {
+                "operationId": "oneTimeLogin.setPassword",
+                "summary": "Sets the password for the signed-in user and clears the flag that has\nbeen nagging them for one",
+                "tags": [
+                    "OneTimeLogin"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "password": {
+                                        "type": "string"
+                                    },
+                                    "password_confirmation": {
+                                        "type": "string"
+                                    }
+                                },
+                                "required": [
+                                    "password",
+                                    "password_confirmation"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Password set."
+                                        },
+                                        "must_set_password": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "must_set_password"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/storefront/orders": {
             "post": {
                 "operationId": "order.store_0",
@@ -6159,6 +6391,74 @@
                 "security": []
             }
         },
+        "/v1/auth/password/forgot": {
+            "post": {
+                "operationId": "passwordReset.forgot",
+                "description": "Always answers the same way - accepted - whatever happened. An endpoint\nthat says \"no account with that address\" is a way to test whether a\nrestaurant banks with us, one address at a time, and this one takes no\nauthentication at all. The customer is told to check their inbox either\nway; only somebody who really has an account finds anything there.\n\nThe demo account is refused for a different reason, and equally quietly:\nits credentials are published on the marketing site, so a reset would let\nany passer-by lock every other visitor out of the demo.",
+                "summary": "Emails a reset link, if there is anybody to email",
+                "tags": [
+                    "PasswordReset"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "maxLength": 255
+                                    },
+                                    "restaurant_code": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "Optional, and only used to disambiguate: one address can own more\nthan one restaurant.",
+                                        "maxLength": 255
+                                    }
+                                },
+                                "required": [
+                                    "email"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "const": "accepted"
+                                        },
+                                        "message": {
+                                            "type": "string",
+                                            "const": "If that address has an account, a reset link is on its way to it."
+                                        }
+                                    },
+                                    "required": [
+                                        "status",
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                },
+                "security": []
+            }
+        },
         "/v1/payments": {
             "get": {
                 "operationId": "payments.index",
@@ -6993,6 +7293,72 @@
                         "$ref": "#/components/responses/AuthenticationException"
                     }
                 }
+            }
+        },
+        "/v1/platform/plans": {
+            "get": {
+                "operationId": "plan.index",
+                "tags": [
+                    "Plan"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "default": {
+                                            "type": "string"
+                                        },
+                                        "currency": {
+                                            "type": "string",
+                                            "const": "BDT"
+                                        },
+                                        "plans": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "tier": {
+                                                        "type": "string"
+                                                    },
+                                                    "name": {},
+                                                    "description": {},
+                                                    "outlets": {},
+                                                    "price_monthly": {},
+                                                    "price_yearly": {},
+                                                    "setup_fee": {},
+                                                    "modules": {
+                                                        "type": "array",
+                                                        "items": {}
+                                                    }
+                                                },
+                                                "required": [
+                                                    "tier",
+                                                    "name",
+                                                    "description",
+                                                    "outlets",
+                                                    "price_monthly",
+                                                    "price_yearly",
+                                                    "setup_fee",
+                                                    "modules"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "default",
+                                        "currency",
+                                        "plans"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
             }
         },
         "/v1/products": {
@@ -10665,6 +11031,53 @@
                 "security": []
             }
         },
+        "/v1/platform/stats": {
+            "get": {
+                "operationId": "stats.index",
+                "tags": [
+                    "Stats"
+                ],
+                "parameters": [
+                    {
+                        "name": "timezone",
+                        "in": "query",
+                        "description": "The report's own idea of \"today\", so both halves agree on where\nthe day starts. The website runs on Asia/Dhaka; this server does\nnot, and a day boundary computed twice in two timezones is how a\nreport ends up disagreeing with itself.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "due_within_days",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "integer",
+                                "null"
+                            ],
+                            "minimum": 1,
+                            "maximum": 90
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Cross-tenant by definition, and this endpoint runs outside tenant\nresolution, so the whole thing is built unscoped.",
+                        "content": {
+                            "application/json": {
+                                "schema": {}
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                },
+                "security": []
+            }
+        },
         "/v1/stock-transfers": {
             "get": {
                 "operationId": "stock-transfers.index",
@@ -12333,6 +12746,1778 @@
                     },
                     "404": {
                         "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/platform/tenants": {
+            "post": {
+                "operationId": "tenant.store",
+                "description": "Idempotent on contact_email: the website retries this when a visitor\nrefreshes the \"creating your account\" screen, and a retry must return the\naccount already made rather than a second one. A retry does mint a fresh\nlogin link, because the earlier one may never have arrived.",
+                "summary": "Creates a restaurant on trial and hands back everything its owner needs\nto get in",
+                "tags": [
+                    "Tenant"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "restaurant_name": {
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "owner_name": {
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "email": {
+                                        "type": "string",
+                                        "format": "email",
+                                        "maxLength": 255
+                                    },
+                                    "phone": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 30
+                                    },
+                                    "plan": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "enum": [
+                                            "starter",
+                                            "growth",
+                                            "business",
+                                            "enterprise"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "restaurant_name",
+                                    "owner_name",
+                                    "email"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "created": {
+                                            "type": "boolean"
+                                        },
+                                        "tenant": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {},
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "restaurant_code": {
+                                                    "type": "string"
+                                                },
+                                                "plan": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "billing_cycle": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_email": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_phone": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "max_outlets": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "locations_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Only present when the caller asked for them - index() and show()\ndo. Deliberately not counted here as a fallback: users and\nlocations are tenant-scoped, so a count taken outside a tenant\ncontext returns a confident, wrong zero rather than nothing."
+                                                },
+                                                "users_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "trial_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "subscription_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "deleted_at": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "restaurant_code",
+                                                "plan",
+                                                "status",
+                                                "billing_cycle",
+                                                "contact_name",
+                                                "contact_email",
+                                                "contact_phone",
+                                                "max_outlets",
+                                                "locations_count",
+                                                "users_count",
+                                                "trial_ends_at",
+                                                "subscription_ends_at",
+                                                "deleted_at",
+                                                "created_at"
+                                            ]
+                                        },
+                                        "login": {
+                                            "type": "object",
+                                            "properties": {
+                                                "login_url": {
+                                                    "type": "string"
+                                                },
+                                                "restaurant_code": {
+                                                    "type": "string"
+                                                },
+                                                "email": {
+                                                    "type": "string"
+                                                },
+                                                "one_time_token": {
+                                                    "type": "string"
+                                                },
+                                                "one_time_login_url": {
+                                                    "type": "string",
+                                                    "description": "Built here rather than by each caller so the front's route for\nredeeming a link is defined in one place."
+                                                },
+                                                "expires_in_hours": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "login_url",
+                                                "restaurant_code",
+                                                "email",
+                                                "one_time_token",
+                                                "one_time_login_url",
+                                                "expires_in_hours"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "created",
+                                        "tenant",
+                                        "login"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "created": {
+                                            "type": "boolean"
+                                        },
+                                        "reactivated": {
+                                            "type": "boolean",
+                                            "description": "Whether anything had to be brought back, so the caller can\nexplain rather than silently showing a different restaurant\nfrom the one they just asked for."
+                                        },
+                                        "tenant": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {},
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "restaurant_code": {
+                                                    "type": "string"
+                                                },
+                                                "plan": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "billing_cycle": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_email": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_phone": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "max_outlets": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "locations_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Only present when the caller asked for them - index() and show()\ndo. Deliberately not counted here as a fallback: users and\nlocations are tenant-scoped, so a count taken outside a tenant\ncontext returns a confident, wrong zero rather than nothing."
+                                                },
+                                                "users_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "trial_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "subscription_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "deleted_at": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "restaurant_code",
+                                                "plan",
+                                                "status",
+                                                "billing_cycle",
+                                                "contact_name",
+                                                "contact_email",
+                                                "contact_phone",
+                                                "max_outlets",
+                                                "locations_count",
+                                                "users_count",
+                                                "trial_ends_at",
+                                                "subscription_ends_at",
+                                                "deleted_at",
+                                                "created_at"
+                                            ]
+                                        },
+                                        "login": {
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ],
+                                            "properties": {
+                                                "login_url": {
+                                                    "type": "string"
+                                                },
+                                                "restaurant_code": {
+                                                    "type": "string"
+                                                },
+                                                "email": {
+                                                    "type": "string"
+                                                },
+                                                "one_time_token": {
+                                                    "type": "string"
+                                                },
+                                                "one_time_login_url": {
+                                                    "type": "string",
+                                                    "description": "Built here rather than by each caller so the front's route for\nredeeming a link is defined in one place."
+                                                },
+                                                "expires_in_hours": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "login_url",
+                                                "restaurant_code",
+                                                "email",
+                                                "one_time_token",
+                                                "one_time_login_url",
+                                                "expires_in_hours"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "created",
+                                        "reactivated",
+                                        "tenant",
+                                        "login"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                },
+                "security": []
+            },
+            "get": {
+                "operationId": "tenant.index",
+                "description": "The website's tenant screens are all backed by this one listing: the\nstatus tab filters it, and the per-tab counts drive the badges on the\ntabs themselves. `status` values mirror the website's TenantController\nTABS, with 'trashed' meaning soft-deleted.",
+                "summary": "The tenants, for the marketing site's admin panel",
+                "tags": [
+                    "Tenant"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "tenants": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {},
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "restaurant_code": {
+                                                        "type": "string"
+                                                    },
+                                                    "plan": {
+                                                        "type": "string"
+                                                    },
+                                                    "status": {
+                                                        "type": "string"
+                                                    },
+                                                    "billing_cycle": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "contact_name": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "contact_email": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "contact_phone": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "max_outlets": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "locations_count": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ],
+                                                        "description": "Only present when the caller asked for them - index() and show()\ndo. Deliberately not counted here as a fallback: users and\nlocations are tenant-scoped, so a count taken outside a tenant\ncontext returns a confident, wrong zero rather than nothing."
+                                                    },
+                                                    "users_count": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "trial_ends_at": {
+                                                        "type": "string"
+                                                    },
+                                                    "subscription_ends_at": {
+                                                        "type": "string"
+                                                    },
+                                                    "deleted_at": {
+                                                        "type": "string"
+                                                    },
+                                                    "created_at": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "name",
+                                                    "restaurant_code",
+                                                    "plan",
+                                                    "status",
+                                                    "billing_cycle",
+                                                    "contact_name",
+                                                    "contact_email",
+                                                    "contact_phone",
+                                                    "max_outlets",
+                                                    "locations_count",
+                                                    "users_count",
+                                                    "trial_ends_at",
+                                                    "subscription_ends_at",
+                                                    "deleted_at",
+                                                    "created_at"
+                                                ]
+                                            }
+                                        },
+                                        "counts": {
+                                            "type": "array",
+                                            "items": {}
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "properties": {
+                                                "total": {
+                                                    "type": "string"
+                                                },
+                                                "per_page": {
+                                                    "type": "string"
+                                                },
+                                                "current_page": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "total",
+                                                "per_page",
+                                                "current_page"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "tenants",
+                                        "counts",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/platform/tenants/{slug}": {
+            "get": {
+                "operationId": "tenant.show",
+                "description": "Includes trashed tenants: the marketing site's admin panel has to open\na restaurant that is in the trash to restore it or delete it for ever.\n\nCounted inside runWithoutScoping for the reason index() documents.",
+                "summary": "Reads a tenant back, by slug",
+                "tags": [
+                    "Tenant"
+                ],
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "tenant": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {},
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "restaurant_code": {
+                                                    "type": "string"
+                                                },
+                                                "plan": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "billing_cycle": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_email": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_phone": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "max_outlets": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "locations_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Only present when the caller asked for them - index() and show()\ndo. Deliberately not counted here as a fallback: users and\nlocations are tenant-scoped, so a count taken outside a tenant\ncontext returns a confident, wrong zero rather than nothing."
+                                                },
+                                                "users_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "trial_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "subscription_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "deleted_at": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "restaurant_code",
+                                                "plan",
+                                                "status",
+                                                "billing_cycle",
+                                                "contact_name",
+                                                "contact_email",
+                                                "contact_phone",
+                                                "max_outlets",
+                                                "locations_count",
+                                                "users_count",
+                                                "trial_ends_at",
+                                                "subscription_ends_at",
+                                                "deleted_at",
+                                                "created_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "tenant"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            },
+            "delete": {
+                "operationId": "tenant.trash",
+                "summary": "Moves a tenant to the trash. Soft delete - nothing is destroyed, so this\nis always reversible and never needs a second confirmation step",
+                "tags": [
+                    "Tenant"
+                ],
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "tenant": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {},
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "restaurant_code": {
+                                                    "type": "string"
+                                                },
+                                                "plan": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "billing_cycle": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_email": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_phone": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "max_outlets": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "locations_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Only present when the caller asked for them - index() and show()\ndo. Deliberately not counted here as a fallback: users and\nlocations are tenant-scoped, so a count taken outside a tenant\ncontext returns a confident, wrong zero rather than nothing."
+                                                },
+                                                "users_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "trial_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "subscription_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "deleted_at": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "restaurant_code",
+                                                "plan",
+                                                "status",
+                                                "billing_cycle",
+                                                "contact_name",
+                                                "contact_email",
+                                                "contact_phone",
+                                                "max_outlets",
+                                                "locations_count",
+                                                "users_count",
+                                                "trial_ends_at",
+                                                "subscription_ends_at",
+                                                "deleted_at",
+                                                "created_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "tenant"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/platform/tenants/{slug}/subscribe": {
+            "post": {
+                "operationId": "tenant.subscribe",
+                "description": "Mirrors tenants:subscribe: an unexpired subscription is extended from\nwhere it ends, not from today, so paying early never costs the customer\nthe days they already had.\n\n`starts_at` overrides that and runs the period from a date given by hand.\nIt is what an admin recording an offline payment needs: money that\narrived three weeks ago bought a month from three weeks ago, not a month\nfrom today. Because it can be back-dated far enough that the period has\nalready elapsed, the resulting status is derived from the end date rather\nthan assumed - see below.",
+                "summary": "Turns a subscription on, or extends one already running",
+                "tags": [
+                    "Tenant"
+                ],
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "cycle": {
+                                        "type": "string",
+                                        "enum": [
+                                            "monthly",
+                                            "yearly"
+                                        ]
+                                    },
+                                    "plan": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "enum": [
+                                            "starter",
+                                            "growth",
+                                            "business",
+                                            "enterprise"
+                                        ]
+                                    },
+                                    "starts_at": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "format": "date-time"
+                                    }
+                                },
+                                "required": [
+                                    "cycle"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "tenant": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {},
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "restaurant_code": {
+                                                    "type": "string"
+                                                },
+                                                "plan": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "billing_cycle": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_email": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_phone": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "max_outlets": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "locations_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Only present when the caller asked for them - index() and show()\ndo. Deliberately not counted here as a fallback: users and\nlocations are tenant-scoped, so a count taken outside a tenant\ncontext returns a confident, wrong zero rather than nothing."
+                                                },
+                                                "users_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "trial_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "subscription_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "deleted_at": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "restaurant_code",
+                                                "plan",
+                                                "status",
+                                                "billing_cycle",
+                                                "contact_name",
+                                                "contact_email",
+                                                "contact_phone",
+                                                "max_outlets",
+                                                "locations_count",
+                                                "users_count",
+                                                "trial_ends_at",
+                                                "subscription_ends_at",
+                                                "deleted_at",
+                                                "created_at"
+                                            ]
+                                        },
+                                        "starts_at": {
+                                            "type": "string",
+                                            "description": "So the caller can say \"recorded, but it had already expired\"\nrather than claiming the restaurant is now subscribed."
+                                        },
+                                        "lapsed": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "tenant",
+                                        "starts_at",
+                                        "lapsed"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/platform/tenants/{slug}/suspend": {
+            "post": {
+                "operationId": "tenant.suspend",
+                "summary": "Suspends a tenant - the lever behind \"mark the order unverified and lock\n     * the account\" when a claimed payment turns out not to have arrived",
+                "tags": [
+                    "Tenant"
+                ],
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "tenant": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {},
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "restaurant_code": {
+                                                    "type": "string"
+                                                },
+                                                "plan": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "billing_cycle": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_email": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_phone": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "max_outlets": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "locations_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Only present when the caller asked for them - index() and show()\ndo. Deliberately not counted here as a fallback: users and\nlocations are tenant-scoped, so a count taken outside a tenant\ncontext returns a confident, wrong zero rather than nothing."
+                                                },
+                                                "users_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "trial_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "subscription_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "deleted_at": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "restaurant_code",
+                                                "plan",
+                                                "status",
+                                                "billing_cycle",
+                                                "contact_name",
+                                                "contact_email",
+                                                "contact_phone",
+                                                "max_outlets",
+                                                "locations_count",
+                                                "users_count",
+                                                "trial_ends_at",
+                                                "subscription_ends_at",
+                                                "deleted_at",
+                                                "created_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "tenant"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/platform/tenants/{slug}/reactivate": {
+            "post": {
+                "operationId": "tenant.reactivate",
+                "description": "Deliberately not `subscribe`: that extends the paid period, so using it\nto undo a mistaken lock would hand the customer a free month every time\nsomeone clicked the wrong button.",
+                "summary": "Lifts a suspension without touching the billing window",
+                "tags": [
+                    "Tenant"
+                ],
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "tenant": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {},
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "restaurant_code": {
+                                                    "type": "string"
+                                                },
+                                                "plan": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "billing_cycle": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_email": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_phone": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "max_outlets": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "locations_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Only present when the caller asked for them - index() and show()\ndo. Deliberately not counted here as a fallback: users and\nlocations are tenant-scoped, so a count taken outside a tenant\ncontext returns a confident, wrong zero rather than nothing."
+                                                },
+                                                "users_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "trial_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "subscription_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "deleted_at": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "restaurant_code",
+                                                "plan",
+                                                "status",
+                                                "billing_cycle",
+                                                "contact_name",
+                                                "contact_email",
+                                                "contact_phone",
+                                                "max_outlets",
+                                                "locations_count",
+                                                "users_count",
+                                                "trial_ends_at",
+                                                "subscription_ends_at",
+                                                "deleted_at",
+                                                "created_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "tenant"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "const": "This tenant has nothing left to reactivate - subscribe it instead."
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "const": "nothing_to_reactivate"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/platform/tenants/{slug}/restore": {
+            "post": {
+                "operationId": "tenant.restore",
+                "summary": "Restores a tenant from the trash, exactly as it was",
+                "tags": [
+                    "Tenant"
+                ],
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "tenant": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {},
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "restaurant_code": {
+                                                    "type": "string"
+                                                },
+                                                "plan": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "billing_cycle": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_email": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_phone": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "max_outlets": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "locations_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Only present when the caller asked for them - index() and show()\ndo. Deliberately not counted here as a fallback: users and\nlocations are tenant-scoped, so a count taken outside a tenant\ncontext returns a confident, wrong zero rather than nothing."
+                                                },
+                                                "users_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "trial_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "subscription_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "deleted_at": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "restaurant_code",
+                                                "plan",
+                                                "status",
+                                                "billing_cycle",
+                                                "contact_name",
+                                                "contact_email",
+                                                "contact_phone",
+                                                "max_outlets",
+                                                "locations_count",
+                                                "users_count",
+                                                "trial_ends_at",
+                                                "subscription_ends_at",
+                                                "deleted_at",
+                                                "created_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "tenant"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/platform/tenants/{slug}/purge": {
+            "delete": {
+                "operationId": "tenant.purge",
+                "description": "Delegates to tenants:remove rather than force-deleting here. The FK\ncascade alone leaves behind everything no foreign key reaches - the\nusers' sessions and API tokens, the model_has_* pivots, the uploaded\nfiles, the cached billing state, and the website's own records of the\nsignup - and that command sweeps all of it. It also discovers\ntenant-owned tables from the schema, so a table added later is covered\nwithout anyone remembering to update this.\n\nRefuses anything not already in the trash: wiping a live restaurant must\nalways be the second deliberate step after moving it there, never the\nfirst. A 422 rather than a 404, so the website can say why.",
+                "summary": "Destroys a tenant and everything it owns",
+                "tags": [
+                    "Tenant"
+                ],
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "deleted": {
+                                            "type": "boolean"
+                                        },
+                                        "restaurant_code": {
+                                            "type": "string"
+                                        },
+                                        "output": {
+                                            "type": "string",
+                                            "description": "The command's own report - which tables lost how many rows, how\nmany files went - kept so a purge can be accounted for after."
+                                        }
+                                    },
+                                    "required": [
+                                        "deleted",
+                                        "restaurant_code",
+                                        "output"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Only a restaurant already in the trash can be permanently deleted."
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "const": "not_trashed"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/platform/tenants/{slug}/login-link": {
+            "post": {
+                "operationId": "tenant.loginLink",
+                "summary": "Mints a fresh single-use login link for a tenant's owner",
+                "tags": [
+                    "Tenant"
+                ],
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "login": {
+                                            "type": "object",
+                                            "properties": {
+                                                "login_url": {
+                                                    "type": "string"
+                                                },
+                                                "restaurant_code": {
+                                                    "type": "string"
+                                                },
+                                                "email": {
+                                                    "type": "string"
+                                                },
+                                                "one_time_token": {
+                                                    "type": "string"
+                                                },
+                                                "one_time_login_url": {
+                                                    "type": "string",
+                                                    "description": "Built here rather than by each caller so the front's route for\nredeeming a link is defined in one place."
+                                                },
+                                                "expires_in_hours": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "login_url",
+                                                "restaurant_code",
+                                                "email",
+                                                "one_time_token",
+                                                "one_time_login_url",
+                                                "expires_in_hours"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "login"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/platform/tenants/{slug}/password-reset": {
+            "post": {
+                "operationId": "tenant.sendPasswordReset",
+                "description": "The admin counterpart of \"I have forgotten my password\": support can send\none on request without ever handling the password itself, and without\nreading a login link down a phone line.\n\nUnlike the public route this one answers honestly - the caller is our own\nadmin panel, holding the platform token, so there is nothing to hide from\nit and plenty it needs to report back.",
+                "summary": "Emails the owner a link for setting a new password",
+                "tags": [
+                    "Tenant"
+                ],
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "sent": {
+                                            "type": "boolean"
+                                        },
+                                        "email": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "sent",
+                                        "email"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "message": {
+                                                    "type": "string",
+                                                    "const": "The demo account cannot be reset - its credentials are published."
+                                                },
+                                                "error": {
+                                                    "type": "string",
+                                                    "const": "account_not_resettable"
+                                                }
+                                            },
+                                            "required": [
+                                                "message",
+                                                "error"
+                                            ]
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "message": {
+                                                    "type": "string",
+                                                    "const": "No user matches this restaurant's contact email, so there is nobody to send a reset to."
+                                                },
+                                                "error": {
+                                                    "type": "string",
+                                                    "const": "owner_missing"
+                                                }
+                                            },
+                                            "required": [
+                                                "message",
+                                                "error"
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/platform/upgrade-tokens/redeem": {
+            "post": {
+                "operationId": "upgradeLink.redeem",
+                "summary": "Redeems a token for the website. Platform-authenticated: only our own\nmarketing site may ask who a token belongs to",
+                "tags": [
+                    "UpgradeLink"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "token": {
+                                        "type": "string",
+                                        "maxLength": 128
+                                    }
+                                },
+                                "required": [
+                                    "token"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "tenant": {
+                                            "type": "object",
+                                            "properties": {
+                                                "restaurant_code": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "plan": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "restaurant_code",
+                                                "name",
+                                                "plan",
+                                                "status"
+                                            ]
+                                        },
+                                        "owner": {
+                                            "type": "object",
+                                            "properties": {
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "email": {
+                                                    "type": "string"
+                                                },
+                                                "phone": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "name",
+                                                "email",
+                                                "phone"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "tenant",
+                                        "owner"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/billing/upgrade-link": {
+            "post": {
+                "operationId": "upgradeLink.store",
+                "summary": "Mints an upgrade link for the signed-in user's restaurant",
+                "tags": [
+                    "UpgradeLink"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "url": {
+                                            "type": "string"
+                                        },
+                                        "expires_in_minutes": {
+                                            "type": "integer",
+                                            "const": 30
+                                        }
+                                    },
+                                    "required": [
+                                        "url",
+                                        "expires_in_minutes"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "const": "Upgrades are not available on this deployment."
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "const": "website_url_missing"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "const": "No restaurant in context."
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "const": "tenant_missing"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -16259,6 +18444,9 @@
                     "is_platform_admin": {
                         "type": "boolean"
                     },
+                    "must_set_password": {
+                        "type": "integer"
+                    },
                     "created_at": {
                         "type": [
                             "string",
@@ -16286,6 +18474,7 @@
                     "image_url",
                     "email_verified_at",
                     "is_platform_admin",
+                    "must_set_password",
                     "created_at",
                     "updated_at",
                     "tenant_id"
