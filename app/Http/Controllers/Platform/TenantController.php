@@ -132,9 +132,18 @@ class TenantController extends Controller
             'plan' => ['nullable', 'string', Rule::in(Plans::tiers())],
         ]);
 
-        $existing = Tenant::where('contact_email', $validated['email'])->first();
+        // withTrashed on purpose. The address is verified before this is ever
+        // called, so whoever is asking owns it - and one person has one
+        // restaurant. Without this, somebody whose restaurant is in the trash
+        // gets a brand new second one against the same address, and from then
+        // on "do they already have an account" has two answers.
+        $existing = Tenant::withTrashed()
+            ->where('contact_email', $validated['email'])
+            ->first();
 
         if ($existing !== null) {
+            $reactivated = $this->reinstate($existing);
+
             $owner = User::withoutGlobalScopes()
                 ->where('tenant_id', $existing->getKey())
                 ->where('email', $validated['email'])
@@ -142,7 +151,11 @@ class TenantController extends Controller
 
             return response()->json([
                 'created' => false,
-                'tenant' => $this->present($existing),
+                // Whether anything had to be brought back, so the caller can
+                // explain rather than silently showing a different restaurant
+                // from the one they just asked for.
+                'reactivated' => $reactivated,
+                'tenant' => $this->present($existing->fresh()),
                 'login' => $owner === null ? null : $this->loginPayload($existing, $owner),
             ]);
         }
@@ -182,6 +195,46 @@ class TenantController extends Controller
             'tenant' => $this->present($tenant),
             'login' => $this->loginPayload($tenant, $owner),
         ], 201);
+    }
+
+    /**
+     * Brings a returning owner's restaurant back, without handing anything out.
+     *
+     * A working account is left exactly as it is: an active subscription, or a
+     * trial still running, is not something a repeat signup should disturb.
+     * Anything else - in the trash, cancelled, already suspended - comes back
+     * suspended. They can get in and read their data; saving needs a payment
+     * and a person.
+     *
+     * That is the deliberate part. Reactivating outright would mean a customer
+     * whose payment was rejected could clear the lock by filling the signup
+     * form in again, which would leave no enforcement behind manual settlement
+     * at all.
+     *
+     * @return bool whether anything actually changed
+     */
+    private function reinstate(Tenant $tenant): bool
+    {
+        $wasTrashed = $tenant->trashed();
+
+        // A live account is left completely alone. Note this is checked before
+        // restoring: trashing is a soft delete and does not touch `status`, so
+        // a restaurant in the trash usually still reads "active" - and treating
+        // that as a working account would quietly undo the removal.
+        if (! $wasTrashed && in_array($tenant->status, ['active', 'trialing'], true)) {
+            return false;
+        }
+
+        if ($wasTrashed) {
+            $tenant->restore();
+        }
+
+        $tenant->status = 'suspended';
+        $tenant->save();
+
+        Subscription::forget($tenant);
+
+        return true;
     }
 
     /**
