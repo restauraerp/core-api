@@ -36,8 +36,21 @@ return [
             'description' => 'For a single outlet getting started.',
             'hosting' => 'shared',
             'outlets' => 1,
-            'price_monthly' => 490,
-            'price_yearly' => 4900,
+            // The list price, and the authoritative one: the marketing site
+            // asks this API what a tier costs when it builds an order, so this
+            // is what a customer is actually charged.
+            //
+            // Landing-page visitors are sold Starter at a lower rate. That
+            // discount is NOT expressed here - it is per customer, not per
+            // tier, and lives on the marketing site as a locked price against
+            // the customer record. See the website README, "Two prices for
+            // Starter". A second tier here would have been the other way to do
+            // it and was rejected: it would need hiding from every plan picker
+            // and pricing table, and entitlements would then be identical
+            // across two tiers that differ only in price.
+            'price_monthly' => 790,
+            // Ten months of the monthly price - two free by paying up front.
+            'price_yearly' => 7900,
             'setup_fee' => 0,
             'modules' => Modules::CORE,
         ],
