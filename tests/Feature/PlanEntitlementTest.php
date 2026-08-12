@@ -10,7 +10,10 @@ use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantProvisioner;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
@@ -35,14 +38,14 @@ class PlanEntitlementTest extends TestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
-    private function tenantOn(string $plan, array $attributes = []): Tenant
+    private function tenantOn(string $plan, array $attributes = [], ?array $owner = null): Tenant
     {
         return app(TenantProvisioner::class)->create(array_merge([
             'name' => ucfirst($plan).' Restaurant',
             'slug' => $plan.'-restaurant',
             'plan' => $plan,
             'status' => 'active',
-        ], $attributes));
+        ], $attributes), $owner);
     }
 
     private function actingAsOwnerOf(Tenant $tenant): User
@@ -263,5 +266,95 @@ class PlanEntitlementTest extends TestCase
 
         $this->assertSame('suspended', $lapsed->fresh()->status);
         $this->assertSame('trialing', $running->fresh()->status);
+    }
+
+    /**
+     * The owner must hold their OWN restaurant's role.
+     *
+     * Assigning by name asks Spatie to resolve one, and its team scope counts a
+     * role with team_id NULL as global - so a single stray global row named
+     * restaurant_admin outranked the tenant's capped copy and every Starter
+     * owner silently inherited all twelve modules. The dashboard's quick access
+     * menu renders from this permission list, which is where it showed.
+     */
+    public function test_a_stray_global_role_does_not_leak_modules_to_a_starter_owner(): void
+    {
+        // Exactly the row the old context-less createRoles() produced: a tenant
+        // role belonging to no tenant, carrying every permission there is.
+        $global = Role::create([
+            'name' => RoleDefinitions::RESTAURANT_ADMIN,
+            'guard_name' => 'web',
+            'tenant_id' => null,
+        ]);
+        $global->syncPermissions(Permission::all());
+
+        $tenant = $this->tenantOn('starter', [
+            'name' => 'Owner Role Restaurant',
+            'slug' => 'owner-role-restaurant',
+        ], owner: ['email' => 'owner@starter.test', 'name' => 'Starter Owner']);
+
+        $permissions = app(TenantContext::class)->runFor($tenant, function () {
+            return User::where('email', 'owner@starter.test')
+                ->firstOrFail()
+                ->getAllPermissions()
+                ->pluck('name')
+                ->all();
+        });
+
+        // Starter's six core modules, and none of the other six.
+        $this->assertContains('view_pos', $permissions);
+        $this->assertContains('view_accounting', $permissions);
+        $this->assertNotContains('view_crm', $permissions);
+        $this->assertNotContains('view_hr', $permissions);
+        $this->assertNotContains('view_delivery', $permissions);
+        $this->assertNotContains('view_website', $permissions);
+    }
+
+    /**
+     * Creating tenant roles with nothing to scope them to is how the stray
+     * global rows appeared in the first place - and with no plan to read they
+     * were granted everything. Refusing beats guessing.
+     */
+    public function test_creating_tenant_roles_without_a_tenant_is_refused(): void
+    {
+        $this->expectException(\LogicException::class);
+
+        app(TenantProvisioner::class)->createRoles();
+    }
+
+    public function test_repair_command_repoints_owners_and_removes_stray_global_roles(): void
+    {
+        $tenant = $this->tenantOn('starter', [
+            'name' => 'Repair Restaurant',
+            'slug' => 'repair-restaurant',
+        ], owner: ['email' => 'owner@repair.test', 'name' => 'Repair Owner']);
+
+        // Recreate the damage: a global role holding everything, with the owner
+        // moved onto it.
+        $global = Role::create([
+            'name' => RoleDefinitions::RESTAURANT_ADMIN,
+            'guard_name' => 'web',
+            'tenant_id' => null,
+        ]);
+        $global->syncPermissions(Permission::all());
+
+        $owner = User::where('email', 'owner@repair.test')->firstOrFail();
+        DB::table('model_has_roles')
+            ->where('model_id', $owner->getKey())
+            ->update(['role_id' => $global->getKey()]);
+
+        $this->artisan('tenants:repair-roles')->assertSuccessful();
+
+        $this->assertDatabaseMissing('roles', [
+            'id' => $global->getKey(),
+        ]);
+
+        $permissions = app(TenantContext::class)->runFor(
+            $tenant,
+            fn () => $owner->fresh()->getAllPermissions()->pluck('name')->all(),
+        );
+
+        $this->assertContains('view_pos', $permissions);
+        $this->assertNotContains('view_crm', $permissions);
     }
 }

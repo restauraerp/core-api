@@ -91,6 +91,21 @@ class TenantProvisioner
     {
         $tenant ??= $this->context->get();
 
+        // Without a tenant there is no tier to cap against and no team to scope
+        // to, and the old code carried on regardless: it wrote roles at
+        // tenant_id NULL and, having no plan to read, granted them EVERY
+        // permission. Spatie treats a NULL team_id role as global and matches
+        // it by name, so `assignRole('restaurant_admin')` then handed those
+        // uncapped roles to tenant owners - a Starter restaurant whose owner
+        // could see CRM, HR, Delivery, Kiosk and Website because the role they
+        // hold belongs to no tenant at all. Refuse instead: a tenant role with
+        // no tenant is never something the caller meant.
+        if ($tenant === null || $this->context->id() === null) {
+            throw new \LogicException(
+                'createRoles() needs a tenant in context. Wrap the call in TenantContext::runFor().'
+            );
+        }
+
         // Every role is capped by what the tenant's tier includes, so a Starter
         // restaurant's owner simply has no CRM or HR permissions - and the
         // front, which renders its navigation from the permission list, hides
@@ -99,7 +114,11 @@ class TenantProvisioner
         // The API is guarded separately by the `module:` middleware: a role is
         // editable by the tenant, so permissions alone would be an entitlement
         // check the customer controls.
-        $entitled = $tenant !== null && Plans::exists((string) $tenant->plan)
+        //
+        // An unknown tier still falls back to the full set - that is a
+        // misconfiguration, not an entitlement decision, and locking a paying
+        // customer out of their own account over it would be worse.
+        $entitled = Plans::exists((string) $tenant->plan)
             ? Plans::permissions((string) $tenant->plan)
             : RoleDefinitions::permissions();
 
@@ -145,7 +164,17 @@ class TenantProvisioner
         $user->tenant_id = $tenant->getKey();
         $user->save();
 
-        $user->assignRole(RoleDefinitions::RESTAURANT_ADMIN);
+        // The tenant's OWN role, resolved by id rather than by name. Assigning
+        // by name asks Spatie to look one up, and its team scope counts a role
+        // with team_id NULL as global - so a single stray global row named
+        // restaurant_admin outranks this tenant's capped copy and the owner
+        // silently inherits every module. Naming the row removes the ambiguity.
+        $role = Role::where('name', RoleDefinitions::RESTAURANT_ADMIN)
+            ->where('guard_name', 'web')
+            ->where('tenant_id', $tenant->getKey())
+            ->firstOrFail();
+
+        $user->assignRole($role);
 
         return $user;
     }
