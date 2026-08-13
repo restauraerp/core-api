@@ -38,6 +38,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Captured up front so the deployment email can report who shipped
+      # what, and how long the whole workflow took.
+      - name: Collect release metadata
+        id: meta
+        run: |
+          echo "started_at=$(date +%s)" >> "$GITHUB_OUTPUT"
+          {
+            echo "commit_message<<EOF_COMMIT_MSG"
+            git log -1 --pretty=%s
+            echo "EOF_COMMIT_MSG"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Set up PHP 8.4
         uses: shivammathur/setup-php@v2
         with:
@@ -168,3 +180,31 @@ jobs:
           cd "$APP/current"
           php artisan demo:refresh --force --if-demo --isolated
           DEPLOY
+
+      # Calls the website's generic notification webhook — no SMTP config
+      # needed here, the website queues and sends it with its own mailer.
+      # continue-on-error: a broken webhook must never turn a good deploy red.
+      - name: Email deployment report
+        if: success()
+        continue-on-error: true
+        env:
+          COMMIT_MESSAGE: ${{ steps.meta.outputs.commit_message }}
+          STARTED_AT: ${{ steps.meta.outputs.started_at }}
+        run: |
+          ELAPSED=$(( $(date +%s) - ${STARTED_AT:-0} ))
+          DURATION="$(( ELAPSED / 60 ))m $(( ELAPSED % 60 ))s"
+
+          PAYLOAD=$(jq -n \
+            --arg subject "[core-api] $RELEASE deployed to production" \
+            --arg eyebrow "GitHub Actions — core-api" \
+            --arg headline "core-api $RELEASE deployed" \
+            --arg subline "api.restauraerp.com" \
+            --arg intro "Deployed in ${DURATION} by ${GITHUB_ACTOR}. ${COMMIT_MESSAGE}" \
+            --arg action_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            --arg action_label "View run" \
+            '{subject: $subject, eyebrow: $eyebrow, headline: $headline, subline: $subline, intro: $intro, action_url: $action_url, action_label: $action_label}')
+
+          curl -fsS -X POST "https://restauraerp.com/api/notifications/admin-event" \
+            -H "Authorization: Bearer ${{ secrets.PLATFORM_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD"
