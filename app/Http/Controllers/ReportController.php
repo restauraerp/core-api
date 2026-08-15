@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ConsumptionLog;
+use App\Models\Expense;
 use App\Models\InventoryItem;
 use App\Models\Order;
+use App\Models\PurchaseOrder;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -300,6 +303,207 @@ class ReportController extends Controller
                 'total_value' => round($data->sum('total_value'), 2),
             ],
             'data' => $data,
+        ]);
+    }
+
+    /**
+     * Operational expense totals for the window, broken down by category.
+     *
+     * GET /reports/expenses?from=&to=&location_id=
+     */
+    public function expenses(Request $request)
+    {
+        [$from, $to] = $this->window($request);
+        $locationId = $request->input('location_id');
+
+        $query = Expense::query();
+        if ($from) $query->where('created_at', '>=', $from);
+        if ($to)   $query->where('created_at', '<', $to);
+        if ($locationId && $locationId !== '' && $locationId !== 'all') {
+            $query->where('location_id', $locationId);
+        }
+
+        $total = (float) $query->sum('amount');
+
+        $byCategory = (clone $query)
+            ->selectRaw('COALESCE(category, "Uncategorised") as category, COALESCE(SUM(amount), 0) as total')
+            ->groupBy('category')
+            ->orderByDesc('total')
+            ->get()
+            ->map(fn ($r) => ['category' => $r->category, 'total' => (float) $r->total]);
+
+        $purchaseQuery = PurchaseOrder::query();
+        if ($from) $purchaseQuery->where('created_at', '>=', $from);
+        if ($to)   $purchaseQuery->where('created_at', '<', $to);
+        if ($locationId && $locationId !== '' && $locationId !== 'all') {
+            $purchaseQuery->where('location_id', $locationId);
+        }
+
+        $purchaseTotal = (float) $purchaseQuery->sum('total_amount');
+
+        return response()->json([
+            'summary' => [
+                'operational_expenses' => $total,
+                'purchase_expenses' => $purchaseTotal,
+                'total_expenses' => $total + $purchaseTotal,
+            ],
+            'by_category' => $byCategory,
+        ]);
+    }
+
+    /**
+     * Net profit = collected revenue − all expenses in the window.
+     *
+     * GET /reports/profit?from=&to=&location_id=
+     */
+    public function profit(Request $request)
+    {
+        [$from, $to] = $this->window($request);
+        $locationId = $request->input('location_id');
+
+        $revenue = (float) (clone $this->scope($request))
+            ->where('payment_status', 'paid')
+            ->sum('total');
+
+        $expenseQuery = Expense::query();
+        if ($from) $expenseQuery->where('created_at', '>=', $from);
+        if ($to)   $expenseQuery->where('created_at', '<', $to);
+        if ($locationId && $locationId !== '' && $locationId !== 'all') {
+            $expenseQuery->where('location_id', $locationId);
+        }
+        $operationalExpenses = (float) $expenseQuery->sum('amount');
+
+        $purchaseQuery = PurchaseOrder::query();
+        if ($from) $purchaseQuery->where('created_at', '>=', $from);
+        if ($to)   $purchaseQuery->where('created_at', '<', $to);
+        if ($locationId && $locationId !== '' && $locationId !== 'all') {
+            $purchaseQuery->where('location_id', $locationId);
+        }
+        $purchaseExpenses = (float) $purchaseQuery->sum('total_amount');
+
+        $totalExpenses = $operationalExpenses + $purchaseExpenses;
+        $profit = $revenue - $totalExpenses;
+
+        return response()->json([
+            'summary' => [
+                'revenue' => $revenue,
+                'operational_expenses' => $operationalExpenses,
+                'purchase_expenses' => $purchaseExpenses,
+                'total_expenses' => $totalExpenses,
+                'net_profit' => $profit,
+                'margin_pct' => $revenue > 0 ? round($profit / $revenue * 100, 1) : 0.0,
+            ],
+        ]);
+    }
+
+    /**
+     * Non-inventory (operational) expenses only — rent, salaries, utilities.
+     * Purchase orders are excluded.
+     *
+     * GET /reports/non-inventory-expenses?from=&to=&location_id=
+     */
+    public function nonInventoryExpenses(Request $request)
+    {
+        [$from, $to] = $this->window($request);
+        $locationId = $request->input('location_id');
+
+        $query = Expense::query();
+        if ($from) $query->where('created_at', '>=', $from);
+        if ($to)   $query->where('created_at', '<', $to);
+        if ($locationId && $locationId !== '' && $locationId !== 'all') {
+            $query->where('location_id', $locationId);
+        }
+
+        $total = (float) $query->sum('amount');
+
+        $byCategory = (clone $query)
+            ->selectRaw('COALESCE(category, "Uncategorised") as category, COALESCE(SUM(amount), 0) as total')
+            ->groupBy('category')
+            ->orderByDesc('total')
+            ->get()
+            ->map(fn ($r) => ['category' => $r->category, 'total' => (float) $r->total]);
+
+        return response()->json([
+            'summary' => ['total' => $total],
+            'by_category' => $byCategory,
+        ]);
+    }
+
+    /**
+     * Consumable inventory expenses — stock written off via the consumption log.
+     * Value = quantity × inventory_item.cost_per_unit at the time of logging.
+     *
+     * GET /reports/consumable-expenses?from=&to=&location_id=
+     */
+    public function consumableExpenses(Request $request)
+    {
+        [$from, $to] = $this->window($request);
+        $locationId = $request->input('location_id');
+
+        $query = ConsumptionLog::query()
+            ->join('inventory_items', 'inventory_items.id', '=', 'consumption_logs.inventory_item_id')
+            ->selectRaw('
+                consumption_logs.inventory_item_id,
+                inventory_items.title as item_name,
+                inventory_items.unit,
+                COALESCE(SUM(consumption_logs.quantity), 0) as total_qty,
+                COALESCE(SUM(consumption_logs.quantity * COALESCE(inventory_items.cost_per_unit, 0)), 0) as total_cost
+            ')
+            ->groupBy('consumption_logs.inventory_item_id', 'inventory_items.title', 'inventory_items.unit');
+
+        if ($from) $query->where('consumption_logs.consumed_at', '>=', substr($from, 0, 10));
+        if ($to)   $query->where('consumption_logs.consumed_at', '<', substr($to, 0, 10));
+        if ($locationId && $locationId !== '' && $locationId !== 'all') {
+            $query->where('consumption_logs.location_id', $locationId);
+        }
+
+        $rows = $query->orderByDesc('total_cost')->get();
+        $total = $rows->sum('total_cost');
+
+        return response()->json([
+            'summary' => ['total' => round((float) $total, 2)],
+            'by_item' => $rows->map(fn ($r) => [
+                'item_name' => $r->item_name,
+                'unit' => $r->unit,
+                'total_qty' => round((float) $r->total_qty, 3),
+                'total_cost' => round((float) $r->total_cost, 2),
+            ]),
+        ]);
+    }
+
+    /**
+     * All inventory expenses = purchase orders (countable) + consumption logs (consumable).
+     *
+     * GET /reports/all-inventory-expenses?from=&to=&location_id=
+     */
+    public function allInventoryExpenses(Request $request)
+    {
+        [$from, $to] = $this->window($request);
+        $locationId = $request->input('location_id');
+
+        $purchaseQuery = PurchaseOrder::query();
+        if ($from) $purchaseQuery->where('created_at', '>=', $from);
+        if ($to)   $purchaseQuery->where('created_at', '<', $to);
+        if ($locationId && $locationId !== '' && $locationId !== 'all') {
+            $purchaseQuery->where('location_id', $locationId);
+        }
+        $purchaseTotal = (float) $purchaseQuery->sum('total_amount');
+
+        $consumableQuery = ConsumptionLog::query()
+            ->join('inventory_items', 'inventory_items.id', '=', 'consumption_logs.inventory_item_id');
+        if ($from) $consumableQuery->where('consumption_logs.consumed_at', '>=', substr($from, 0, 10));
+        if ($to)   $consumableQuery->where('consumption_logs.consumed_at', '<', substr($to, 0, 10));
+        if ($locationId && $locationId !== '' && $locationId !== 'all') {
+            $consumableQuery->where('consumption_logs.location_id', $locationId);
+        }
+        $consumableTotal = (float) $consumableQuery->sum(DB::raw('consumption_logs.quantity * COALESCE(inventory_items.cost_per_unit, 0)'));
+
+        return response()->json([
+            'summary' => [
+                'purchase_expenses' => round($purchaseTotal, 2),
+                'consumable_expenses' => round($consumableTotal, 2),
+                'total' => round($purchaseTotal + $consumableTotal, 2),
+            ],
         ]);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\AccountingHeader;
 use App\Models\Supplier;
 use Illuminate\Database\Seeder;
 
@@ -9,7 +10,27 @@ class AccountingSeeder extends Seeder
 {
     public function run(): void
     {
-        // 1. Seed Suppliers (Required for Purchase Orders in OrderSeeder)
+        // 1. Accounting Headers — income and expense categories used by the
+        //    ledger and expense forms. These are seeded before OrderSeeder runs
+        //    so that demo expenses and sales entries can reference them.
+        $headersData = [
+            ['name' => 'Food & Beverage Sales', 'type' => 'income',  'description' => 'Revenue from food and drink sales'],
+            ['name' => 'Rent & Property',        'type' => 'expense', 'description' => 'Monthly rent, lease, and property costs'],
+            ['name' => 'Staff & Salaries',        'type' => 'expense', 'description' => 'Employee wages, salaries, and payroll'],
+            ['name' => 'Utilities & Services',    'type' => 'expense', 'description' => 'Electricity, gas, water, internet, and other utility bills'],
+            ['name' => 'Inventory Purchases',     'type' => 'expense', 'description' => 'Stock purchased via purchase orders'],
+        ];
+
+        foreach ($headersData as $header) {
+            AccountingHeader::firstOrCreate(
+                ['name' => $header['name']],
+                array_merge($header, ['is_active' => true]),
+            );
+        }
+
+        $this->command->info('✅ AccountingSeeder: Seeded '.count($headersData).' accounting headers.');
+
+        // 2. Seed Suppliers (Required for Purchase Orders in OrderSeeder)
         $suppliersData = [
             [
                 'name' => 'Bengal Fresh Produce',

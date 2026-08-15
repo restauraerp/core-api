@@ -24,7 +24,7 @@ class CustomerController extends Controller
             return response()->json($query->get());
         }
 
-        return response()->json($query->paginate(15));
+        return response()->json($query->paginate((int) env('PAGINATION_LIMIT', 15)));
     }
 
     public function store(Request $request)

@@ -9,13 +9,14 @@ class ExpenseController extends Controller
 {
     public function index()
     {
-        return response()->json(Expense::with(['location', 'loggedBy'])->paginate(15));
+        return response()->json(Expense::with(['location', 'loggedBy', 'header'])->paginate((int) env('PAGINATION_LIMIT', 15)));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
             'location_id' => ['nullable', $this->tenantExists('locations')],
+            'header_id' => ['nullable', $this->tenantExists('accounting_headers')],
             'category' => 'nullable|string',
             'amount' => 'nullable|numeric',
             'logged_by' => ['nullable', $this->tenantExists('users')],
@@ -39,6 +40,7 @@ class ExpenseController extends Controller
     {
         $validated = $request->validate([
             'location_id' => ['nullable', $this->tenantExists('locations')],
+            'header_id' => ['nullable', $this->tenantExists('accounting_headers')],
             'category' => 'nullable|string',
             'amount' => 'nullable|numeric',
             'logged_by' => ['nullable', $this->tenantExists('users')],

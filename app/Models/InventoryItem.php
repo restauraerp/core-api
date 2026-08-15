@@ -6,6 +6,7 @@ use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\TracksUploadedAssets;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use App\Models\Image;
 
 class InventoryItem extends Model
 {
@@ -55,6 +56,11 @@ class InventoryItem extends Model
     public function product(): HasOne
     {
         return $this->hasOne(Product::class);
+    }
+
+    public function images()
+    {
+        return $this->morphMany(Image::class, 'imageable');
     }
 
     /**
