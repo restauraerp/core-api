@@ -34,6 +34,355 @@
                 }
             }
         },
+        "/v1/accounting-headers": {
+            "get": {
+                "operationId": "accounting-headers.index",
+                "tags": [
+                    "AccountingHeader"
+                ],
+                "parameters": [
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/AccountingHeader"
+                                                    }
+                                                },
+                                                "first_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "from": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 1
+                                                },
+                                                "last_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "links": {
+                                                    "type": "array",
+                                                    "description": "Generated paginator links.",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "url": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "active": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "url",
+                                                            "label",
+                                                            "active"
+                                                        ]
+                                                    }
+                                                },
+                                                "next_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "path": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Base path for paginator generated URLs."
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "description": "Number of items shown per page.",
+                                                    "minimum": 0
+                                                },
+                                                "prev_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "to": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "Number of the last item in the slice.",
+                                                    "minimum": 1
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "description": "Total number of items being paginated.",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "data",
+                                                "first_page_url",
+                                                "from",
+                                                "last_page_url",
+                                                "last_page",
+                                                "links",
+                                                "next_page_url",
+                                                "path",
+                                                "per_page",
+                                                "prev_page_url",
+                                                "to",
+                                                "total"
+                                            ]
+                                        },
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/AccountingHeader"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "accounting-headers.store",
+                "tags": [
+                    "AccountingHeader"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "income",
+                                            "expense"
+                                        ]
+                                    },
+                                    "description": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "is_active": {
+                                        "type": "boolean"
+                                    }
+                                },
+                                "required": [
+                                    "name",
+                                    "type"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AccountingHeader"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/accounting-headers/{accountingHeader}": {
+            "get": {
+                "operationId": "accounting-headers.show",
+                "tags": [
+                    "AccountingHeader"
+                ],
+                "parameters": [
+                    {
+                        "name": "accountingHeader",
+                        "in": "path",
+                        "required": true,
+                        "description": "The accounting header ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AccountingHeader"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "accounting-headers.update",
+                "tags": [
+                    "AccountingHeader"
+                ],
+                "parameters": [
+                    {
+                        "name": "accountingHeader",
+                        "in": "path",
+                        "required": true,
+                        "description": "The accounting header ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "income",
+                                            "expense"
+                                        ]
+                                    },
+                                    "description": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "is_active": {
+                                        "type": "boolean"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AccountingHeader"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "accounting-headers.destroy",
+                "tags": [
+                    "AccountingHeader"
+                ],
+                "parameters": [
+                    {
+                        "name": "accountingHeader",
+                        "in": "path",
+                        "required": true,
+                        "description": "The accounting header ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/accounting-ledgers": {
             "get": {
                 "operationId": "accounting-ledgers.index",
@@ -208,6 +557,12 @@
                                             "string",
                                             "null"
                                         ]
+                                    },
+                                    "header_id": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
                                     }
                                 },
                                 "required": [
@@ -320,6 +675,12 @@
                                     "description": {
                                         "type": [
                                             "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "header_id": {
+                                        "type": [
+                                            "integer",
                                             "null"
                                         ]
                                     }
@@ -1395,6 +1756,296 @@
                 "responses": {
                     "204": {
                         "description": "No content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/consumption-logs": {
+            "get": {
+                "operationId": "consumption-logs.index",
+                "tags": [
+                    "ConsumptionLog"
+                ],
+                "parameters": [
+                    {
+                        "name": "inventory_item_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "location_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/ConsumptionLog"
+                                                    }
+                                                },
+                                                "first_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "from": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 1
+                                                },
+                                                "last_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "links": {
+                                                    "type": "array",
+                                                    "description": "Generated paginator links.",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "url": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "active": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "url",
+                                                            "label",
+                                                            "active"
+                                                        ]
+                                                    }
+                                                },
+                                                "next_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "path": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Base path for paginator generated URLs."
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "description": "Number of items shown per page.",
+                                                    "minimum": 0
+                                                },
+                                                "prev_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "to": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "Number of the last item in the slice.",
+                                                    "minimum": 1
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "description": "Total number of items being paginated.",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "data",
+                                                "first_page_url",
+                                                "from",
+                                                "last_page_url",
+                                                "last_page",
+                                                "links",
+                                                "next_page_url",
+                                                "path",
+                                                "per_page",
+                                                "prev_page_url",
+                                                "to",
+                                                "total"
+                                            ]
+                                        },
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/ConsumptionLog"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "consumption-logs.store",
+                "tags": [
+                    "ConsumptionLog"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "inventory_item_id": {
+                                        "type": "integer"
+                                    },
+                                    "location_id": {
+                                        "type": "integer"
+                                    },
+                                    "quantity": {
+                                        "type": "number",
+                                        "minimum": 0.001
+                                    },
+                                    "reason": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 500
+                                    },
+                                    "consumed_at": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                    }
+                                },
+                                "required": [
+                                    "inventory_item_id",
+                                    "location_id",
+                                    "quantity",
+                                    "consumed_at"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConsumptionLog"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/consumption-logs/{consumptionLog}": {
+            "get": {
+                "operationId": "consumption-logs.show",
+                "tags": [
+                    "ConsumptionLog"
+                ],
+                "parameters": [
+                    {
+                        "name": "consumptionLog",
+                        "in": "path",
+                        "required": true,
+                        "description": "The consumption log ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConsumptionLog"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "consumption-logs.destroy",
+                "tags": [
+                    "ConsumptionLog"
+                ],
+                "parameters": [
+                    {
+                        "name": "consumptionLog",
+                        "in": "path",
+                        "required": true,
+                        "description": "The consumption log ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -2582,6 +3233,12 @@
                                             "null"
                                         ]
                                     },
+                                    "header_id": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    },
                                     "category": {
                                         "type": [
                                             "string",
@@ -2690,6 +3347,12 @@
                                 "type": "object",
                                 "properties": {
                                     "location_id": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    },
+                                    "header_id": {
                                         "type": [
                                             "integer",
                                             "null"
@@ -3415,15 +4078,6 @@
                                             "null"
                                         ]
                                     },
-                                    "image": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ],
-                                        "format": "binary",
-                                        "contentMediaType": "application/octet-stream",
-                                        "maxLength": 5120
-                                    },
                                     "is_sellable": {
                                         "type": [
                                             "boolean",
@@ -3435,8 +4089,25 @@
                                             "number",
                                             "null"
                                         ],
-                                        "description": "A till cannot sell something with no price on it.",
                                         "minimum": 0
+                                    },
+                                    "featured_image_index": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    },
+                                    "images": {
+                                        "type": [
+                                            "array",
+                                            "null"
+                                        ],
+                                        "items": {
+                                            "type": "string",
+                                            "format": "binary",
+                                            "contentMediaType": "application/octet-stream",
+                                            "maxLength": 5120
+                                        }
                                     },
                                     "locations": {
                                         "type": [
@@ -3568,15 +4239,6 @@
                                             "null"
                                         ]
                                     },
-                                    "image": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ],
-                                        "format": "binary",
-                                        "contentMediaType": "application/octet-stream",
-                                        "maxLength": 5120
-                                    },
                                     "is_sellable": {
                                         "type": [
                                             "boolean",
@@ -3588,8 +4250,40 @@
                                             "number",
                                             "null"
                                         ],
-                                        "description": "A till cannot sell something with no price on it.",
                                         "minimum": 0
+                                    },
+                                    "featured_image_id": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    },
+                                    "featured_image_index": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    },
+                                    "images": {
+                                        "type": [
+                                            "array",
+                                            "null"
+                                        ],
+                                        "items": {
+                                            "type": "string",
+                                            "format": "binary",
+                                            "contentMediaType": "application/octet-stream",
+                                            "maxLength": 5120
+                                        }
+                                    },
+                                    "remove_images": {
+                                        "type": [
+                                            "array",
+                                            "null"
+                                        ],
+                                        "items": {
+                                            "type": "integer"
+                                        }
                                     },
                                     "locations": {
                                         "type": [
@@ -7369,7 +8063,14 @@
                 ],
                 "parameters": [
                     {
-                        "name": "search",
+                        "name": "category_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "sort",
                         "in": "query",
                         "schema": {
                             "type": "string"
@@ -7570,8 +8271,7 @@
                                         "type": [
                                             "boolean",
                                             "null"
-                                        ],
-                                        "description": "Whether this goes to the kitchen. A dish prepared to order does;\na bottled drink handed straight over does not, and an order made\nonly of those skips the cooking stage entirely."
+                                        ]
                                     },
                                     "is_active": {
                                         "type": "boolean"
@@ -7582,20 +8282,23 @@
                                             "null"
                                         ]
                                     },
-                                    "image": {
+                                    "featured_image_index": {
                                         "type": [
-                                            "string",
-                                            "null"
-                                        ],
-                                        "format": "binary",
-                                        "contentMediaType": "application/octet-stream",
-                                        "maxLength": 5120
-                                    },
-                                    "image_url": {
-                                        "type": [
-                                            "string",
+                                            "integer",
                                             "null"
                                         ]
+                                    },
+                                    "images": {
+                                        "type": [
+                                            "array",
+                                            "null"
+                                        ],
+                                        "items": {
+                                            "type": "string",
+                                            "format": "binary",
+                                            "contentMediaType": "application/octet-stream",
+                                            "maxLength": 5120
+                                        }
                                     },
                                     "locations": {
                                         "type": [
@@ -7741,8 +8444,7 @@
                                         "type": [
                                             "boolean",
                                             "null"
-                                        ],
-                                        "description": "Whether this goes to the kitchen. A dish prepared to order does;\na bottled drink handed straight over does not, and an order made\nonly of those skips the cooking stage entirely."
+                                        ]
                                     },
                                     "is_active": {
                                         "type": "boolean"
@@ -7753,20 +8455,38 @@
                                             "null"
                                         ]
                                     },
-                                    "image": {
+                                    "featured_image_id": {
                                         "type": [
-                                            "string",
-                                            "null"
-                                        ],
-                                        "format": "binary",
-                                        "contentMediaType": "application/octet-stream",
-                                        "maxLength": 5120
-                                    },
-                                    "image_url": {
-                                        "type": [
-                                            "string",
+                                            "integer",
                                             "null"
                                         ]
+                                    },
+                                    "featured_image_index": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    },
+                                    "images": {
+                                        "type": [
+                                            "array",
+                                            "null"
+                                        ],
+                                        "items": {
+                                            "type": "string",
+                                            "format": "binary",
+                                            "contentMediaType": "application/octet-stream",
+                                            "maxLength": 5120
+                                        }
+                                    },
+                                    "remove_images": {
+                                        "type": [
+                                            "array",
+                                            "null"
+                                        ],
+                                        "items": {
+                                            "type": "integer"
+                                        }
                                     },
                                     "locations": {
                                         "type": [
@@ -9570,8 +10290,7 @@
                         "name": "per_page",
                         "in": "query",
                         "schema": {
-                            "type": "string",
-                            "default": 15
+                            "type": "string"
                         }
                     }
                 ],
@@ -9581,119 +10300,129 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "current_page": {
-                                            "type": "integer",
-                                            "minimum": 1
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/Recipe"
+                                                    }
+                                                },
+                                                "first_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "from": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 1
+                                                },
+                                                "last_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "links": {
+                                                    "type": "array",
+                                                    "description": "Generated paginator links.",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "url": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "active": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "url",
+                                                            "label",
+                                                            "active"
+                                                        ]
+                                                    }
+                                                },
+                                                "next_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "path": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Base path for paginator generated URLs."
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "description": "Number of items shown per page.",
+                                                    "minimum": 0
+                                                },
+                                                "prev_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "to": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "Number of the last item in the slice.",
+                                                    "minimum": 1
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "description": "Total number of items being paginated.",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "data",
+                                                "first_page_url",
+                                                "from",
+                                                "last_page_url",
+                                                "last_page",
+                                                "links",
+                                                "next_page_url",
+                                                "path",
+                                                "per_page",
+                                                "prev_page_url",
+                                                "to",
+                                                "total"
+                                            ]
                                         },
-                                        "data": {
+                                        {
                                             "type": "array",
                                             "items": {
                                                 "$ref": "#/components/schemas/Recipe"
                                             }
-                                        },
-                                        "first_page_url": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "from": {
-                                            "type": [
-                                                "integer",
-                                                "null"
-                                            ],
-                                            "minimum": 1
-                                        },
-                                        "last_page_url": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "last_page": {
-                                            "type": "integer",
-                                            "minimum": 1
-                                        },
-                                        "links": {
-                                            "type": "array",
-                                            "description": "Generated paginator links.",
-                                            "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "url": {
-                                                        "type": [
-                                                            "string",
-                                                            "null"
-                                                        ]
-                                                    },
-                                                    "label": {
-                                                        "type": "string"
-                                                    },
-                                                    "active": {
-                                                        "type": "boolean"
-                                                    }
-                                                },
-                                                "required": [
-                                                    "url",
-                                                    "label",
-                                                    "active"
-                                                ]
-                                            }
-                                        },
-                                        "next_page_url": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "path": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ],
-                                            "description": "Base path for paginator generated URLs."
-                                        },
-                                        "per_page": {
-                                            "type": "integer",
-                                            "description": "Number of items shown per page.",
-                                            "minimum": 0
-                                        },
-                                        "prev_page_url": {
-                                            "type": [
-                                                "string",
-                                                "null"
-                                            ]
-                                        },
-                                        "to": {
-                                            "type": [
-                                                "integer",
-                                                "null"
-                                            ],
-                                            "description": "Number of the last item in the slice.",
-                                            "minimum": 1
-                                        },
-                                        "total": {
-                                            "type": "integer",
-                                            "description": "Total number of items being paginated.",
-                                            "minimum": 0
                                         }
-                                    },
-                                    "required": [
-                                        "current_page",
-                                        "data",
-                                        "first_page_url",
-                                        "from",
-                                        "last_page_url",
-                                        "last_page",
-                                        "links",
-                                        "next_page_url",
-                                        "path",
-                                        "per_page",
-                                        "prev_page_url",
-                                        "to",
-                                        "total"
                                     ]
                                 }
                             }
@@ -10214,6 +10943,327 @@
                                         "scoped_to_location",
                                         "summary",
                                         "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/reports/expenses": {
+            "get": {
+                "operationId": "report.expenses",
+                "description": "GET /reports/expenses?from=&to=&location_id=",
+                "summary": "Operational expense totals for the window, broken down by category",
+                "tags": [
+                    "Report"
+                ],
+                "parameters": [
+                    {
+                        "name": "location_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "summary": {
+                                            "type": "object",
+                                            "properties": {
+                                                "operational_expenses": {
+                                                    "type": "number"
+                                                },
+                                                "purchase_expenses": {
+                                                    "type": "number"
+                                                },
+                                                "total_expenses": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "operational_expenses",
+                                                "purchase_expenses",
+                                                "total_expenses"
+                                            ]
+                                        },
+                                        "by_category": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "summary",
+                                        "by_category"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/reports/non-inventory-expenses": {
+            "get": {
+                "operationId": "report.nonInventoryExpenses",
+                "description": "GET /reports/non-inventory-expenses?from=&to=&location_id=",
+                "summary": "Non-inventory (operational) expenses only \u2014 rent, salaries, utilities.\nPurchase orders are excluded",
+                "tags": [
+                    "Report"
+                ],
+                "parameters": [
+                    {
+                        "name": "location_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "summary": {
+                                            "type": "object",
+                                            "properties": {
+                                                "total": {
+                                                    "type": "number"
+                                                }
+                                            },
+                                            "required": [
+                                                "total"
+                                            ]
+                                        },
+                                        "by_category": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "summary",
+                                        "by_category"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/reports/consumable-expenses": {
+            "get": {
+                "operationId": "report.consumableExpenses",
+                "description": "GET /reports/consumable-expenses?from=&to=&location_id=",
+                "summary": "Consumable inventory expenses \u2014 stock written off via the consumption log.\nValue = quantity \u00d7 inventory_item.cost_per_unit at the time of logging",
+                "tags": [
+                    "Report"
+                ],
+                "parameters": [
+                    {
+                        "name": "location_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "summary": {
+                                            "type": "object",
+                                            "properties": {
+                                                "total": {
+                                                    "type": "number"
+                                                }
+                                            },
+                                            "required": [
+                                                "total"
+                                            ]
+                                        },
+                                        "by_item": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "item_name": {
+                                                        "type": "string"
+                                                    },
+                                                    "unit": {
+                                                        "type": "string"
+                                                    },
+                                                    "total_qty": {
+                                                        "type": "number"
+                                                    },
+                                                    "total_cost": {
+                                                        "type": "number"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "item_name",
+                                                    "unit",
+                                                    "total_qty",
+                                                    "total_cost"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "summary",
+                                        "by_item"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/reports/all-inventory-expenses": {
+            "get": {
+                "operationId": "report.allInventoryExpenses",
+                "description": "GET /reports/all-inventory-expenses?from=&to=&location_id=",
+                "summary": "All inventory expenses = purchase orders (countable) + consumption logs (consumable)",
+                "tags": [
+                    "Report"
+                ],
+                "parameters": [
+                    {
+                        "name": "location_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "summary": {
+                                            "type": "object",
+                                            "properties": {
+                                                "purchase_expenses": {
+                                                    "type": "number"
+                                                },
+                                                "consumable_expenses": {
+                                                    "type": "number"
+                                                },
+                                                "total": {
+                                                    "type": "number"
+                                                }
+                                            },
+                                            "required": [
+                                                "purchase_expenses",
+                                                "consumable_expenses",
+                                                "total"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "summary"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/reports/profit": {
+            "get": {
+                "operationId": "report.profit",
+                "description": "GET /reports/profit?from=&to=&location_id=",
+                "summary": "Net profit = collected revenue \u2212 all expenses in the window",
+                "tags": [
+                    "Report"
+                ],
+                "parameters": [
+                    {
+                        "name": "location_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "summary": {
+                                            "type": "object",
+                                            "properties": {
+                                                "revenue": {
+                                                    "type": "number"
+                                                },
+                                                "operational_expenses": {
+                                                    "type": "number"
+                                                },
+                                                "purchase_expenses": {
+                                                    "type": "number"
+                                                },
+                                                "total_expenses": {
+                                                    "type": "string"
+                                                },
+                                                "net_profit": {
+                                                    "type": "string"
+                                                },
+                                                "margin_pct": {
+                                                    "type": "number"
+                                                }
+                                            },
+                                            "required": [
+                                                "revenue",
+                                                "operational_expenses",
+                                                "purchase_expenses",
+                                                "total_expenses",
+                                                "net_profit",
+                                                "margin_pct"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "summary"
                                     ]
                                 }
                             }
@@ -15604,6 +16654,57 @@
             }
         },
         "schemas": {
+            "AccountingHeader": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "tenant_id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "is_active": {
+                        "type": "boolean"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    }
+                },
+                "required": [
+                    "id",
+                    "tenant_id",
+                    "name",
+                    "type",
+                    "description",
+                    "is_active",
+                    "created_at",
+                    "updated_at"
+                ],
+                "title": "AccountingHeader"
+            },
             "AccountingLedger": {
                 "type": "object",
                 "properties": {
@@ -15637,6 +16738,12 @@
                             "null"
                         ]
                     },
+                    "header_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
                     "created_at": {
                         "type": [
                             "string",
@@ -15662,6 +16769,7 @@
                     "amount",
                     "reference_id",
                     "description",
+                    "header_id",
                     "created_at",
                     "updated_at",
                     "tenant_id"
@@ -15838,6 +16946,69 @@
                     "tenant_id"
                 ],
                 "title": "ChatMessage"
+            },
+            "ConsumptionLog": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "tenant_id": {
+                        "type": "integer"
+                    },
+                    "inventory_item_id": {
+                        "type": "integer"
+                    },
+                    "location_id": {
+                        "type": "integer"
+                    },
+                    "quantity": {
+                        "type": "string"
+                    },
+                    "reason": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "consumed_at": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "logged_by": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    }
+                },
+                "required": [
+                    "id",
+                    "tenant_id",
+                    "inventory_item_id",
+                    "location_id",
+                    "quantity",
+                    "reason",
+                    "consumed_at",
+                    "logged_by",
+                    "created_at",
+                    "updated_at"
+                ],
+                "title": "ConsumptionLog"
             },
             "Customer": {
                 "type": "object",
@@ -16068,6 +17239,12 @@
                             "null"
                         ]
                     },
+                    "header_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
                     "amount": {
                         "type": [
                             "string",
@@ -16108,6 +17285,7 @@
                     "id",
                     "location_id",
                     "category",
+                    "header_id",
                     "amount",
                     "logged_by",
                     "receipt_url",
