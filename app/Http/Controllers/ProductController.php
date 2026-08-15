@@ -8,49 +8,63 @@ use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
+    private function pageSize(): int
+    {
+        return (int) env('PAGINATION_LIMIT', 15);
+    }
+
     public function index(Request $request)
     {
-        $query = Product::with(['images', 'locations']);
+        $query = Product::with(['images', 'locations', 'category']);
 
-        if ($request->has('search')) {
-            $search = $request->input('search');
-            $query->where('name', 'like', "%{$search}%");
+        if ($request->filled('search')) {
+            $query->where('name', 'like', '%' . $request->input('search') . '%');
         }
+
+        if ($request->filled('needs_cooking')) {
+            $query->where('needs_cooking', (bool) $request->input('needs_cooking'));
+        }
+
+        if ($request->filled('is_active')) {
+            $query->where('is_active', (bool) $request->input('is_active'));
+        }
+
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->input('category_id'));
+        }
+
+        $allowedSorts = ['name', 'price'];
+        $sort = in_array($request->input('sort'), $allowedSorts) ? $request->input('sort') : 'id';
+        $direction = $request->input('direction') === 'desc' ? 'desc' : 'asc';
+        $query->orderBy($sort, $direction);
 
         if ($request->has('nopaginate')) {
             return response()->json($query->get());
         }
 
-        return response()->json($query->paginate(15));
+        return response()->json($query->paginate($this->pageSize()));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'category_id' => 'nullable|integer',
-            'name' => 'nullable|string',
-            'slug' => 'nullable|string',
-            'description' => 'nullable|string',
-            'price' => 'nullable|numeric',
-            'sale_price' => 'nullable|numeric',
-            'type' => 'nullable|string',
-            // Whether this goes to the kitchen. A dish prepared to order does;
-            // a bottled drink handed straight over does not, and an order made
-            // only of those skips the cooking stage entirely.
-            'needs_cooking' => 'nullable|boolean',
-            'is_active' => 'boolean',
-            'recipe_id' => 'nullable|integer',
-            'image' => 'nullable|image|max:5120',
-            'image_url' => 'nullable|string',
-            'locations' => 'nullable|array',
-            'locations.*.location_id' => 'required_with:locations|integer',
+            'category_id'              => 'nullable|integer',
+            'name'                     => 'nullable|string',
+            'slug'                     => 'nullable|string',
+            'description'              => 'nullable|string',
+            'price'                    => 'nullable|numeric',
+            'sale_price'               => 'nullable|numeric',
+            'type'                     => 'nullable|string',
+            'needs_cooking'            => 'nullable|boolean',
+            'is_active'                => 'boolean',
+            'recipe_id'                => 'nullable|integer',
+            'locations'                => 'nullable|array',
+            'locations.*.location_id'  => 'required_with:locations|integer',
             'locations.*.is_available' => 'required_with:locations|boolean',
+            'images'                   => 'nullable|array',
+            'images.*'                 => 'image|max:5120',
+            'featured_image_index'     => 'nullable|integer',
         ]);
-
-        if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('foods', 'public');
-            $validated['image_url'] = $path;
-        }
 
         $product = Product::create($validated);
 
@@ -62,13 +76,19 @@ class ProductController extends Controller
             $product->locations()->sync($syncData);
         }
 
-        if (isset($validated['image_url']) && ! empty($validated['image_url'])) {
-            Image::create([
-                'imageable_id' => $product->id,
-                'imageable_type' => Product::class,
-                'type' => 'image',
-                'url' => $validated['image_url'],
-            ]);
+        $featuredIndex = $request->input('featured_image_index');
+
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $i => $file) {
+                $path = $file->store('foods', 'public');
+                Image::create([
+                    'imageable_id'   => $product->id,
+                    'imageable_type' => Product::class,
+                    'type'           => 'image',
+                    'url'            => $path,
+                    'is_featured'    => ($featuredIndex !== null && (int) $featuredIndex === $i),
+                ]);
+            }
         }
 
         return response()->json($product->load(['images', 'locations']), 201);
@@ -76,36 +96,32 @@ class ProductController extends Controller
 
     public function show(Product $product)
     {
-        return response()->json($product);
+        return response()->json($product->load(['images', 'locations']));
     }
 
     public function update(Request $request, Product $product)
     {
         $validated = $request->validate([
-            'category_id' => 'nullable|integer',
-            'name' => 'nullable|string',
-            'slug' => 'nullable|string',
-            'description' => 'nullable|string',
-            'price' => 'nullable|numeric',
-            'sale_price' => 'nullable|numeric',
-            'type' => 'nullable|string',
-            // Whether this goes to the kitchen. A dish prepared to order does;
-            // a bottled drink handed straight over does not, and an order made
-            // only of those skips the cooking stage entirely.
-            'needs_cooking' => 'nullable|boolean',
-            'is_active' => 'boolean',
-            'recipe_id' => 'nullable|integer',
-            'image' => 'nullable|image|max:5120',
-            'image_url' => 'nullable|string',
-            'locations' => 'nullable|array',
-            'locations.*.location_id' => 'required_with:locations|integer',
+            'category_id'              => 'nullable|integer',
+            'name'                     => 'nullable|string',
+            'slug'                     => 'nullable|string',
+            'description'              => 'nullable|string',
+            'price'                    => 'nullable|numeric',
+            'sale_price'               => 'nullable|numeric',
+            'type'                     => 'nullable|string',
+            'needs_cooking'            => 'nullable|boolean',
+            'is_active'                => 'boolean',
+            'recipe_id'                => 'nullable|integer',
+            'locations'                => 'nullable|array',
+            'locations.*.location_id'  => 'required_with:locations|integer',
             'locations.*.is_available' => 'required_with:locations|boolean',
+            'images'                   => 'nullable|array',
+            'images.*'                 => 'image|max:5120',
+            'remove_images'            => 'nullable|array',
+            'remove_images.*'          => 'integer',
+            'featured_image_id'        => 'nullable|integer',
+            'featured_image_index'     => 'nullable|integer',
         ]);
-
-        if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('foods', 'public');
-            $validated['image_url'] = $path;
-        }
 
         $product->update($validated);
 
@@ -117,18 +133,30 @@ class ProductController extends Controller
             $product->locations()->sync($syncData);
         }
 
-        if (array_key_exists('image_url', $validated)) {
-            if (empty($validated['image_url'])) {
-                // Deleted one by one, not as a mass delete: the model event is
-                // what removes the file from disk, and a query-builder delete
-                // does not fire it.
-                $product->images()->get()->each->delete();
-            } else {
-                $product->images()->updateOrCreate(
-                    ['imageable_id' => $product->id, 'imageable_type' => Product::class],
-                    ['type' => 'image', 'url' => $validated['image_url']]
-                );
+        // Remove requested images
+        if (!empty($validated['remove_images'])) {
+            $product->images()->whereIn('id', $validated['remove_images'])->get()->each->delete();
+        }
+
+        // Attach new images
+        $featuredIndex = $request->input('featured_image_index');
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $i => $file) {
+                $path = $file->store('foods', 'public');
+                Image::create([
+                    'imageable_id'   => $product->id,
+                    'imageable_type' => Product::class,
+                    'type'           => 'image',
+                    'url'            => $path,
+                    'is_featured'    => ($featuredIndex !== null && (int) $featuredIndex === $i),
+                ]);
             }
+        }
+
+        // Update featured flag on existing images
+        if ($request->filled('featured_image_id')) {
+            $product->images()->update(['is_featured' => false]);
+            $product->images()->where('id', $validated['featured_image_id'])->update(['is_featured' => true]);
         }
 
         return response()->json($product->load(['images', 'locations']));

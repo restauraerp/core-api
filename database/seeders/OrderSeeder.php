@@ -27,6 +27,18 @@ class OrderSeeder extends Seeder
 
     private int $nextPurchaseOrderId = 1;
 
+    private int $nextConsumptionLogId = 1;
+
+    private ?int $incomeHeaderId = null;
+
+    private ?int $rentHeaderId = null;
+
+    private ?int $salaryHeaderId = null;
+
+    private ?int $utilitiesHeaderId = null;
+
+    private ?int $purchaseHeaderId = null;
+
     /**
      * How much of the purchase history is still on the shelf.
      *
@@ -35,8 +47,13 @@ class OrderSeeder extends Seeder
      * two years of deliveries would leave the kitchen holding tonnes of rice,
      * so everything older than this window counts as cooked and sold, and the
      * opening delivery below lands inside it.
+     *
+     * 60 days keeps the opening delivery (~59 days ago) well outside the
+     * ranges a demo visitor naturally reaches first — this week, last week,
+     * this month, last month, this quarter — so the profit report shows a
+     * healthy margin rather than a one-off capital expenditure.
      */
-    private const STOCK_WINDOW_DAYS = 7;
+    private const STOCK_WINDOW_DAYS = 60;
 
     public function run(): void
     {
@@ -59,6 +76,19 @@ class OrderSeeder extends Seeder
         $this->nextOrderId = (DB::table('orders')->max('id') ?? 0) + 1;
         $this->nextExpenseId = (DB::table('expenses')->max('id') ?? 0) + 1;
         $this->nextPurchaseOrderId = (DB::table('purchase_orders')->max('id') ?? 0) + 1;
+        $this->nextConsumptionLogId = (DB::table('consumption_logs')->max('id') ?? 0) + 1;
+
+        // Load accounting header IDs so expenses and ledger entries can be
+        // categorised. AccountingSeeder must have run first.
+        $headersByName = DB::table('accounting_headers')
+            ->where('tenant_id', $this->tenantId())
+            ->pluck('id', 'name');
+
+        $this->incomeHeaderId   = $headersByName['Food & Beverage Sales'] ?? null;
+        $this->rentHeaderId     = $headersByName['Rent & Property']       ?? null;
+        $this->salaryHeaderId   = $headersByName['Staff & Salaries']      ?? null;
+        $this->utilitiesHeaderId = $headersByName['Utilities & Services'] ?? null;
+        $this->purchaseHeaderId = $headersByName['Inventory Purchases']   ?? null;
 
         $ordersData = [];
         $orderItemsData = [];
@@ -67,7 +97,15 @@ class OrderSeeder extends Seeder
         $expensesData = [];
         $purchaseOrdersData = [];
         $purchaseItemsData = [];
+        $consumptionLogsData = [];
         $chunkSize = 1000;
+
+        // Items that get written off periodically (waste, prep losses, etc.)
+        $consumableItems = $inventoryItems->whereIn('title', [
+            'Cooking Oil (Soyabean)', 'Fresh Tomato', 'Salt', 'Red Onion', 'Garlic',
+            'Coriander Leaves', 'Fresh Basil', 'Milk', 'Butter', 'Lemon',
+            'Green Chilli', 'Ginger', 'Coriander Powder', 'Black Pepper',
+        ])->values();
 
         // Loop chronologically from 730 days ago to today
         // Putting the days loop OUTSIDE the locations loop ensures perfectly ordered insertions across all locations
@@ -101,7 +139,13 @@ class OrderSeeder extends Seeder
                     $this->generatePurchaseOrder($date, $location, $admin, $suppliers, $inventoryItems, $purchaseOrdersData, $purchaseItemsData, $ledgersData);
                 }
 
-                // 4. The delivery that stocks the kitchen for the week on show.
+                // 4. Weekly consumption log: every Monday, write off prep waste
+                //    for a handful of perishable items.
+                if ($date->dayOfWeek === Carbon::MONDAY && $consumableItems->isNotEmpty()) {
+                    $this->generateWeeklyConsumptionLogs($date, $location, $admin, $consumableItems, $consumptionLogsData);
+                }
+
+                // 5. The delivery that stocks the kitchen for the week on show.
                 //    Every item arrives on one order, so every stock level in
                 //    the demo traces back to a purchase order a visitor can
                 //    open and read.
@@ -111,7 +155,7 @@ class OrderSeeder extends Seeder
 
                 // Flush chunks to maintain speed & chronological insert boundaries
                 if (count($ordersData) >= $chunkSize || count($expensesData) >= $chunkSize || count($purchaseOrdersData) >= $chunkSize) {
-                    $this->insertChunks($ordersData, $orderItemsData, $paymentsData, $ledgersData, $expensesData, $purchaseOrdersData, $purchaseItemsData);
+                    $this->insertChunks($ordersData, $orderItemsData, $paymentsData, $ledgersData, $expensesData, $purchaseOrdersData, $purchaseItemsData, $consumptionLogsData);
                 }
             }
         }
@@ -126,7 +170,7 @@ class OrderSeeder extends Seeder
         }
 
         // Insert remaining
-        $this->insertChunks($ordersData, $orderItemsData, $paymentsData, $ledgersData, $expensesData, $purchaseOrdersData, $purchaseItemsData);
+        $this->insertChunks($ordersData, $orderItemsData, $paymentsData, $ledgersData, $expensesData, $purchaseOrdersData, $purchaseItemsData, $consumptionLogsData);
 
         $this->settleInventoryFromPurchases();
         $this->attachReceiptsToRecentOrders();
@@ -134,7 +178,7 @@ class OrderSeeder extends Seeder
         $this->command->info('✅ OrderSeeder: Chronologically Seeded Orders, Expenses, Purchases and Accounting Ledgers for 2 Years.');
     }
 
-    private function insertChunks(&$ordersData, &$orderItemsData, &$paymentsData, &$ledgersData, &$expensesData, &$purchaseOrdersData, &$purchaseItemsData)
+    private function insertChunks(&$ordersData, &$orderItemsData, &$paymentsData, &$ledgersData, &$expensesData, &$purchaseOrdersData, &$purchaseItemsData, &$consumptionLogsData)
     {
         // Every insert below is a raw query-builder call, so BelongsToTenant
         // never sees these rows - stampTenant() supplies the tenant_id that the
@@ -163,6 +207,12 @@ class OrderSeeder extends Seeder
             DB::table('accounting_ledgers')->insert($this->stampTenant($chunk));
         }
 
+        if (count($consumptionLogsData) > 0) {
+            foreach (array_chunk($consumptionLogsData, 2000) as $chunk) {
+                DB::table('consumption_logs')->insert($this->stampTenant($chunk));
+            }
+        }
+
         $ordersData = [];
         $orderItemsData = [];
         $paymentsData = [];
@@ -170,6 +220,7 @@ class OrderSeeder extends Seeder
         $expensesData = [];
         $purchaseOrdersData = [];
         $purchaseItemsData = [];
+        $consumptionLogsData = [];
     }
 
     private function generateMonthlyExpenses($date, $location, $admin, &$expensesData, &$ledgersData)
@@ -182,6 +233,7 @@ class OrderSeeder extends Seeder
             'id' => $this->nextExpenseId,
             'location_id' => $location->id,
             'category' => 'Rent',
+            'header_id' => $this->rentHeaderId,
             'amount' => $rentAmount,
             'logged_by' => $admin->id ?? 1,
             'receipt_url' => null,
@@ -194,6 +246,7 @@ class OrderSeeder extends Seeder
             'amount' => -$rentAmount,
             'reference_id' => $this->nextExpenseId,
             'description' => 'Monthly Rent Expense',
+            'header_id' => $this->rentHeaderId,
             'created_at' => $dateString,
             'updated_at' => $dateString,
         ];
@@ -205,6 +258,7 @@ class OrderSeeder extends Seeder
             'id' => $this->nextExpenseId,
             'location_id' => $location->id,
             'category' => 'Salary',
+            'header_id' => $this->salaryHeaderId,
             'amount' => $salaryAmount,
             'logged_by' => $admin->id ?? 1,
             'receipt_url' => null,
@@ -217,6 +271,7 @@ class OrderSeeder extends Seeder
             'amount' => -$salaryAmount,
             'reference_id' => $this->nextExpenseId,
             'description' => 'Employee Salaries',
+            'header_id' => $this->salaryHeaderId,
             'created_at' => $dateString,
             'updated_at' => $dateString,
         ];
@@ -228,6 +283,7 @@ class OrderSeeder extends Seeder
             'id' => $this->nextExpenseId,
             'location_id' => $location->id,
             'category' => 'Utilities',
+            'header_id' => $this->utilitiesHeaderId,
             'amount' => $utilityAmount,
             'logged_by' => $admin->id ?? 1,
             'receipt_url' => null,
@@ -240,6 +296,7 @@ class OrderSeeder extends Seeder
             'amount' => -$utilityAmount,
             'reference_id' => $this->nextExpenseId,
             'description' => 'Utilities & Operational Expenses',
+            'header_id' => $this->utilitiesHeaderId,
             'created_at' => $dateString,
             'updated_at' => $dateString,
         ];
@@ -303,6 +360,7 @@ class OrderSeeder extends Seeder
             'amount' => -$totalAmount,
             'reference_id' => $this->nextPurchaseOrderId,
             'description' => 'Inventory Purchase Order #'.$this->nextPurchaseOrderId,
+            'header_id' => $this->purchaseHeaderId,
             'created_at' => $dateString,
             'updated_at' => $dateString,
         ];
@@ -366,11 +424,47 @@ class OrderSeeder extends Seeder
             'amount' => -$totalAmount,
             'reference_id' => $this->nextPurchaseOrderId,
             'description' => 'Inventory Purchase Order #'.$this->nextPurchaseOrderId,
+            'header_id' => $this->purchaseHeaderId,
             'created_at' => $dateString,
             'updated_at' => $dateString,
         ];
 
         $this->nextPurchaseOrderId++;
+    }
+
+    /**
+     * Weekly prep-waste write-offs: picks a handful of perishable items and
+     * logs a realistic consumption quantity for each outlet.
+     */
+    private function generateWeeklyConsumptionLogs($date, $location, $admin, $consumableItems, &$consumptionLogsData): void
+    {
+        if ($consumableItems->isEmpty()) {
+            return;
+        }
+
+        $dateStr = $date->toDateString();
+        $reasons = ['Prep waste', 'Spillage', 'Quality trim', 'Kitchen use', 'Daily prep'];
+        $count = rand(3, 6);
+
+        $picked = $consumableItems->shuffle()->take($count);
+
+        foreach ($picked as $item) {
+            // Quantity scaled to the item's min_stock_level so it looks plausible
+            $base = (float) ($item->min_stock_level ?: 5);
+            $qty = round($base * (rand(5, 20) / 100), 3); // 5–20% of min stock level
+
+            $consumptionLogsData[] = [
+                'id' => $this->nextConsumptionLogId++,
+                'inventory_item_id' => $item->id,
+                'location_id' => $location->id,
+                'quantity' => $qty,
+                'reason' => $reasons[array_rand($reasons)],
+                'consumed_at' => $dateStr,
+                'logged_by' => $admin->id ?? 1,
+                'created_at' => $date->toDateTimeString(),
+                'updated_at' => $date->toDateTimeString(),
+            ];
+        }
     }
 
     /**
@@ -630,6 +724,7 @@ class OrderSeeder extends Seeder
                 'amount' => $total,
                 'reference_id' => $orderId,
                 'description' => 'Sale from Order #'.$orderId,
+                'header_id' => $this->incomeHeaderId,
                 'created_at' => $dateString,
                 'updated_at' => $dateString,
             ];

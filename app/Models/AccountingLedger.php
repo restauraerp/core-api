@@ -20,5 +20,11 @@ class AccountingLedger extends Model
         'amount',
         'reference_id',
         'description',
+        'header_id',
     ];
+
+    public function header()
+    {
+        return $this->belongsTo(AccountingHeader::class, 'header_id');
+    }
 }

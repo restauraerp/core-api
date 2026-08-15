@@ -11,7 +11,7 @@ class RecipeSeeder extends Seeder
 {
     public function run(): void
     {
-        $ingredients = InventoryItem::all()->keyBy('name');
+        $ingredients = InventoryItem::all()->keyBy('title');
 
         // Helper function
         $createRecipe = function($productName, $recipeData) use ($ingredients) {
@@ -44,7 +44,7 @@ class RecipeSeeder extends Seeder
             'Pizza Dough' => 0.25,
             'San Marzano Tomato' => 0.1,
             'Buffalo Mozzarella' => 0.15,
-            'Basil' => 0.2,
+            'Fresh Basil' => 0.2,
             'Extra Virgin Olive Oil' => 0.02,
         ]);
 
@@ -52,8 +52,8 @@ class RecipeSeeder extends Seeder
         $createRecipe('Bistecca alla Fiorentina', [
             'T-Bone Steak' => 0.8, // 800g
             'Extra Virgin Olive Oil' => 0.03,
-            'Table Salt' => 0.01,
-            'Whole Black Pepper' => 0.005,
+            'Salt' => 0.01,
+            'Black Pepper' => 0.005,
         ]);
 
         // 4. Classic Tiramisu
@@ -62,7 +62,7 @@ class RecipeSeeder extends Seeder
             'Mascarpone Cheese' => 0.15,
             'Espresso Coffee' => 0.05,
             'Cocoa Powder' => 0.01,
-            'Sugar' => 0.05,
+            'White Sugar' => 0.05,
             'Farm-fresh Egg' => 1,
         ]);
 
@@ -98,23 +98,23 @@ class RecipeSeeder extends Seeder
             'Arborio Rice' => 0.15,
             'Porcini Mushrooms' => 0.05,
             'Vegetable Broth' => 0.3, // 300ml
-            'Butter Block' => 0.02,
+            'Butter' => 0.02,
             'Parmesan Cheese' => 0.03,
         ]);
 
         // 9. Bruschetta al Pomodoro
         $createRecipe('Bruschetta al Pomodoro', [
             'Rustic Bread' => 0.2, // 0.2 loaf
-            'Tomato' => 0.1,
+            'Fresh Tomato' => 0.1,
             'Garlic' => 0.01,
-            'Basil' => 0.1,
+            'Fresh Basil' => 0.1,
             'Extra Virgin Olive Oil' => 0.02,
         ]);
 
         // 10. Panna Cotta
         $createRecipe('Panna Cotta', [
             'Heavy Cream' => 0.15,
-            'Sugar' => 0.03,
+            'White Sugar' => 0.03,
             'Gelatin' => 0.01,
             'Vanilla Extract' => 0.005,
         ]);
@@ -123,14 +123,14 @@ class RecipeSeeder extends Seeder
         $createRecipe('Calzone Classico', [
             'Pizza Dough' => 0.25,
             'Ricotta Cheese' => 0.1,
-            'Spicy Italian Salami' => 0.05,
+            'Spicy Salami' => 0.05,
             'San Marzano Tomato' => 0.05,
             'Buffalo Mozzarella' => 0.1,
         ]);
 
         // 12. Spaghetti Bolognese
         $createRecipe('Spaghetti Bolognese', [
-            'Spaghetti' => 0.15,
+            'Spaghetti Pasta' => 0.15,
             'Minced Beef' => 0.15,
             'San Marzano Tomato' => 0.1,
             'Red Onion' => 0.02,
@@ -142,7 +142,7 @@ class RecipeSeeder extends Seeder
         // 13. Fettuccine Alfredo
         $createRecipe('Fettuccine Alfredo', [
             'Fettuccine Pasta' => 0.15,
-            'Butter Block' => 0.03,
+            'Butter' => 0.03,
             'Heavy Cream' => 0.1,
             'Parmesan Cheese' => 0.05,
         ]);
@@ -158,25 +158,25 @@ class RecipeSeeder extends Seeder
 
         // 15. Caprese Salad
         $createRecipe('Caprese Salad', [
-            'Tomato' => 0.15,
+            'Fresh Tomato' => 0.15,
             'Buffalo Mozzarella' => 0.15,
-            'Basil' => 0.2,
+            'Fresh Basil' => 0.2,
             'Extra Virgin Olive Oil' => 0.02,
             'Balsamic Glaze' => 0.01,
         ]);
 
         // 16. Gelato Stracciatella
         $createRecipe('Gelato Stracciatella', [
-            'Fresh Milk' => 0.1,
+            'Milk' => 0.1,
             'Heavy Cream' => 0.1,
-            'Sugar' => 0.05,
+            'White Sugar' => 0.05,
             'Chocolate Chips' => 0.05,
         ]);
 
         // 17. Ravioli al Tartufo
         $createRecipe('Ravioli al Tartufo', [
-            'Fresh Ravioli' => 0.2,
-            'Black Truffle Paste' => 0.05,
+            'Ravioli Pasta' => 0.2,
+            'Truffle Paste' => 0.05,
             'Pecorino Romano' => 0.02,
         ]);
 
@@ -185,15 +185,15 @@ class RecipeSeeder extends Seeder
             'Pizza Dough' => 0.25,
             'San Marzano Tomato' => 0.1,
             'Buffalo Mozzarella' => 0.15,
-            'Spicy Italian Salami' => 0.1,
-            'Red Chili Flakes' => 0.005,
+            'Spicy Salami' => 0.1,
+            'Chili Flakes' => 0.005,
         ]);
 
         // 19. Salmon al Forno
         $createRecipe('Salmon al Forno', [
-            'Fresh Salmon Fillet' => 0.2,
+            'Salmon Fillet' => 0.2,
             'Extra Virgin Olive Oil' => 0.02,
-            'Fresh Lemon' => 1,
+            'Lemon' => 1,
         ]);
 
         $this->command->info('✅ RecipeSeeder: Seeded demo inventory items and linked them as recipes to all 19 products.');

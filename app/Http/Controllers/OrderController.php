@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AccountingLedger;
 use App\Models\Order;
 use App\Support\Inventory\SellableInventory;
 use App\Support\Orders\KitchenLead;
@@ -76,7 +77,7 @@ class OrderController extends Controller
             return response()->json($query->orderBy('created_at', 'desc')->get());
         }
 
-        return response()->json($query->orderBy('created_at', 'desc')->paginate(15));
+        return response()->json($query->orderBy('created_at', 'desc')->paginate((int) env('PAGINATION_LIMIT', 15)));
     }
 
     public function store(Request $request)
@@ -158,6 +159,14 @@ class OrderController extends Controller
                     'method' => $validated['payment_method'],
                     'amount' => $validated['total'],
                     'status' => 'completed',
+                ]);
+
+                AccountingLedger::create([
+                    'location_id'      => $order->location_id,
+                    'transaction_type' => 'order_payment',
+                    'amount'           => $order->total,
+                    'reference_id'     => $order->id,
+                    'description'      => "Order #{$order->id} — {$validated['payment_method']}",
                 ]);
             }
 
@@ -254,6 +263,23 @@ class OrderController extends Controller
                     'amount' => $order->total,
                     'status' => 'completed',
                 ]);
+
+                // Post to the accounting ledger so the sale appears in financial records.
+                // Only create one entry per order — the duplicate guard above ensures
+                // we are in the first-payment branch before we reach this point.
+                $alreadyPosted = AccountingLedger::where('transaction_type', 'order_payment')
+                    ->where('reference_id', $order->id)
+                    ->exists();
+
+                if (! $alreadyPosted) {
+                    AccountingLedger::create([
+                        'location_id'      => $order->location_id,
+                        'transaction_type' => 'order_payment',
+                        'amount'           => $order->total,
+                        'reference_id'     => $order->id,
+                        'description'      => "Order #{$order->id} — {$validated['payment_method']}",
+                    ]);
+                }
             }
         }
 

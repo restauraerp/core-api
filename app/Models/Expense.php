@@ -23,6 +23,11 @@ class Expense extends Model
         return $this->belongsTo(User::class, 'logged_by');
     }
 
+    public function header()
+    {
+        return $this->belongsTo(AccountingHeader::class);
+    }
+
     /**
      * @return list<string>
      */

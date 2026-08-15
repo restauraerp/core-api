@@ -9,13 +9,17 @@ class RecipeController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Recipe::with(['inventoryItem', 'product']);
+        $query = Recipe::with(['inventoryItem.images', 'product']);
 
         if ($request->has('product_id')) {
             $query->where('product_id', $request->product_id);
         }
 
-        return response()->json($query->paginate($request->get('per_page', 15)));
+        if ($request->has('nopaginate')) {
+            return response()->json($query->get());
+        }
+
+        return response()->json($query->paginate($request->get('per_page', (int) env('PAGINATION_LIMIT', 15))));
     }
 
     public function store(Request $request)

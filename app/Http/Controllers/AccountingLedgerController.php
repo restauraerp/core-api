@@ -27,7 +27,7 @@ class AccountingLedgerController extends Controller
             $query->whereDate('created_at', '<=', $request->end_date);
         }
 
-        return response()->json($query->orderBy('id', 'desc')->paginate(15));
+        return response()->json($query->with('header')->orderBy('id', 'desc')->paginate((int) env('PAGINATION_LIMIT', 15)));
     }
 
     public function store(Request $request)
@@ -38,16 +38,17 @@ class AccountingLedgerController extends Controller
             'amount' => 'nullable|numeric',
             'reference_id' => 'nullable|integer',
             'description' => 'nullable|string',
+            'header_id' => ['nullable', 'integer', $this->tenantExists('accounting_headers')],
         ]);
 
         $accountingLedger = AccountingLedger::create($validated);
 
-        return response()->json($accountingLedger, 201);
+        return response()->json($accountingLedger->load('header'), 201);
     }
 
     public function show(AccountingLedger $accountingLedger)
     {
-        return response()->json($accountingLedger);
+        return response()->json($accountingLedger->load('header'));
     }
 
     public function update(Request $request, AccountingLedger $accountingLedger)
@@ -58,11 +59,12 @@ class AccountingLedgerController extends Controller
             'amount' => 'nullable|numeric',
             'reference_id' => 'nullable|integer',
             'description' => 'nullable|string',
+            'header_id' => ['nullable', 'integer', $this->tenantExists('accounting_headers')],
         ]);
 
         $accountingLedger->update($validated);
 
-        return response()->json($accountingLedger);
+        return response()->json($accountingLedger->load('header'));
     }
 
     public function destroy(AccountingLedger $accountingLedger)

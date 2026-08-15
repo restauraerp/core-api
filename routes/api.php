@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountingHeaderController;
 use App\Http\Controllers\AccountingLedgerController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AuthController;
@@ -56,6 +57,7 @@ use App\Http\Controllers\TaxRuleController;
 use App\Http\Controllers\UpgradeLinkController;
 use App\Http\Controllers\UsageLogController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\ConsumptionLogController;
 use App\Http\Controllers\WasteLogController;
 use App\Http\Controllers\WebsiteSettingController;
 use App\Http\Middleware\EnforceSubscription;
@@ -218,12 +220,14 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('stock-transfers', StockTransferController::class);
         Route::apiResource('stock-transfers.items', StockTransferItemController::class)->shallow();
         Route::apiResource('waste-logs', WasteLogController::class);
+        Route::apiResource('consumption-logs', ConsumptionLogController::class)->except(['update']);
 
         // Procurement & Accounting API
         Route::apiResource('suppliers', SupplierController::class);
         Route::apiResource('purchase-orders', PurchaseOrderController::class);
         Route::apiResource('purchase-orders.items', PurchaseOrderItemController::class)->shallow();
         Route::apiResource('purchase-returns', PurchaseReturnController::class);
+        Route::apiResource('accounting-headers', AccountingHeaderController::class);
         Route::apiResource('accounting-ledgers', AccountingLedgerController::class);
         Route::apiResource('expenses', ExpenseController::class);
         Route::apiResource('tax-rules', TaxRuleController::class);
@@ -257,6 +261,11 @@ Route::prefix('v1')->group(function () {
             Route::get('products', [ReportController::class, 'products']);
             Route::get('hourly', [ReportController::class, 'hourly']);
             Route::get('inventory', [ReportController::class, 'inventory']);
+            Route::get('expenses', [ReportController::class, 'expenses']);
+            Route::get('non-inventory-expenses', [ReportController::class, 'nonInventoryExpenses']);
+            Route::get('consumable-expenses', [ReportController::class, 'consumableExpenses']);
+            Route::get('all-inventory-expenses', [ReportController::class, 'allInventoryExpenses']);
+            Route::get('profit', [ReportController::class, 'profit']);
         });
 
         // Support & System API
