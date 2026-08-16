@@ -73,10 +73,10 @@ class OrderSeeder extends Seeder
             return;
         }
 
-        $this->nextOrderId = (DB::table('orders')->max('id') ?? 0) + 1;
-        $this->nextExpenseId = (DB::table('expenses')->max('id') ?? 0) + 1;
-        $this->nextPurchaseOrderId = (DB::table('purchase_orders')->max('id') ?? 0) + 1;
-        $this->nextConsumptionLogId = (DB::table('consumption_logs')->max('id') ?? 0) + 1;
+        $this->nextOrderId = $this->reserveIdBlock('orders');
+        $this->nextExpenseId = $this->reserveIdBlock('expenses');
+        $this->nextPurchaseOrderId = $this->reserveIdBlock('purchase_orders');
+        $this->nextConsumptionLogId = $this->reserveIdBlock('consumption_logs');
 
         // Load accounting header IDs so expenses and ledger entries can be
         // categorised. AccountingSeeder must have run first.
@@ -221,6 +221,25 @@ class OrderSeeder extends Seeder
         $purchaseOrdersData = [];
         $purchaseItemsData = [];
         $consumptionLogsData = [];
+    }
+
+    /**
+     * Read the table's AUTO_INCREMENT and bump it far ahead so concurrent
+     * real-tenant inserts (the app is live during demo refresh) land above
+     * the seeder's explicit-ID range instead of colliding with it.
+     */
+    private function reserveIdBlock(string $table, int $headroom = 200_000): int
+    {
+        $row = DB::selectOne(
+            'SELECT AUTO_INCREMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?',
+            [$table],
+        );
+
+        $start = max((int) ($row->AUTO_INCREMENT ?? 1), (DB::table($table)->max('id') ?? 0) + 1);
+
+        DB::statement("ALTER TABLE `{$table}` AUTO_INCREMENT = " . ($start + $headroom));
+
+        return $start;
     }
 
     private function generateMonthlyExpenses($date, $location, $admin, &$expensesData, &$ledgersData)
