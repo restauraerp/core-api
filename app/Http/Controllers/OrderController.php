@@ -183,6 +183,87 @@ class OrderController extends Controller
 
     public function update(Request $request, Order $order)
     {
+        if ($request->has('items')) {
+            return $this->fullEdit($request, $order);
+        }
+
+        return $this->partialUpdate($request, $order);
+    }
+
+    private function fullEdit(Request $request, Order $order)
+    {
+        if ($order->payment_status === 'paid') {
+            abort(422, 'Paid orders cannot be edited.');
+        }
+
+        $validated = $request->validate([
+            'order_type' => ['sometimes', 'string', Rule::in([OrderFlow::DINE_IN, OrderFlow::TAKEAWAY, OrderFlow::DELIVERY, OrderFlow::CATERING])],
+            'table_id' => ['nullable', 'integer', $this->tenantExists('tables')],
+            'customer_id' => ['nullable', 'integer', $this->tenantExists('customers')],
+            'discount_id' => ['nullable', 'integer', $this->tenantExists('discounts')],
+            'subtotal' => 'required|numeric',
+            'discount_amount' => 'required|numeric',
+            'delivery_charge' => 'nullable|numeric',
+            'delivery_time' => 'nullable|date',
+            'delivery_address' => 'nullable|string',
+            'latitude' => 'nullable|numeric',
+            'longitude' => 'nullable|numeric',
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => ['required', $this->tenantExists('products')],
+            'items.*.qty' => 'required|integer|min:1',
+            'items.*.price' => 'required|numeric',
+            'items.*.notes' => 'nullable|string|max:500',
+        ]);
+
+        return DB::transaction(function () use ($validated, $order) {
+            $this->sellable->restoreForOrder($order);
+
+            $taxable = max(0, (float) $validated['subtotal'] - (float) $validated['discount_amount']);
+            $taxAmount = TaxCalculator::on($taxable);
+            $delivery = (float) ($validated['delivery_charge'] ?? 0);
+
+            $orderType = $validated['order_type'] ?? $order->order_type;
+
+            $needsCooking = $this->flow->productsNeedCooking(
+                array_column($validated['items'], 'product_id'),
+            );
+
+            $order->update([
+                'order_type' => $orderType,
+                'table_id' => $validated['table_id'] ?? null,
+                'customer_id' => $validated['customer_id'] ?? null,
+                'discount_id' => $validated['discount_id'] ?? null,
+                'subtotal' => $validated['subtotal'],
+                'discount_amount' => $validated['discount_amount'],
+                'delivery_charge' => $delivery,
+                'tax_amount' => $taxAmount,
+                'total' => round($taxable + $taxAmount + $delivery, 2),
+                'delivery_time' => $validated['delivery_time'] ?? null,
+                'delivery_address' => $validated['delivery_address'] ?? null,
+                'latitude' => $validated['latitude'] ?? null,
+                'longitude' => $validated['longitude'] ?? null,
+                'needs_cooking' => $needsCooking,
+            ]);
+
+            $order->items()->delete();
+
+            foreach ($validated['items'] as $item) {
+                $order->items()->create([
+                    'product_id' => $item['product_id'],
+                    'quantity' => $item['qty'],
+                    'price' => $item['price'],
+                    'notes' => $item['notes'] ?? null,
+                ]);
+            }
+
+            $this->sellable->deductForOrder($order->refresh());
+
+            return response()->json($order->load(['items.product', 'payments', 'customer', 'table']));
+        });
+    }
+
+    private function partialUpdate(Request $request, Order $order)
+    {
         $validated = $request->validate([
             'status' => 'sometimes|string',
             'payment_status' => 'sometimes|string',
@@ -190,8 +271,6 @@ class OrderController extends Controller
             'discount_id' => ['sometimes', 'nullable', 'integer', $this->tenantExists('discounts')],
             'discount_amount' => 'sometimes|numeric',
             'delivery_charge' => 'sometimes|numeric',
-            // Accepted and ignored, as in store(): recomputed below when the
-            // money actually changes.
             'tax_amount' => 'sometimes|numeric',
             'total' => 'sometimes|numeric',
             'delivery_time' => 'sometimes|nullable|date',
@@ -203,9 +282,6 @@ class OrderController extends Controller
         if (array_key_exists('status', $validated)) {
             $requested = $this->flow->normalise($validated['status']);
 
-            // One step at a time. Jumping stages would leave an order marked
-            // delivered that nobody packed, and no report could tell afterwards
-            // which of the two actually happened.
             if (! $this->flow->canTransition((string) $order->order_type, $order->status, $requested, (bool) $order->needs_cooking)) {
                 throw ValidationException::withMessages([
                     'status' => sprintf(
@@ -228,10 +304,6 @@ class OrderController extends Controller
             ->except(['payment_method', 'tax_amount', 'total'])
             ->toArray();
 
-        // Only re-price when the sale itself is edited. Marking an old order
-        // delivered must not quietly rewrite the tax it was billed at - orders
-        // taken before tax was driven by the rules keep the figure they were
-        // charged, which is what the customer actually paid.
         if ($request->hasAny(['discount_amount', 'delivery_charge'])) {
             $discount = (float) ($payload['discount_amount'] ?? $order->discount_amount);
             $delivery = (float) ($payload['delivery_charge'] ?? $order->delivery_charge);
@@ -245,8 +317,6 @@ class OrderController extends Controller
 
         $order->update($payload);
 
-        // A cancelled sale did not happen, so the bottle is back on the shelf -
-        // and un-cancelling takes it off again.
         if (! $wasCancelled && $this->isCancelled($order->status)) {
             $this->sellable->restoreForOrder($order);
         } elseif ($wasCancelled && ! $this->isCancelled($order->status)) {
@@ -255,7 +325,6 @@ class OrderController extends Controller
 
         if ($request->filled('payment_method')) {
             $order->update(['payment_status' => 'paid']);
-            // Ensure no duplicate completed payment exists for this order
             $existingPayment = $order->payments()->where('status', 'completed')->first();
             if (! $existingPayment) {
                 $order->payments()->create([
@@ -264,9 +333,6 @@ class OrderController extends Controller
                     'status' => 'completed',
                 ]);
 
-                // Post to the accounting ledger so the sale appears in financial records.
-                // Only create one entry per order — the duplicate guard above ensures
-                // we are in the first-payment branch before we reach this point.
                 $alreadyPosted = AccountingLedger::where('transaction_type', 'order_payment')
                     ->where('reference_id', $order->id)
                     ->exists();

@@ -6437,70 +6437,6 @@
                         }
                     }
                 ],
-                "requestBody": {
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "properties": {
-                                    "status": {
-                                        "type": "string"
-                                    },
-                                    "payment_status": {
-                                        "type": "string"
-                                    },
-                                    "payment_method": {
-                                        "type": "string"
-                                    },
-                                    "discount_id": {
-                                        "type": [
-                                            "integer",
-                                            "null"
-                                        ]
-                                    },
-                                    "discount_amount": {
-                                        "type": "number"
-                                    },
-                                    "delivery_charge": {
-                                        "type": "number"
-                                    },
-                                    "tax_amount": {
-                                        "type": "number",
-                                        "description": "Accepted and ignored, as in store(): recomputed below when the\nmoney actually changes."
-                                    },
-                                    "total": {
-                                        "type": "number"
-                                    },
-                                    "delivery_time": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ],
-                                        "format": "date-time"
-                                    },
-                                    "delivery_address": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ]
-                                    },
-                                    "latitude": {
-                                        "type": [
-                                            "number",
-                                            "null"
-                                        ]
-                                    },
-                                    "longitude": {
-                                        "type": [
-                                            "number",
-                                            "null"
-                                        ]
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
                 "responses": {
                     "200": {
                         "description": "",
@@ -6511,9 +6447,6 @@
                                 }
                             }
                         }
-                    },
-                    "422": {
-                        "$ref": "#/components/responses/ValidationException"
                     },
                     "404": {
                         "$ref": "#/components/responses/ModelNotFoundException"
