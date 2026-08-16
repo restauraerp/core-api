@@ -4,10 +4,11 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class ConsumptionLog extends Model
 {
-    use BelongsToTenant;
+    use BelongsToTenant, SoftDeletes;
 
     protected $fillable = [
         'inventory_item_id',
@@ -36,5 +37,10 @@ class ConsumptionLog extends Model
     public function loggedBy()
     {
         return $this->belongsTo(User::class, 'logged_by');
+    }
+
+    public function trashedByUser()
+    {
+        return $this->belongsTo(User::class, 'trashed_by');
     }
 }

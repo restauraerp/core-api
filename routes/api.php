@@ -221,6 +221,9 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('stock-transfers.items', StockTransferItemController::class)->shallow();
         Route::apiResource('waste-logs', WasteLogController::class);
         Route::apiResource('consumption-logs', ConsumptionLogController::class)->except(['update']);
+        Route::get('consumption-logs-trashed', [ConsumptionLogController::class, 'trashed']);
+        Route::post('consumption-logs/{consumptionLog}/trash', [ConsumptionLogController::class, 'trash']);
+        Route::post('consumption-logs-trashed/{id}/restore', [ConsumptionLogController::class, 'restore']);
 
         // Procurement & Accounting API
         Route::apiResource('suppliers', SupplierController::class);

@@ -72,4 +72,56 @@ class ConsumptionLogController extends Controller
 
         return response()->json(null, 204);
     }
+
+    public function trash(Request $request, ConsumptionLog $consumptionLog)
+    {
+        if (! $request->user()->hasRole(['restaurant_admin', 'super_admin'])) {
+            abort(403, 'Only administrators can trash consumption logs.');
+        }
+
+        $this->stock->adjust(
+            $consumptionLog->inventoryItem,
+            $consumptionLog->location_id,
+            (float) $consumptionLog->quantity,
+        );
+
+        $consumptionLog->update(['trashed_by' => $request->user()->id]);
+        $consumptionLog->delete();
+
+        return response()->json(['message' => 'Consumption log trashed and stock restored.']);
+    }
+
+    public function restore(Request $request, int $id)
+    {
+        if (! $request->user()->hasRole(['restaurant_admin', 'super_admin'])) {
+            abort(403, 'Only administrators can restore consumption logs.');
+        }
+
+        $log = ConsumptionLog::onlyTrashed()->findOrFail($id);
+
+        $log->restore();
+        $log->update(['trashed_by' => null]);
+
+        $this->stock->adjust(
+            $log->inventoryItem,
+            $log->location_id,
+            -(float) $log->quantity,
+        );
+
+        return response()->json($log->load(['inventoryItem', 'location', 'loggedBy']));
+    }
+
+    public function trashed(Request $request)
+    {
+        if (! $request->user()->hasRole(['restaurant_admin', 'super_admin'])) {
+            abort(403, 'Only administrators can view trashed consumption logs.');
+        }
+
+        $logs = ConsumptionLog::onlyTrashed()
+            ->with(['inventoryItem', 'location', 'loggedBy', 'trashedByUser'])
+            ->orderBy('deleted_at', 'desc')
+            ->paginate((int) env('PAGINATION_LIMIT', 15));
+
+        return response()->json($logs);
+    }
 }
