@@ -332,7 +332,7 @@ class ReportController extends Controller
             ->get()
             ->map(fn ($r) => ['category' => $r->category, 'total' => (float) $r->total]);
 
-        $purchaseQuery = PurchaseOrder::query();
+        $purchaseQuery = PurchaseOrder::query()->where('status', '!=', PurchaseOrder::CANCELLED);
         if ($from) $purchaseQuery->where('created_at', '>=', $from);
         if ($to)   $purchaseQuery->where('created_at', '<', $to);
         if ($locationId && $locationId !== '' && $locationId !== 'all') {
@@ -373,7 +373,7 @@ class ReportController extends Controller
         }
         $operationalExpenses = (float) $expenseQuery->sum('amount');
 
-        $purchaseQuery = PurchaseOrder::query();
+        $purchaseQuery = PurchaseOrder::query()->where('status', '!=', PurchaseOrder::CANCELLED);
         if ($from) $purchaseQuery->where('created_at', '>=', $from);
         if ($to)   $purchaseQuery->where('created_at', '<', $to);
         if ($locationId && $locationId !== '' && $locationId !== 'all') {
@@ -481,7 +481,7 @@ class ReportController extends Controller
         [$from, $to] = $this->window($request);
         $locationId = $request->input('location_id');
 
-        $purchaseQuery = PurchaseOrder::query();
+        $purchaseQuery = PurchaseOrder::query()->where('status', '!=', PurchaseOrder::CANCELLED);
         if ($from) $purchaseQuery->where('created_at', '>=', $from);
         if ($to)   $purchaseQuery->where('created_at', '<', $to);
         if ($locationId && $locationId !== '' && $locationId !== 'all') {

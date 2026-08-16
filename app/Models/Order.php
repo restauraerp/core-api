@@ -5,10 +5,11 @@ namespace App\Models;
 use App\Models\Concerns\BelongsToTenant;
 use App\Support\Orders\OrderFlow;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Order extends Model
 {
-    use BelongsToTenant;
+    use BelongsToTenant, SoftDeletes;
 
     protected $guarded = [];
 
@@ -115,5 +116,10 @@ class Order extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function trashedByUser()
+    {
+        return $this->belongsTo(User::class, 'trashed_by');
     }
 }

@@ -247,6 +247,9 @@ Route::prefix('v1')->group(function () {
         // payments belong to taking money, not to CRM.
         Route::apiResource('discounts', DiscountController::class);
         Route::apiResource('orders', OrderController::class);
+        Route::get('orders-trashed', [OrderController::class, 'trashed']);
+        Route::post('orders/{order}/trash', [OrderController::class, 'trash']);
+        Route::post('orders-trashed/{id}/restore', [OrderController::class, 'restore']);
         Route::apiResource('orders.items', OrderItemController::class)->shallow();
         Route::apiResource('payments', PaymentController::class);
 

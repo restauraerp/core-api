@@ -299,6 +299,80 @@ class OrderController extends Controller
         return response()->json(null, 204);
     }
 
+    public function trash(Request $request, Order $order)
+    {
+        if (! $request->user()->hasRole(['restaurant_admin', 'super_admin'])) {
+            abort(403, 'Only administrators can trash orders.');
+        }
+
+        if (! $this->isCancelled($order->status)) {
+            $this->sellable->restoreForOrder($order);
+        }
+
+        AccountingLedger::where('transaction_type', 'order_payment')
+            ->where('reference_id', $order->id)
+            ->delete();
+
+        $order->update(['trashed_by' => $request->user()->id]);
+        $order->delete();
+
+        return response()->json(null, 204);
+    }
+
+    public function restore(Request $request, int $id)
+    {
+        if (! $request->user()->hasRole(['restaurant_admin', 'super_admin'])) {
+            abort(403, 'Only administrators can restore orders.');
+        }
+
+        $order = Order::onlyTrashed()->findOrFail($id);
+
+        $order->restore();
+        $order->update(['trashed_by' => null]);
+
+        if (! $this->isCancelled($order->status)) {
+            $this->sellable->deductForOrder($order);
+        }
+
+        if ($order->payment_status === 'paid') {
+            $alreadyPosted = AccountingLedger::where('transaction_type', 'order_payment')
+                ->where('reference_id', $order->id)
+                ->exists();
+
+            if (! $alreadyPosted) {
+                $payment = $order->payments()->where('status', 'completed')->first();
+                AccountingLedger::create([
+                    'location_id'      => $order->location_id,
+                    'transaction_type' => 'order_payment',
+                    'amount'           => $order->total,
+                    'reference_id'     => $order->id,
+                    'description'      => "Order #{$order->id} — " . ($payment?->method ?? 'restored'),
+                ]);
+            }
+        }
+
+        return response()->json($order->load(['items.product', 'payments', 'customer', 'table']));
+    }
+
+    public function trashed(Request $request)
+    {
+        if (! $request->user()->hasRole(['restaurant_admin', 'super_admin'])) {
+            abort(403, 'Only administrators can view trashed orders.');
+        }
+
+        $query = Order::onlyTrashed()
+            ->with(['items.product.images', 'payments', 'customer', 'table', 'trashedByUser']);
+
+        if ($request->has('location_id')) {
+            $query->where('location_id', $request->location_id);
+        }
+
+        return response()->json(
+            $query->orderBy('deleted_at', 'desc')
+                ->paginate((int) env('PAGINATION_LIMIT', 15))
+        );
+    }
+
     private function isCancelled(?string $status): bool
     {
         return $this->flow->normalise($status) === OrderFlow::CANCELLED;
