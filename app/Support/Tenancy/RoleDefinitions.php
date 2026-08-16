@@ -33,7 +33,7 @@ class RoleDefinitions
 
             'view_pos', 'create_pos_order',
 
-            'view_orders', 'update_order_status', 'delete_order',
+            'view_orders', 'update_order_status', 'delete_order', 'trash_order',
 
             'view_catalog', 'create_catalog_item', 'update_catalog_item', 'delete_catalog_item',
 
