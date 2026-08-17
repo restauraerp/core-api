@@ -36,9 +36,11 @@ class WalkthroughProgressController extends Controller
         // Taken from the authenticated tenant rather than from the request. A
         // client-supplied tenant code would let one restaurant report progress
         // against another's account.
+        // `bound()` first: this route skips ResolveTenant, so on a demo visit -
+        // which has no tenant at all - nothing has ever put one in the container,
+        // and reaching for it directly throws rather than returning null.
         $tenantCode = $request->user()?->tenant?->restaurant_code
-            ?? app('tenant')?->restaurant_code
-            ?? null;
+            ?? (app()->bound('tenant') ? app('tenant')?->restaurant_code : null);
 
         $website = rtrim((string) config('platform.website_url'), '/');
         $secret = (string) config('platform.token');
