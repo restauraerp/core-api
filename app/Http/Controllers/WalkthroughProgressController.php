@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -36,11 +38,33 @@ class WalkthroughProgressController extends Controller
         // Taken from the authenticated tenant rather than from the request. A
         // client-supplied tenant code would let one restaurant report progress
         // against another's account.
-        // `bound()` first: this route skips ResolveTenant, so on a demo visit -
-        // which has no tenant at all - nothing has ever put one in the container,
-        // and reaching for it directly throws rather than returning null.
-        $tenantCode = $request->user()?->tenant?->restaurant_code
-            ?? (app()->bound('tenant') ? app('tenant')?->restaurant_code : null);
+        //
+        // Resolved by hand, and outside the tenant scope, for two reasons that
+        // both end in the same silent failure.
+        //
+        // This route sits outside the `auth:sanctum` group - deliberately, since
+        // a demo visitor has no account at all - so nothing here ever resolves a
+        // user and `$request->user()` is null however good the token is. And
+        // because the route also skips ResolveTenant, TenantScope is in its
+        // fail-closed state: it appends `1 = 0` to every User query, so Sanctum
+        // looks up the token's owner and finds nobody. The token is itself the
+        // proof of identity here, and personal access tokens are not
+        // tenant-owned, so bypassing the scope for this one lookup gives away
+        // nothing.
+        //
+        // `slug` is the restaurant code; there is no `restaurant_code` column,
+        // which was a third way to arrive at null.
+        //
+        // Between them, every trial and video reading was accepted here and then
+        // dropped by the website for want of anybody to attribute it to. Nobody
+        // ever reached the walkthrough-completed rungs, and the campaigns that
+        // begin there could never fire.
+        $user = app(TenantContext::class)->runWithoutScoping(
+            fn () => Auth::guard('sanctum')->user(),
+        );
+
+        $tenantCode = $user?->tenant?->slug
+            ?? (app()->bound('tenant') ? app('tenant')?->slug : null);
 
         $website = rtrim((string) config('platform.website_url'), '/');
         $secret = (string) config('platform.token');

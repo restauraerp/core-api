@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\Tenant;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
@@ -55,6 +57,26 @@ class WalkthroughProgressRelayTest extends TestCase
                 && $request['ref'] === 'opaque-token-from-the-website'
                 && $request['tenant_code'] === null;
         });
+    }
+
+    public function test_a_signed_in_trial_user_is_attributed_to_their_restaurant(): void
+    {
+        // The case that was broken in three places at once, and invisibly: this
+        // route sits outside `auth:sanctum`, so nothing resolved the user; it
+        // skips ResolveTenant, so TenantScope was fail-closed and Sanctum could
+        // not find the token's owner either; and the code asked the tenant for a
+        // `restaurant_code` column that does not exist. Every trial and video
+        // reading was accepted and then dropped for want of anybody to attribute
+        // it to, so nobody ever reached the walkthrough-completed rungs.
+        $tenant = Tenant::factory()->create(['slug' => 'spice-garden']);
+        $user = User::factory()->create(['tenant_id' => $tenant->getKey()]);
+
+        $this->withToken($user->createToken('test')->plainTextToken)
+            ->postJson('/api/v1/walkthrough/progress', ['kind' => 'trial', 'percent' => 100])
+            ->assertOk();
+
+        Http::assertSent(fn ($request) => $request['tenant_code'] === 'spice-garden'
+            && $request['kind'] === 'trial');
     }
 
     public function test_a_tenant_code_in_the_request_is_ignored(): void
