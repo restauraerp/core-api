@@ -132,17 +132,36 @@ class Modules
     /**
      * Module permissions no tier may lose.
      *
-     * Every restaurant has at least one outlet and has to be able to correct
-     * its own address and phone number. What the Locations module sells is
+     * Each entry here is a piece of a paid module that turned out to be part of
+     * having a usable account rather than part of the upsell. The test for
+     * belonging in this list is the same every time: would a restaurant without
+     * it have a broken account, or merely a cheaper one? Only the first belongs.
+     *
+     * Every restaurant has at least one outlet and has to be able to correct its
+     * own address and phone number. What the Locations module sells is
      * *multi-branch* management, and that is enforced by the outlet cap
-     * (Tenant::hasReachedOutletLimit) rather than by hiding the screen - a
-     * Starter tenant that cannot edit its single outlet is a broken account,
-     * not an upsell.
+     * (Tenant::hasReachedOutletLimit) rather than by hiding the screen.
+     *
+     * The same argument applies to a customer list and a staff roster. Starter
+     * restaurants type customer details into the till every day and could not
+     * then see, search or export their own data; they hire and fire staff and
+     * could not give a new waiter a login. Neither is what CRM and HR are sold
+     * for. CRM sells loyalty schemes, reservations, quotations and the
+     * marketing built on them; HR sells attendance, leave and payroll. Those
+     * stay behind the module gate, so Growth still has something to sell -
+     * moving the whole of CRM and HR into Starter would have left Growth
+     * charging three times the price for four modules.
      *
      * @var list<string>
      */
     public const ESSENTIAL = [
         'view_locations',
         'update_location',
+        // Their own customers: see, search, export, and record one at the till.
+        'view_crm',
+        'manage_customers',
+        // Their own staff: create an employee and give them a way in.
+        'view_hr',
+        'manage_employees',
     ];
 }

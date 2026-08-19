@@ -7,26 +7,155 @@ use App\Models\Organization;
 use App\Rules\PhoneNumber;
 use App\Support\PhoneNumber as PhoneNumberSupport;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CustomerController extends Controller
 {
+    /**
+     * How the list may be ordered, and what each one means in SQL.
+     *
+     * `recent` is the default and is *most recent purchase*, not most recently
+     * added: the useful question at a till is who was last in, and a customer
+     * typed in six months ago who came back yesterday belongs at the top.
+     * Customers who have never ordered have no last order to sort by and sort
+     * last in every direction, which is where they belong in all three.
+     *
+     * @var array<string, array{0: string, 1: string}>
+     */
+    private const SORTS = [
+        'recent' => ['last_order_at', 'desc'],
+        'value' => ['orders_total', 'desc'],
+        'name' => ['name', 'asc'],
+    ];
+
     public function index(Request $request)
     {
-        $query = Customer::query();
-        
-        if ($request->has('search')) {
-            $search = $request->input('search');
-            $query->where('name', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%");
-        }
-        
-        $query->with('organization')->latest();
+        $query = $this->listQuery($request);
 
         if ($request->has('nopaginate')) {
             return response()->json($query->get());
         }
 
-        return response()->json($query->paginate((int) env('PAGINATION_LIMIT', 15)));
+        $perPage = (int) $request->integer('per_page', config('pagination.limit'));
+        $customers = $query->paginate(max(1, min($perPage, 100)))->withQueryString();
+
+        // `total` on the paginator already counts only what the filters
+        // matched, which is what "Showing 15 of 213" has to say on a search.
+        // `total_customers` is the restaurant's whole address book, so the
+        // client can also say what fraction of it is being looked at.
+        return response()->json(
+            $customers->toArray() + ['total_customers' => Customer::query()->count()],
+        );
+    }
+
+    /**
+     * One customer, with everything they have ever bought.
+     */
+    public function orders(Request $request, Customer $customer)
+    {
+        $orders = $customer->orders()
+            ->with(['items.product', 'payments'])
+            ->orderByDesc('created_at')
+            ->paginate((int) $request->integer('per_page', config('pagination.limit')));
+
+        return response()->json($orders);
+    }
+
+    /**
+     * The list as CSV, under whatever search, filter and sort is applied.
+     *
+     * Streamed rather than built in memory: an export is the one call that
+     * deliberately has no page limit, and a chain with tens of thousands of
+     * customers should not decide how much memory PHP needs.
+     */
+    public function export(Request $request): StreamedResponse
+    {
+        $query = $this->listQuery($request);
+        $filename = 'customers-'.now()->format('Y-m-d').'.csv';
+
+        return response()->streamDownload(function () use ($query) {
+            $handle = fopen('php://output', 'w');
+
+            // Excel reads a CSV as the system codepage unless the file says
+            // otherwise, and mangles every Bengali name in it. The BOM is what
+            // tells it UTF-8.
+            fwrite($handle, "\xEF\xBB\xBF");
+
+            fputcsv($handle, [
+                'ID', 'Name', 'Phone', 'Email', 'Address', 'Organization',
+                'Tier', 'Loyalty points', 'Orders', 'Total spent', 'Last order',
+            ]);
+
+            $query->chunk(500, function ($customers) use ($handle) {
+                foreach ($customers as $customer) {
+                    fputcsv($handle, [
+                        $customer->id,
+                        $customer->name,
+                        $customer->phone,
+                        $customer->email,
+                        $customer->address,
+                        $customer->organization?->name,
+                        $customer->tier,
+                        $customer->loyalty_points,
+                        $customer->orders_count,
+                        number_format((float) $customer->orders_total, 2, '.', ''),
+                        $customer->last_order_at,
+                    ]);
+                }
+            }, 'customers.id');
+
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="'.$filename.'"',
+        ]);
+    }
+
+    /**
+     * The query behind the list, the export and the counts, so a CSV can never
+     * disagree with the page it was downloaded from.
+     *
+     * @return \Illuminate\Database\Eloquent\Builder<Customer>
+     */
+    private function listQuery(Request $request)
+    {
+        $query = Customer::query()
+            ->with('organization')
+            ->withCount('orders')
+            ->withSum('orders as orders_total', 'total')
+            ->withMax('orders as last_order_at', 'created_at');
+
+        if ($search = trim((string) $request->input('search'))) {
+            // Grouped. Written flat as `where(...)->orWhere(...)`, the first OR
+            // escapes every condition added after it - so a filtered search
+            // would return unfiltered rows, and once this query is scoped by
+            // anything else that becomes a way to read past the scope.
+            $query->where(function ($q) use ($search) {
+                foreach (['name', 'phone', 'email', 'address', 'tier'] as $column) {
+                    $q->orWhere($column, 'like', "%{$search}%");
+                }
+
+                // Typed as it is written rather than as it is stored: somebody
+                // searching "01712345678" should find "+8801712345678".
+                if ($normalised = PhoneNumberSupport::normalise($search)) {
+                    $q->orWhere('phone', 'like', "%{$normalised}%");
+                }
+
+                $q->orWhereHas('organization', fn ($org) => $org->where('name', 'like', "%{$search}%"));
+            });
+        }
+
+        // "Customers who have spent at least X with us", counted across every
+        // order rather than per order - the question is what a customer is
+        // worth, and someone who came back ten times for small amounts is
+        // worth more than someone who came once.
+        if ($request->filled('min_purchase')) {
+            $query->having('orders_total', '>=', (float) $request->input('min_purchase'));
+        }
+
+        [$column, $direction] = self::SORTS[$request->input('sort')] ?? self::SORTS['recent'];
+
+        return $query->orderBy($column, $direction)->orderBy('id', 'desc');
     }
 
     /**

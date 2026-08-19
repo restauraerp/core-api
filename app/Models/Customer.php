@@ -16,4 +16,9 @@ class Customer extends Model
     {
         return $this->belongsTo(Organization::class);
     }
+
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
+    }
 }

@@ -250,10 +250,22 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('expenses', ExpenseController::class);
         Route::apiResource('tax-rules', TaxRuleController::class);
 
+        // Customers, outside the CRM gate.
+        //
+        // Every tier lets a cashier type a customer's name and number into the
+        // till, so every tier has to be able to see what it collected - and to
+        // take it away again. Locked behind module:crm, a Starter restaurant
+        // could fill this table for a year and never read a row of it. See
+        // Modules::ESSENTIAL for where the line between "usable account" and
+        // "upsell" is drawn; what CRM sells is the loyalty, reservations and
+        // quotations below, not the address book.
+        Route::apiResource('customers', CustomerController::class);
+        Route::get('customers/{customer}/orders', [CustomerController::class, 'orders']);
+        Route::get('customers-export', [CustomerController::class, 'export']);
+
         // CRM API
         Route::middleware('module:crm')->group(function () {
             Route::apiResource('organizations', OrganizationController::class);
-            Route::apiResource('customers', CustomerController::class);
             Route::apiResource('loyalty-settings', LoyaltySettingController::class);
             Route::apiResource('loyalty-transactions', LoyaltyTransactionController::class);
             Route::apiResource('reservations', ReservationController::class);
