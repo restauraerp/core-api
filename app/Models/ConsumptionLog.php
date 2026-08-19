@@ -22,6 +22,8 @@ class ConsumptionLog extends Model
     protected $casts = [
         'consumed_at' => 'date',
         'quantity'    => 'decimal:3',
+        'edited_at'   => 'datetime',
+        'original_quantity' => 'decimal:3',
     ];
 
     public function inventoryItem()
@@ -42,5 +44,11 @@ class ConsumptionLog extends Model
     public function trashedByUser()
     {
         return $this->belongsTo(User::class, 'trashed_by');
+    }
+
+    /** Whoever last corrected this log. See ConsumptionLogController::update. */
+    public function editedByUser()
+    {
+        return $this->belongsTo(User::class, 'edited_by');
     }
 }
