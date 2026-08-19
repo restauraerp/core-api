@@ -113,6 +113,11 @@ class Order extends Model
         return $this->belongsTo(Table::class);
     }
 
+    public function location()
+    {
+        return $this->belongsTo(Location::class);
+    }
+
     public function customer()
     {
         return $this->belongsTo(Customer::class);

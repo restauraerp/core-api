@@ -14,6 +14,7 @@ use App\Http\Controllers\DemoLeadController;
 use App\Http\Controllers\DiscountController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\GoogleReviewController;
+use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\HallController;
 use App\Http\Controllers\InventoryItemController;
 use App\Http\Controllers\LeaveController;
@@ -101,6 +102,20 @@ Route::prefix('v1')->group(function () {
 
     // Public Order API
     Route::post('storefront/orders', [OrderController::class, 'store']);
+
+    // One order's invoice, to whoever holds the signed link the restaurant
+    // shared with them.
+    //
+    // Public and unauthenticated because the customer has no account: the
+    // signature is the credential, and it covers the order id and the expiry,
+    // so the URL cannot be edited into somebody else's invoice. ResolveTenant
+    // is skipped for the same reason demo-config skips it - a customer opening
+    // a WhatsApp link has no restaurant to name - and the controller takes the
+    // tenant from the order instead.
+    Route::get('orders/{order}/invoice', [InvoiceController::class, 'show'])
+        ->name('orders.invoice')
+        ->middleware(['signed:relative', 'throttle:60,1'])
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
 
     // Demo credentials, for clients that were asked for a demo (the front's
     // /login?demo=true). 404s unless DEMO_MODE is on.
@@ -277,6 +292,10 @@ Route::prefix('v1')->group(function () {
         // payments belong to taking money, not to CRM.
         Route::apiResource('discounts', DiscountController::class);
         Route::apiResource('orders', OrderController::class);
+        // Mints the shareable invoice link. Staff only - creating the
+        // authority to read an invoice is the restaurant's act, reading it is
+        // the customer's.
+        Route::post('orders/{order}/invoice-link', [InvoiceController::class, 'link']);
         Route::get('orders-trashed', [OrderController::class, 'trashed']);
         Route::post('orders/{order}/trash', [OrderController::class, 'trash']);
         Route::post('orders-trashed/{id}/restore', [OrderController::class, 'restore']);
