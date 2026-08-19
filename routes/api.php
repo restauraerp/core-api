@@ -25,6 +25,8 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OneTimeLoginController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderDueController;
+use App\Http\Controllers\PartnerController;
+use App\Http\Controllers\PartnerPayoutController;
 use App\Http\Controllers\OrderItemController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\PageController;
@@ -298,6 +300,10 @@ Route::prefix('v1')->group(function () {
         // the customer's.
         Route::post('orders/{order}/invoice-link', [InvoiceController::class, 'link']);
 
+        // Third parties that send the restaurant orders and keep a cut.
+        Route::apiResource('partners', PartnerController::class);
+        Route::apiResource('partner-payouts', PartnerPayoutController::class)->only(['index', 'store', 'destroy']);
+
         // Owed money: putting an order on account, and collecting it later.
         Route::post('orders/{order}/due', [OrderDueController::class, 'markDue']);
         Route::post('orders/{order}/settle', [OrderDueController::class, 'settle']);
@@ -317,6 +323,7 @@ Route::prefix('v1')->group(function () {
             Route::get('sales', [ReportController::class, 'sales']);
             Route::get('products', [ReportController::class, 'products']);
             Route::get('staff', [ReportController::class, 'staff']);
+            Route::get('partners', [ReportController::class, 'partners']);
             Route::get('hourly', [ReportController::class, 'hourly']);
             Route::get('inventory', [ReportController::class, 'inventory']);
             Route::get('expenses', [ReportController::class, 'expenses']);

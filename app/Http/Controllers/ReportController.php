@@ -6,6 +6,8 @@ use App\Models\ConsumptionLog;
 use App\Models\Expense;
 use App\Models\InventoryItem;
 use App\Models\Order;
+use App\Models\Partner;
+use App\Models\PartnerPayout;
 use App\Models\PurchaseOrder;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
@@ -234,6 +236,87 @@ class ReportController extends Controller
                     'share' => $totalRevenue > 0 ? $revenue / $totalRevenue : 0.0,
                 ];
             })->values(),
+        ]);
+    }
+
+    /**
+     * What each partner brought in, kept, and still owes.
+     *
+     * Three numbers that are easy to confuse and worth keeping apart:
+     *   gross     - what the diner was billed, which is what the order says
+     *   commission- what the partner keeps
+     *   net       - what the restaurant actually earned
+     *
+     * The balance is deliberately NOT windowed by the date filter. Earnings are
+     * for the period the user picked; money owed is money owed, and showing a
+     * partner as square because their outstanding invoices happen to fall
+     * outside this month would be worse than showing nothing.
+     *
+     * GET /reports/partners?from=&to=&location_id=
+     */
+    public function partners(Request $request)
+    {
+        $windowed = (clone $this->scope($request))
+            ->whereNotNull('partner_id')
+            ->selectRaw('
+                partner_id,
+                COUNT(*)                                                as orders_count,
+                COALESCE(SUM(total), 0)                                 as gross,
+                COALESCE(SUM(partner_commission_amount), 0)             as commission
+            ')
+            ->groupBy('partner_id')
+            ->get()
+            ->keyBy('partner_id');
+
+        // Lifetime, not windowed - see the note above.
+        $earnedAllTime = Order::query()
+            ->whereNotNull('partner_id')
+            ->whereNotIn('status', self::EXCLUDED_STATUSES)
+            ->selectRaw('partner_id, COALESCE(SUM(total - COALESCE(partner_commission_amount, 0)), 0) as net')
+            ->groupBy('partner_id')
+            ->pluck('net', 'partner_id');
+
+        $paidAllTime = PartnerPayout::query()
+            ->selectRaw('partner_id, COALESCE(SUM(amount), 0) as paid')
+            ->groupBy('partner_id')
+            ->pluck('paid', 'partner_id');
+
+        $partners = Partner::query()->orderBy('name')->get();
+
+        $rows = $partners->map(function (Partner $partner) use ($windowed, $earnedAllTime, $paidAllTime) {
+            $period = $windowed->get($partner->getKey());
+
+            $gross = (float) ($period->gross ?? 0);
+            $commission = (float) ($period->commission ?? 0);
+            $earned = (float) ($earnedAllTime[$partner->getKey()] ?? 0);
+            $paid = (float) ($paidAllTime[$partner->getKey()] ?? 0);
+
+            return [
+                'partner_id' => $partner->getKey(),
+                'name' => $partner->name,
+                'commission_rate' => (float) $partner->commission_rate,
+                'is_active' => (bool) $partner->is_active,
+                'orders_count' => (int) ($period->orders_count ?? 0),
+                'gross' => $gross,
+                'commission' => $commission,
+                'net' => round($gross - $commission, 2),
+                // Lifetime figures, which is what a balance has to be.
+                'earned_to_date' => round($earned, 2),
+                'paid_to_date' => round($paid, 2),
+                'outstanding' => round($earned - $paid, 2),
+            ];
+        });
+
+        return response()->json([
+            'summary' => [
+                'partners' => $rows->count(),
+                'orders_count' => (int) $rows->sum('orders_count'),
+                'gross' => round((float) $rows->sum('gross'), 2),
+                'commission' => round((float) $rows->sum('commission'), 2),
+                'net' => round((float) $rows->sum('net'), 2),
+                'outstanding' => round((float) $rows->sum('outstanding'), 2),
+            ],
+            'partners' => $rows->values(),
         ]);
     }
 

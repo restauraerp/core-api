@@ -170,6 +170,28 @@ class Order extends Model
         return $this->belongsTo(Location::class);
     }
 
+    /** The third party that sent this order in, if it came through one. */
+    public function partner()
+    {
+        return $this->belongsTo(Partner::class);
+    }
+
+    /**
+     * What the restaurant actually keeps on this sale.
+     *
+     * The bill says one thing and the restaurant earns another whenever an
+     * order arrives through a partner - which is exactly the gap that makes
+     * aggregator revenue look healthier than it is.
+     */
+    public function getPartnerNetAmountAttribute(): float
+    {
+        if ($this->partner_id === null) {
+            return (float) $this->total;
+        }
+
+        return round((float) $this->total - (float) $this->partner_commission_amount, 2);
+    }
+
     public function customer()
     {
         return $this->belongsTo(Customer::class);

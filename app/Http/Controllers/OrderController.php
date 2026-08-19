@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\AccountingLedger;
 use App\Models\Order;
+use App\Models\Partner;
 use App\Support\Inventory\SellableInventory;
 use App\Support\Orders\KitchenLead;
 use App\Support\Orders\OrderFlow;
+use App\Support\Sales\PartnerCommission;
 use App\Support\Sales\TaxCalculator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -113,6 +115,9 @@ class OrderController extends Controller
             // it up - tills are often shared logins. user_id keeps recording
             // the account that created the order; this records the employee.
             'served_by_user_id' => ['nullable', 'integer', $this->tenantExists('users')],
+            // The third party that sent this order in, if any. Its commission
+            // is worked out server-side from the partner's own rate.
+            'partner_id' => ['nullable', 'integer', $this->tenantExists('partners')],
             'payment_method' => 'nullable|string',
             'delivery_time' => 'nullable|date',
             'delivery_address' => 'nullable|string',
@@ -131,6 +136,17 @@ class OrderController extends Controller
         $taxable = max(0, (float) $validated['subtotal'] - (float) $validated['discount_amount']);
         $validated['tax_amount'] = TaxCalculator::on($taxable);
         $validated['total'] = round($taxable + $validated['tax_amount'] + (float) ($validated['delivery_charge'] ?? 0), 2);
+
+        // A partner's cut, priced from the partner's own rate rather than from
+        // anything the till sent, and stamped onto the order so a later rate
+        // change cannot restate what this sale earned.
+        if (! empty($validated['partner_id'])) {
+            $partner = Partner::findOrFail($validated['partner_id']);
+            $commission = PartnerCommission::on($partner, (float) $validated['total']);
+
+            $validated['partner_commission_rate'] = $commission['rate'];
+            $validated['partner_commission_amount'] = $commission['amount'];
+        }
 
         // Where the order opens: waiting if it is not due yet, the kitchen if
         // something on it has to be prepared, otherwise straight to ready.
