@@ -241,4 +241,123 @@ class ConsumptionLogTest extends TestCase
 
         $this->assertSame(-4.0, $moved);
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Two units for one item
+    |--------------------------------------------------------------------------
+    |
+    | Rice arrives in 50kg sacks and leaves the store in kilos. Stock is counted
+    | in the sack, because that is what every purchase order, stock value and
+    | cost_per_unit already means.
+    */
+
+    private function withSaleUnit(float $factor = 50): void
+    {
+        $this->inTenant(fn () => $this->item->update([
+            'unit' => 'sack',
+            'sale_unit' => 'kg',
+            'sale_units_per_purchase_unit' => $factor,
+        ]));
+
+        $this->item->refresh();
+    }
+
+    #[Test]
+    public function a_quantity_in_the_kitchens_unit_is_converted_before_it_moves_stock(): void
+    {
+        $this->withSaleUnit(50);
+        $this->actAs(admin: false);
+
+        $this->postJson('/api/v1/consumption-logs', $this->entry([
+            'quantity' => 25,
+            'entry_unit' => 'sale',
+        ]), $this->headers())->assertCreated();
+
+        // 25kg is half a sack.
+        $this->assertSame(99.5, $this->stock());
+    }
+
+    /**
+     * The log has to read back the way it was written. "0.5" tells a cook
+     * nothing; they used 25kg.
+     */
+    #[Test]
+    public function the_log_keeps_what_was_typed_as_well_as_what_moved(): void
+    {
+        $this->withSaleUnit(50);
+        $this->actAs(admin: false);
+
+        $id = $this->postJson('/api/v1/consumption-logs', $this->entry([
+            'quantity' => 25,
+            'entry_unit' => 'sale',
+        ]), $this->headers())->assertCreated()->json('id');
+
+        $log = ConsumptionLog::findOrFail($id);
+
+        $this->assertEquals(25, $log->quantity);
+        $this->assertSame('sale', $log->entry_unit);
+        $this->assertEquals(0.5, $log->stock_quantity);
+    }
+
+    #[Test]
+    public function a_quantity_in_the_counted_unit_is_not_converted(): void
+    {
+        $this->withSaleUnit(50);
+        $this->actAs(admin: false);
+
+        $this->postJson('/api/v1/consumption-logs', $this->entry([
+            'quantity' => 2,
+            'entry_unit' => 'purchase',
+        ]), $this->headers())->assertCreated();
+
+        $this->assertSame(98.0, $this->stock());
+    }
+
+    /**
+     * Every item that existed before this had one unit, and a factor of 1 has
+     * to leave them exactly as they were.
+     */
+    #[Test]
+    public function an_item_with_no_sale_unit_behaves_as_it_always_did(): void
+    {
+        $this->actAs(admin: false);
+
+        $this->postJson('/api/v1/consumption-logs', $this->entry([
+            'quantity' => 3,
+            'entry_unit' => 'sale',
+        ]), $this->headers())->assertCreated();
+
+        // No sale unit, so 'sale' means nothing and 3 is 3.
+        $this->assertSame(97.0, $this->stock());
+    }
+
+    #[Test]
+    public function trashing_a_converted_log_puts_back_what_it_took(): void
+    {
+        $this->withSaleUnit(50);
+        $this->actAs(admin: true);
+
+        $id = $this->postJson('/api/v1/consumption-logs', $this->entry([
+            'quantity' => 25,
+            'entry_unit' => 'sale',
+        ]), $this->headers())->assertCreated()->json('id');
+
+        $this->assertSame(99.5, $this->stock());
+
+        $this->postJson("/api/v1/consumption-logs/{$id}/trash", [], $this->headers())->assertOk();
+
+        // Half a sack back, not 25 sacks.
+        $this->assertSame(100.0, $this->stock());
+    }
+
+    #[Test]
+    public function a_zero_factor_cannot_divide_by_nothing(): void
+    {
+        $this->inTenant(fn () => $this->item->update([
+            'unit' => 'sack', 'sale_unit' => 'kg', 'sale_units_per_purchase_unit' => 0,
+        ]));
+
+        $this->assertSame(1.0, $this->item->fresh()->conversionFactor());
+    }
 }

@@ -7,6 +7,7 @@ use App\Models\InventoryItem;
 use App\Support\Inventory\StockLevels;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class ConsumptionLogController extends Controller
 {
@@ -39,18 +40,24 @@ class ConsumptionLogController extends Controller
             'inventory_item_id' => ['required', 'integer', $this->tenantExists('inventory_items')],
             'location_id'       => ['required', 'integer', $this->tenantExists('locations')],
             'quantity'          => 'required|numeric|min:0.001',
+            // Which unit the number was typed in. An item bought by the sack
+            // and cooked with by the kilo is entered either way.
+            'entry_unit'        => ['nullable', Rule::in(['purchase', 'sale'])],
             'reason'            => 'nullable|string|max:500',
             'consumed_at'       => 'required|date',
         ]);
 
+        $item = InventoryItem::findOrFail($validated['inventory_item_id']);
+        $stockQuantity = $item->toPurchaseUnits((float) $validated['quantity'], $validated['entry_unit'] ?? null);
+
         $log = ConsumptionLog::create([
             ...$validated,
+            'stock_quantity' => $stockQuantity,
             'logged_by' => $request->user()?->id,
         ]);
 
-        // Reduce stock: consumption removes goods from the shelf
-        $item = InventoryItem::findOrFail($validated['inventory_item_id']);
-        $this->stock->adjust($item, $validated['location_id'], -(float) $validated['quantity']);
+        // Reduce stock, in the unit stock is counted in.
+        $this->stock->adjust($item, $validated['location_id'], -$stockQuantity);
 
         return response()->json($log->load(['inventoryItem', 'location']), 201);
     }
@@ -70,6 +77,7 @@ class ConsumptionLogController extends Controller
             'entries.*.inventory_item_id' => ['required', 'integer', $this->tenantExists('inventory_items')],
             'entries.*.location_id' => ['required', 'integer', $this->tenantExists('locations')],
             'entries.*.quantity' => 'required|numeric|min:0.001',
+            'entries.*.entry_unit' => ['nullable', Rule::in(['purchase', 'sale'])],
             'entries.*.reason' => 'nullable|string|max:500',
             'entries.*.consumed_at' => 'required|date',
         ], [
@@ -81,16 +89,16 @@ class ConsumptionLogController extends Controller
             $created = [];
 
             foreach ($validated['entries'] as $entry) {
+                $item = InventoryItem::findOrFail($entry['inventory_item_id']);
+                $stockQuantity = $item->toPurchaseUnits((float) $entry['quantity'], $entry['entry_unit'] ?? null);
+
                 $log = ConsumptionLog::create([
                     ...$entry,
+                    'stock_quantity' => $stockQuantity,
                     'logged_by' => $request->user()?->id,
                 ]);
 
-                $this->stock->adjust(
-                    InventoryItem::findOrFail($entry['inventory_item_id']),
-                    $entry['location_id'],
-                    -(float) $entry['quantity'],
-                );
+                $this->stock->adjust($item, $entry['location_id'], -$stockQuantity);
 
                 $created[] = $log;
             }
@@ -125,6 +133,7 @@ class ConsumptionLogController extends Controller
             'inventory_item_id' => ['sometimes', 'integer', $this->tenantExists('inventory_items')],
             'location_id' => ['sometimes', 'integer', $this->tenantExists('locations')],
             'quantity' => 'sometimes|numeric|min:0.001',
+            'entry_unit' => ['sometimes', Rule::in(['purchase', 'sale'])],
             'reason' => 'nullable|string|max:500',
             'consumed_at' => 'sometimes|date',
         ]);
@@ -132,7 +141,7 @@ class ConsumptionLogController extends Controller
         return DB::transaction(function () use ($validated, $consumptionLog, $request) {
             $wasItem = $consumptionLog->inventoryItem;
             $wasLocation = $consumptionLog->location_id;
-            $wasQuantity = (float) $consumptionLog->quantity;
+            $wasQuantity = $consumptionLog->stockQuantity();
 
             $consumptionLog->fill($validated);
 
@@ -144,11 +153,15 @@ class ConsumptionLogController extends Controller
 
             $consumptionLog->edited_by = $request->user()->id;
             $consumptionLog->edited_at = now();
+            // Recomputed, because the quantity, the unit or the item may all
+            // have changed and stock moves in purchase units whatever was typed.
+            $consumptionLog->stock_quantity = $consumptionLog->inventoryItem
+                ->toPurchaseUnits((float) $consumptionLog->quantity, $consumptionLog->entry_unit);
             $consumptionLog->save();
 
             $nowItem = $consumptionLog->fresh()->inventoryItem;
             $nowLocation = $consumptionLog->location_id;
-            $nowQuantity = (float) $consumptionLog->quantity;
+            $nowQuantity = $consumptionLog->stockQuantity();
 
             if ($wasItem?->id === $nowItem?->id && $wasLocation === $nowLocation) {
                 // Same shelf: move only the difference.
@@ -179,7 +192,7 @@ class ConsumptionLogController extends Controller
         $this->stock->adjust(
             $consumptionLog->inventoryItem,
             $consumptionLog->location_id,
-            (float) $consumptionLog->quantity,
+            $consumptionLog->stockQuantity(),
         );
 
         $consumptionLog->delete();
@@ -196,7 +209,7 @@ class ConsumptionLogController extends Controller
         $this->stock->adjust(
             $consumptionLog->inventoryItem,
             $consumptionLog->location_id,
-            (float) $consumptionLog->quantity,
+            $consumptionLog->stockQuantity(),
         );
 
         $consumptionLog->update(['trashed_by' => $request->user()->id]);
@@ -219,7 +232,7 @@ class ConsumptionLogController extends Controller
         $this->stock->adjust(
             $log->inventoryItem,
             $log->location_id,
-            -(float) $log->quantity,
+            -$log->stockQuantity(),
         );
 
         return response()->json($log->load(['inventoryItem', 'location', 'loggedBy']));

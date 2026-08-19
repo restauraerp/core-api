@@ -41,6 +41,11 @@ class InventoryItemController extends Controller
             'description'              => 'nullable|string',
             'sku'                      => 'nullable|string',
             'unit'                     => 'nullable|string',
+            // The smaller unit the kitchen counts in, and how many fit in one
+            // purchase unit. See the add_sale_unit migration for why `unit`
+            // stays the purchase unit.
+            'sale_unit'                => 'nullable|string|max:50',
+            'sale_units_per_purchase_unit' => 'nullable|numeric|min:0.0001',
             'min_stock_level'          => 'nullable|string',
             'is_sellable'              => 'nullable|boolean',
             'selling_price'            => 'nullable|numeric|min:0|required_if_accepted:is_sellable',
@@ -86,6 +91,11 @@ class InventoryItemController extends Controller
             'description'              => 'nullable|string',
             'sku'                      => 'nullable|string',
             'unit'                     => 'nullable|string',
+            // The smaller unit the kitchen counts in, and how many fit in one
+            // purchase unit. See the add_sale_unit migration for why `unit`
+            // stays the purchase unit.
+            'sale_unit'                => 'nullable|string|max:50',
+            'sale_units_per_purchase_unit' => 'nullable|numeric|min:0.0001',
             'min_stock_level'          => 'nullable|string',
             'is_sellable'              => 'nullable|boolean',
             'selling_price'            => 'nullable|numeric|min:0|required_if_accepted:is_sellable',
