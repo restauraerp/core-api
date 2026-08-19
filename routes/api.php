@@ -6,6 +6,7 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CctvCameraController;
 use App\Http\Controllers\ChatMessageController;
+use App\Http\Controllers\ConsumptionLogController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DeliveryController;
 use App\Http\Controllers\DemoController;
@@ -21,17 +22,17 @@ use App\Http\Controllers\LoyaltySettingController;
 use App\Http\Controllers\LoyaltyTransactionController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OneTimeLoginController;
-use App\Http\Controllers\PasswordResetController;
-use App\Http\Controllers\Platform\PlanController as PlatformPlanController;
-use App\Http\Controllers\Platform\StatsController as PlatformStatsController;
-use App\Http\Controllers\Platform\TenantController as PlatformTenantController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderItemController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\Platform\PlanController as PlatformPlanController;
+use App\Http\Controllers\Platform\StatsController as PlatformStatsController;
+use App\Http\Controllers\Platform\TenantController as PlatformTenantController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductMediaController;
@@ -57,7 +58,7 @@ use App\Http\Controllers\TaxRuleController;
 use App\Http\Controllers\UpgradeLinkController;
 use App\Http\Controllers\UsageLogController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\ConsumptionLogController;
+use App\Http\Controllers\WalkthroughProgressController;
 use App\Http\Controllers\WasteLogController;
 use App\Http\Controllers\WebsiteSettingController;
 use App\Http\Middleware\EnforceSubscription;
@@ -116,6 +117,20 @@ Route::prefix('v1')->group(function () {
     // caller is an anonymous demo visitor, not a restaurant.
     Route::post('demo/lead', [DemoLeadController::class, 'store'])
         ->middleware('throttle:60,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+
+    // How far somebody got through a walkthrough or the video tutorials, on its
+    // way to the website - which owns the customer records and the lifecycle
+    // ladder, and should not have a second copy of either living here.
+    //
+    // Tenant resolution is skipped because a demo visitor has no tenant of their
+    // own; a trial user's restaurant is read from their authenticated session
+    // rather than from the request, so one restaurant cannot report progress
+    // against another's account. Subscription enforcement is skipped too: a
+    // walkthrough is exactly what somebody whose trial just lapsed should still
+    // be able to finish.
+    Route::post('walkthrough/progress', [WalkthroughProgressController::class, 'store'])
+        ->middleware('throttle:120,1')
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
 
     /*
@@ -221,6 +236,9 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('stock-transfers.items', StockTransferItemController::class)->shallow();
         Route::apiResource('waste-logs', WasteLogController::class);
         Route::apiResource('consumption-logs', ConsumptionLogController::class)->except(['update']);
+        Route::get('consumption-logs-trashed', [ConsumptionLogController::class, 'trashed']);
+        Route::post('consumption-logs/{consumptionLog}/trash', [ConsumptionLogController::class, 'trash']);
+        Route::post('consumption-logs-trashed/{id}/restore', [ConsumptionLogController::class, 'restore']);
 
         // Procurement & Accounting API
         Route::apiResource('suppliers', SupplierController::class);
