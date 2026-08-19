@@ -19,7 +19,7 @@ class RecipeController extends Controller
             return response()->json($query->get());
         }
 
-        return response()->json($query->paginate($request->get('per_page', (int) env('PAGINATION_LIMIT', 15))));
+        return response()->json($query->paginate($request->get('per_page', config('pagination.limit'))));
     }
 
     public function store(Request $request)

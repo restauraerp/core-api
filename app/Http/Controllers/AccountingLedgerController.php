@@ -27,7 +27,7 @@ class AccountingLedgerController extends Controller
             $query->whereDate('created_at', '<=', $request->end_date);
         }
 
-        return response()->json($query->with('header')->orderBy('id', 'desc')->paginate((int) env('PAGINATION_LIMIT', 15)));
+        return response()->json($query->with('header')->orderBy('id', 'desc')->paginate(config('pagination.limit')));
     }
 
     public function store(Request $request)

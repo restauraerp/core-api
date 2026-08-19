@@ -77,7 +77,7 @@ class OrderController extends Controller
             return response()->json($query->orderBy('created_at', 'desc')->get());
         }
 
-        return response()->json($query->orderBy('created_at', 'desc')->paginate((int) env('PAGINATION_LIMIT', 15)));
+        return response()->json($query->orderBy('created_at', 'desc')->paginate(config('pagination.limit')));
     }
 
     public function store(Request $request)
@@ -435,7 +435,7 @@ class OrderController extends Controller
 
         return response()->json(
             $query->orderBy('deleted_at', 'desc')
-                ->paginate((int) env('PAGINATION_LIMIT', 15))
+                ->paginate(config('pagination.limit'))
         );
     }
 

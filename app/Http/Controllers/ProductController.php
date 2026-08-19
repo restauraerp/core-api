@@ -10,7 +10,7 @@ class ProductController extends Controller
 {
     private function pageSize(): int
     {
-        return (int) env('PAGINATION_LIMIT', 15);
+        return config('pagination.limit');
     }
 
     public function index(Request $request)

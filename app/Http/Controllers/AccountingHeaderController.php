@@ -19,7 +19,7 @@ class AccountingHeaderController extends Controller
             return response()->json($query->orderBy('name')->get());
         }
 
-        return response()->json($query->orderBy('name')->paginate((int) env('PAGINATION_LIMIT', 15)));
+        return response()->json($query->orderBy('name')->paginate(config('pagination.limit')));
     }
 
     public function store(Request $request)
