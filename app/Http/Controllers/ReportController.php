@@ -7,6 +7,7 @@ use App\Models\Expense;
 use App\Models\InventoryItem;
 use App\Models\Order;
 use App\Models\PurchaseOrder;
+use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -162,6 +163,77 @@ class ReportController extends Controller
                 'item_revenue' => (float) $row->item_revenue,
                 'collected' => (float) $row->collected,
             ]),
+        ]);
+    }
+
+    /**
+     * What each employee sold in the window.
+     *
+     * Grouped by `served_by_user_id`, never by `user_id`. The latter records
+     * whichever account created the order, and a restaurant running one shared
+     * till login would see a single "POS" employee credited with every sale in
+     * the building - a report that looks fine and means nothing.
+     *
+     * Orders nobody was credited on are counted and returned as their own row
+     * rather than dropped. Hiding them would make the report's total quietly
+     * disagree with the sales report over the same window, and the size of that
+     * unattributed row is itself worth seeing: it is how a manager knows
+     * whether the staff are actually tagging their sales.
+     *
+     * GET /reports/staff?from=&to=&location_id=
+     */
+    public function staff(Request $request)
+    {
+        // Grouped without joining `users`, and the names resolved afterwards.
+        // scope() writes its window and status filters unqualified - it is
+        // shared with every other report - so joining a table that also has
+        // `created_at` and `status` makes those clauses ambiguous and the query
+        // fails outright. One extra indexed lookup is cheaper than qualifying
+        // every column in a helper eight other reports depend on.
+        $rows = (clone $this->scope($request))
+            ->selectRaw('
+                served_by_user_id                               as user_id,
+                COUNT(*)                                        as orders_count,
+                COALESCE(SUM(total), 0)                         as revenue,
+                COALESCE(SUM(subtotal), 0)                      as item_revenue,
+                COALESCE(SUM(discount_amount), 0)               as discount_total,
+                COALESCE(SUM(CASE WHEN payment_status = "paid" THEN total ELSE 0 END), 0) as collected
+            ')
+            ->groupBy('served_by_user_id')
+            ->orderByDesc('revenue')
+            ->get();
+
+        $names = User::query()
+            ->whereIn('id', $rows->pluck('user_id')->filter()->all())
+            ->pluck('name', 'id');
+
+        $totalRevenue = (float) $rows->sum(fn ($row) => (float) $row->revenue);
+
+        return response()->json([
+            'summary' => [
+                'employees' => $rows->whereNotNull('user_id')->count(),
+                'total_revenue' => $totalRevenue,
+                'attributed_revenue' => (float) $rows->whereNotNull('user_id')->sum(fn ($row) => (float) $row->revenue),
+                'unattributed_orders' => (int) ($rows->firstWhere('user_id', null)->orders_count ?? 0),
+            ],
+            'employees' => $rows->map(function ($row) use ($totalRevenue, $names) {
+                $revenue = (float) $row->revenue;
+                $orders = (int) $row->orders_count;
+
+                return [
+                    'user_id' => $row->user_id === null ? null : (int) $row->user_id,
+                    // Named here rather than left to the client, so a deleted
+                    // employee's sales still read as something.
+                    'name' => $names[$row->user_id] ?? 'Not attributed',
+                    'orders_count' => $orders,
+                    'revenue' => $revenue,
+                    'item_revenue' => (float) $row->item_revenue,
+                    'discount_total' => (float) $row->discount_total,
+                    'collected' => (float) $row->collected,
+                    'avg_order_value' => $orders > 0 ? $revenue / $orders : 0.0,
+                    'share' => $totalRevenue > 0 ? $revenue / $totalRevenue : 0.0,
+                ];
+            })->values(),
         ]);
     }
 

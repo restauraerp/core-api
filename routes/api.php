@@ -311,6 +311,7 @@ Route::prefix('v1')->group(function () {
         Route::prefix('reports')->group(function () {
             Route::get('sales', [ReportController::class, 'sales']);
             Route::get('products', [ReportController::class, 'products']);
+            Route::get('staff', [ReportController::class, 'staff']);
             Route::get('hourly', [ReportController::class, 'hourly']);
             Route::get('inventory', [ReportController::class, 'inventory']);
             Route::get('expenses', [ReportController::class, 'expenses']);

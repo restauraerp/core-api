@@ -102,6 +102,10 @@ class OrderController extends Controller
             'hall_id' => ['nullable', 'integer', $this->tenantExists('halls')],
             'customer_id' => ['nullable', 'integer', $this->tenantExists('customers')],
             'discount_id' => ['nullable', 'integer', $this->tenantExists('discounts')],
+            // Who to credit for the sale, which is not necessarily who rang
+            // it up - tills are often shared logins. user_id keeps recording
+            // the account that created the order; this records the employee.
+            'served_by_user_id' => ['nullable', 'integer', $this->tenantExists('users')],
             'payment_method' => 'nullable|string',
             'delivery_time' => 'nullable|date',
             'delivery_address' => 'nullable|string',
@@ -201,6 +205,10 @@ class OrderController extends Controller
             'table_id' => ['nullable', 'integer', $this->tenantExists('tables')],
             'customer_id' => ['nullable', 'integer', $this->tenantExists('customers')],
             'discount_id' => ['nullable', 'integer', $this->tenantExists('discounts')],
+            // Who to credit for the sale, which is not necessarily who rang
+            // it up - tills are often shared logins. user_id keeps recording
+            // the account that created the order; this records the employee.
+            'served_by_user_id' => ['nullable', 'integer', $this->tenantExists('users')],
             'subtotal' => 'required|numeric',
             'discount_amount' => 'required|numeric',
             'delivery_charge' => 'nullable|numeric',

@@ -123,6 +123,18 @@ class Order extends Model
         return $this->belongsTo(Customer::class);
     }
 
+    /**
+     * The employee credited with the sale.
+     *
+     * Distinct from the `user_id` column, which records whichever account
+     * created the order - very often a shared till login, and useless as a
+     * measure of who actually served anybody.
+     */
+    public function servedBy()
+    {
+        return $this->belongsTo(User::class, 'served_by_user_id');
+    }
+
     public function trashedByUser()
     {
         return $this->belongsTo(User::class, 'trashed_by');
