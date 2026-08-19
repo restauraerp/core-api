@@ -1764,6 +1764,108 @@
                 }
             }
         },
+        "/v1/consumption-logs/batch": {
+            "post": {
+                "operationId": "consumptionLog.storeBatch",
+                "description": "A cook closing the kitchen writes off eight things at once, and doing\nthat one form submission at a time is how a restaurant stops bothering.\nWrapped in a transaction: eight rows that half-saved would leave stock\nwrong in a way nobody could see, which is worse than a refusal.",
+                "summary": "Several items consumed in one go",
+                "tags": [
+                    "ConsumptionLog"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "entries": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "inventory_item_id": {
+                                                    "type": "integer"
+                                                },
+                                                "location_id": {
+                                                    "type": "integer"
+                                                },
+                                                "quantity": {
+                                                    "type": "number",
+                                                    "minimum": 0.001
+                                                },
+                                                "entry_unit": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "enum": [
+                                                        "purchase",
+                                                        "sale"
+                                                    ]
+                                                },
+                                                "reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "maxLength": 500
+                                                },
+                                                "consumed_at": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                }
+                                            },
+                                            "required": [
+                                                "inventory_item_id",
+                                                "location_id",
+                                                "quantity",
+                                                "consumed_at"
+                                            ]
+                                        },
+                                        "minItems": 1,
+                                        "maxItems": 100
+                                    }
+                                },
+                                "required": [
+                                    "entries"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "created": {
+                                            "type": "integer"
+                                        },
+                                        "data": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "created",
+                                        "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/consumption-logs": {
             "get": {
                 "operationId": "consumption-logs.index",
@@ -1947,6 +2049,17 @@
                                         "type": "number",
                                         "minimum": 0.001
                                     },
+                                    "entry_unit": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "Which unit the number was typed in. An item bought by the sack\nand cooked with by the kilo is entered either way.",
+                                        "enum": [
+                                            "purchase",
+                                            "sale"
+                                        ]
+                                    },
                                     "reason": {
                                         "type": [
                                             "string",
@@ -2016,6 +2129,105 @@
                                 }
                             }
                         }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "consumption-logs.update",
+                "description": "Admin only, like trashing one, and for the same reason: this figure is\nwhat took goods off the shelf, so changing it moves them again.\n\nStock is adjusted by the difference rather than recomputed. The item or\nthe outlet can change too, and when either does the old line has to be\nput back where it came from before the new one is taken - otherwise a log\nmoved from Banani to Gulshan silently leaves Banani short.",
+                "summary": "Corrects a log, and the stock it moved",
+                "tags": [
+                    "ConsumptionLog"
+                ],
+                "parameters": [
+                    {
+                        "name": "consumptionLog",
+                        "in": "path",
+                        "required": true,
+                        "description": "The consumption log ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "inventory_item_id": {
+                                        "type": "integer"
+                                    },
+                                    "location_id": {
+                                        "type": "integer"
+                                    },
+                                    "quantity": {
+                                        "type": "number",
+                                        "minimum": 0.001
+                                    },
+                                    "entry_unit": {
+                                        "type": "string",
+                                        "enum": [
+                                            "purchase",
+                                            "sale"
+                                        ]
+                                    },
+                                    "reason": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 500
+                                    },
+                                    "consumed_at": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConsumptionLog"
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "An error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Error overview.",
+                                            "example": "Only administrators can edit consumption logs."
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
                     },
                     "404": {
                         "$ref": "#/components/responses/ModelNotFoundException"
@@ -4301,6 +4513,21 @@
                                             "null"
                                         ]
                                     },
+                                    "sale_unit": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "The smaller unit the kitchen counts in, and how many fit in one\npurchase unit. See the add_sale_unit migration for why `unit`\nstays the purchase unit.",
+                                        "maxLength": 50
+                                    },
+                                    "sale_units_per_purchase_unit": {
+                                        "type": [
+                                            "number",
+                                            "null"
+                                        ],
+                                        "minimum": 0.0001
+                                    },
                                     "min_stock_level": {
                                         "type": [
                                             "string",
@@ -4461,6 +4688,21 @@
                                             "string",
                                             "null"
                                         ]
+                                    },
+                                    "sale_unit": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "The smaller unit the kitchen counts in, and how many fit in one\npurchase unit. See the add_sale_unit migration for why `unit`\nstays the purchase unit.",
+                                        "maxLength": 50
+                                    },
+                                    "sale_units_per_purchase_unit": {
+                                        "type": [
+                                            "number",
+                                            "null"
+                                        ],
+                                        "minimum": 0.0001
                                     },
                                     "min_stock_level": {
                                         "type": [
@@ -6345,6 +6587,14 @@
                                             "null"
                                         ]
                                     },
+                                    "payment_note": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "Why this payment looks the way it does - a bKash transaction id,\na card's last four, which guest paid for a shared table.",
+                                        "maxLength": 500
+                                    },
                                     "delivery_time": {
                                         "type": [
                                             "string",
@@ -6370,6 +6620,31 @@
                                             "null"
                                         ]
                                     },
+                                    "discount_type": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "And one on the whole bill, on top of any coupon.",
+                                        "enum": [
+                                            "flat",
+                                            "percent"
+                                        ]
+                                    },
+                                    "discount_value": {
+                                        "type": [
+                                            "number",
+                                            "null"
+                                        ],
+                                        "minimum": 0
+                                    },
+                                    "discount_reason": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 255
+                                    },
                                     "items": {
                                         "type": "array",
                                         "items": {
@@ -6391,6 +6666,24 @@
                                                         "null"
                                                     ],
                                                     "maxLength": 500
+                                                },
+                                                "discount_type": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Per-item reductions - \"the steak came out cold, take 200 off it\".",
+                                                    "enum": [
+                                                        "flat",
+                                                        "percent"
+                                                    ]
+                                                },
+                                                "discount_value": {
+                                                    "type": [
+                                                        "number",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 0
                                                 }
                                             },
                                             "required": [
@@ -6444,6 +6737,13 @@
                         "schema": {
                             "type": "integer",
                             "default": 0
+                        }
+                    },
+                    {
+                        "name": "payment_method",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 ],
@@ -6680,6 +6980,14 @@
                                             "null"
                                         ]
                                     },
+                                    "payment_note": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "Why this payment looks the way it does - a bKash transaction id,\na card's last four, which guest paid for a shared table.",
+                                        "maxLength": 500
+                                    },
                                     "delivery_time": {
                                         "type": [
                                             "string",
@@ -6705,6 +7013,31 @@
                                             "null"
                                         ]
                                     },
+                                    "discount_type": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "And one on the whole bill, on top of any coupon.",
+                                        "enum": [
+                                            "flat",
+                                            "percent"
+                                        ]
+                                    },
+                                    "discount_value": {
+                                        "type": [
+                                            "number",
+                                            "null"
+                                        ],
+                                        "minimum": 0
+                                    },
+                                    "discount_reason": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 255
+                                    },
                                     "items": {
                                         "type": "array",
                                         "items": {
@@ -6726,6 +7059,24 @@
                                                         "null"
                                                     ],
                                                     "maxLength": 500
+                                                },
+                                                "discount_type": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Per-item reductions - \"the steak came out cold, take 200 off it\".",
+                                                    "enum": [
+                                                        "flat",
+                                                        "percent"
+                                                    ]
+                                                },
+                                                "discount_value": {
+                                                    "type": [
+                                                        "number",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 0
                                                 }
                                             },
                                             "required": [
@@ -12339,6 +12690,9 @@
                                                             "null"
                                                         ]
                                                     },
+                                                    "image_url": {
+                                                        "type": "string"
+                                                    },
                                                     "sku": {
                                                         "type": [
                                                             "string",
@@ -12370,6 +12724,7 @@
                                                 "required": [
                                                     "id",
                                                     "name",
+                                                    "image_url",
                                                     "sku",
                                                     "unit",
                                                     "cost_per_unit",
@@ -18511,6 +18866,15 @@
                     "quantity": {
                         "type": "string"
                     },
+                    "entry_unit": {
+                        "type": "string"
+                    },
+                    "stock_quantity": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
                     "reason": {
                         "type": [
                             "string",
@@ -18524,6 +18888,25 @@
                     "logged_by": {
                         "type": [
                             "integer",
+                            "null"
+                        ]
+                    },
+                    "edited_by": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "edited_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "original_quantity": {
+                        "type": [
+                            "string",
                             "null"
                         ]
                     },
@@ -18561,9 +18944,14 @@
                     "inventory_item_id",
                     "location_id",
                     "quantity",
+                    "entry_unit",
+                    "stock_quantity",
                     "reason",
                     "consumed_at",
                     "logged_by",
+                    "edited_by",
+                    "edited_at",
+                    "original_quantity",
                     "created_at",
                     "updated_at",
                     "deleted_at",
@@ -19018,6 +19406,15 @@
                             "null"
                         ]
                     },
+                    "sale_unit": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "sale_units_per_purchase_unit": {
+                        "type": "string"
+                    },
                     "min_stock_level": {
                         "type": [
                             "string",
@@ -19053,6 +19450,8 @@
                     "current_stock",
                     "description",
                     "unit",
+                    "sale_unit",
+                    "sale_units_per_purchase_unit",
                     "min_stock_level",
                     "created_at",
                     "updated_at",
@@ -19521,6 +19920,24 @@
                             "null"
                         ]
                     },
+                    "discount_type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "discount_value": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "discount_reason": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
                     "delivery_charge": {
                         "type": [
                             "string",
@@ -19615,6 +20032,9 @@
                     "subtotal",
                     "tax_amount",
                     "discount_amount",
+                    "discount_type",
+                    "discount_value",
+                    "discount_reason",
                     "delivery_charge",
                     "total",
                     "created_at",
@@ -19655,6 +20075,21 @@
                             "null"
                         ]
                     },
+                    "discount_type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "discount_value": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "discount_amount": {
+                        "type": "string"
+                    },
                     "notes": {
                         "type": [
                             "string",
@@ -19671,6 +20106,9 @@
                     "product_id",
                     "quantity",
                     "price",
+                    "discount_type",
+                    "discount_value",
+                    "discount_amount",
                     "notes",
                     "tenant_id"
                 ],
