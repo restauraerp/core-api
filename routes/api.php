@@ -24,6 +24,7 @@ use App\Http\Controllers\LoyaltyTransactionController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OneTimeLoginController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\OrderDueController;
 use App\Http\Controllers\OrderItemController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\PageController;
@@ -296,6 +297,10 @@ Route::prefix('v1')->group(function () {
         // authority to read an invoice is the restaurant's act, reading it is
         // the customer's.
         Route::post('orders/{order}/invoice-link', [InvoiceController::class, 'link']);
+
+        // Owed money: putting an order on account, and collecting it later.
+        Route::post('orders/{order}/due', [OrderDueController::class, 'markDue']);
+        Route::post('orders/{order}/settle', [OrderDueController::class, 'settle']);
         Route::get('orders-trashed', [OrderController::class, 'trashed']);
         Route::post('orders/{order}/trash', [OrderController::class, 'trash']);
         Route::post('orders-trashed/{id}/restore', [OrderController::class, 'restore']);

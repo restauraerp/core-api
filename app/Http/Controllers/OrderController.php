@@ -63,6 +63,13 @@ class OrderController extends Controller
             });
         }
 
+        // The Due tab: finished or not, this is money the restaurant is owed
+        // and has agreed to collect later. Separate from `active_only`, which
+        // deliberately no longer shows them - see Order::scopeActive().
+        if ($request->has('due_only')) {
+            $query->due();
+        }
+
         // The Completed tab. Deliberately applies no order_type filter - it
         // lists finished orders of every type together.
         //

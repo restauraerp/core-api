@@ -50,6 +50,11 @@ class CustomerController extends Controller
 
     /**
      * One customer, with everything they have ever bought.
+     *
+     * The outstanding balance rides along with the page rather than being a
+     * second call: what a customer owes is the first thing anyone opening their
+     * record wants to know, and a number that arrives a moment later is a
+     * number somebody acts before seeing.
      */
     public function orders(Request $request, Customer $customer)
     {
@@ -58,7 +63,15 @@ class CustomerController extends Controller
             ->orderByDesc('created_at')
             ->paginate((int) $request->integer('per_page', config('pagination.limit')));
 
-        return response()->json($orders);
+        // Across every due order, not just this page of them.
+        $due = $customer->orders()->due()->get();
+
+        return response()->json($orders->toArray() + [
+            'outstanding' => [
+                'orders' => $due->count(),
+                'amount' => round($due->sum(fn ($order) => $order->amount_outstanding), 2),
+            ],
+        ]);
     }
 
     /**

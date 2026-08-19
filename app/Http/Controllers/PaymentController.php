@@ -19,6 +19,9 @@ class PaymentController extends Controller
             'method' => 'nullable|string|max:255',
             'amount' => 'nullable|numeric|min:0',
             'status' => 'nullable|string|max:255',
+            // Why this payment looks the way it does - a bKash transaction id,
+            // a card's last four, which guest paid for a shared table.
+            'note' => 'nullable|string|max:500',
         ]);
 
         $payment = Payment::create($validated);
@@ -38,6 +41,7 @@ class PaymentController extends Controller
             'method' => 'nullable|string|max:255',
             'amount' => 'nullable|numeric|min:0',
             'status' => 'nullable|string|max:255',
+            'note' => 'nullable|string|max:500',
         ]);
 
         $payment->update($validated);
