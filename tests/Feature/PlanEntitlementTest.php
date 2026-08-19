@@ -138,10 +138,32 @@ class PlanEntitlementTest extends TestCase
         $tenant = $this->tenantOn('starter');
         $this->actingAsOwnerOf($tenant);
 
-        foreach (['customers', 'attendances', 'deliveries'] as $endpoint) {
+        // What CRM and HR are actually sold for. `customers` and `users` are
+        // deliberately not in this list - see the next test.
+        foreach (['reservations', 'loyalty-settings', 'quotations', 'attendances', 'payrolls', 'deliveries'] as $endpoint) {
             $this->getJson("/api/v1/{$endpoint}", ['X-Tenant-ID' => $tenant->slug])
                 ->assertForbidden()
                 ->assertJsonPath('error', 'module_not_in_plan');
+        }
+    }
+
+    /**
+     * The part of CRM and HR that is not an upsell.
+     *
+     * A Starter restaurant types customer details into the till every day and
+     * hires staff who need logins. Being unable to read back its own customer
+     * list, or to create an employee, is a broken account rather than a cheaper
+     * one - so those endpoints sit outside the module gate. See
+     * Modules::ESSENTIAL.
+     */
+    public function test_starter_reaches_its_own_customers_and_staff(): void
+    {
+        $tenant = $this->tenantOn('starter');
+        $this->actingAsOwnerOf($tenant);
+
+        foreach (['customers', 'customers-export', 'users', 'roles'] as $endpoint) {
+            $this->getJson("/api/v1/{$endpoint}", ['X-Tenant-ID' => $tenant->slug])
+                ->assertOk();
         }
     }
 
@@ -161,7 +183,9 @@ class PlanEntitlementTest extends TestCase
         $tenant = $this->tenantOn('growth');
         $this->actingAsOwnerOf($tenant);
 
-        foreach (['customers', 'attendances', 'deliveries'] as $endpoint) {
+        // `customers` is deliberately absent: every tier reaches it now, so it
+        // would prove nothing about what Growth adds.
+        foreach (['reservations', 'loyalty-settings', 'attendances', 'payrolls', 'deliveries'] as $endpoint) {
             $this->getJson("/api/v1/{$endpoint}", ['X-Tenant-ID' => $tenant->slug])
                 ->assertOk();
         }
@@ -184,9 +208,22 @@ class PlanEntitlementTest extends TestCase
         $starterPermissions = $permissionsFor($starter);
         $growthPermissions = $permissionsFor($growth);
 
-        $this->assertNotContains('view_crm', $starterPermissions);
-        $this->assertNotContains('view_hr', $starterPermissions);
         $this->assertContains('view_pos', $starterPermissions);
+
+        // Starter sees its own customers and staff, and nothing else either
+        // module sells. This pair of assertions is what keeps Growth worth
+        // buying: grant manage_loyalty_settings or manage_payroll to Starter
+        // and there are only four modules left to charge three times as much
+        // for.
+        $this->assertContains('view_crm', $starterPermissions);
+        $this->assertContains('manage_customers', $starterPermissions);
+        $this->assertContains('view_hr', $starterPermissions);
+        $this->assertContains('manage_employees', $starterPermissions);
+
+        $this->assertNotContains('manage_loyalty_settings', $starterPermissions);
+        $this->assertNotContains('manage_attendance', $starterPermissions);
+        $this->assertNotContains('manage_leaves', $starterPermissions);
+        $this->assertNotContains('manage_payroll', $starterPermissions);
 
         // A restaurant must always be able to correct its own address, even on
         // a tier that does not sell multi-branch management.
@@ -194,7 +231,8 @@ class PlanEntitlementTest extends TestCase
         $this->assertContains('update_location', $starterPermissions);
         $this->assertNotContains('create_location', $starterPermissions);
 
-        $this->assertContains('view_crm', $growthPermissions);
+        $this->assertContains('manage_loyalty_settings', $growthPermissions);
+        $this->assertContains('manage_payroll', $growthPermissions);
         $this->assertGreaterThan(count($starterPermissions), count($growthPermissions));
     }
 
@@ -301,13 +339,19 @@ class PlanEntitlementTest extends TestCase
                 ->all();
         });
 
-        // Starter's six core modules, and none of the other six.
+        // Starter's six core modules, and none of what the other six sell.
+        //
+        // The canary is view_delivery, not view_crm: Starter legitimately holds
+        // view_crm now for its own customer list, so it would no longer catch a
+        // leak. Delivery is untouched by that split and stays a clean signal.
         $this->assertContains('view_pos', $permissions);
         $this->assertContains('view_accounting', $permissions);
-        $this->assertNotContains('view_crm', $permissions);
-        $this->assertNotContains('view_hr', $permissions);
         $this->assertNotContains('view_delivery', $permissions);
+        $this->assertNotContains('view_kitchen_kiosk', $permissions);
         $this->assertNotContains('view_website', $permissions);
+        // view_hr is deliberately absent from this list - Starter holds it now
+        // so it can create an employee. What HR sells is checked instead.
+        $this->assertNotContains('manage_payroll', $permissions);
     }
 
     /**
@@ -355,6 +399,7 @@ class PlanEntitlementTest extends TestCase
         );
 
         $this->assertContains('view_pos', $permissions);
-        $this->assertNotContains('view_crm', $permissions);
+        // view_delivery rather than view_crm - see the note above.
+        $this->assertNotContains('view_delivery', $permissions);
     }
 }

@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use App\Enums\LocationType;
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\NormalisesPhone;
 
 class Location extends Model
 {
-    use BelongsToTenant;
+    use BelongsToTenant, NormalisesPhone;
 
     protected $fillable = [
         'name',

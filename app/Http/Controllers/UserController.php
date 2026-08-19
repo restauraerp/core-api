@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Rules\PhoneNumber;
 use Illuminate\Http\Request;
 
 use App\Models\User;
@@ -22,11 +23,11 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => ['required', 'string', 'email', 'max:255', $this->tenantUnique('users')],
+            'email' => ['required', 'string', 'email:rfc,strict', 'max:255', $this->tenantUnique('users')],
             'password' => 'required|string|min:8',
             'location_id' => ['nullable', $this->tenantExists('locations')],
             'role' => ['nullable', 'string', $this->tenantExists('roles', 'name')],
-            'phone' => 'nullable|string|max:20',
+            'phone' => ['nullable', 'string', 'max:20', PhoneNumber::mobile()],
             'image' => 'nullable|image|max:5120',
         ]);
 
@@ -56,11 +57,11 @@ class UserController extends Controller
         $validated = $request->request->all();
         $rules = [
             'name' => 'sometimes|string|max:255',
-            'email' => ['sometimes', 'string', 'email', 'max:255', $this->tenantUnique('users')->ignore($user->id)],
+            'email' => ['sometimes', 'string', 'email:rfc,strict', 'max:255', $this->tenantUnique('users')->ignore($user->id)],
             'password' => 'nullable|string|min:8',
             'location_id' => ['nullable', $this->tenantExists('locations')],
             'role' => ['nullable', 'string', $this->tenantExists('roles', 'name')],
-            'phone' => 'nullable|string|max:20',
+            'phone' => ['nullable', 'string', 'max:20', PhoneNumber::mobile()],
             'image' => 'nullable|image|max:5120',
         ];
 
