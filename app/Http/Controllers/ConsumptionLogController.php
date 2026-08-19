@@ -29,7 +29,7 @@ class ConsumptionLogController extends Controller
             return response()->json($query->get());
         }
 
-        return response()->json($query->paginate((int) env('PAGINATION_LIMIT', 15)));
+        return response()->json($query->paginate(config('pagination.limit')));
     }
 
     public function store(Request $request)
@@ -120,7 +120,7 @@ class ConsumptionLogController extends Controller
         $logs = ConsumptionLog::onlyTrashed()
             ->with(['inventoryItem', 'location', 'loggedBy', 'trashedByUser'])
             ->orderBy('deleted_at', 'desc')
-            ->paginate((int) env('PAGINATION_LIMIT', 15));
+            ->paginate(config('pagination.limit'));
 
         return response()->json($logs);
     }

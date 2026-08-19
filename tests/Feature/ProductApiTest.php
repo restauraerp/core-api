@@ -2,39 +2,48 @@
 
 namespace Tests\Feature;
 
+use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Schema;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
+/**
+ * `products` is readable without a token - it is what the public
+ * storefront renders itself from.
+ *
+ * Unauthenticated does not mean unattributed, though. With no token there is
+ * nothing for ResolveTenant to read the restaurant off, so the caller has to
+ * name it, and a request that names nobody is answered 400 rather than served
+ * an arbitrary tenant's data. The generated version of this test omitted the
+ * header and read that 400 as a failure; it is the contract.
+ */
 class ProductApiTest extends TestCase
 {
     use RefreshDatabase;
 
-    protected function setUp(): void
+    public function test_products_index_is_public_to_a_caller_that_names_its_tenant(): void
     {
-        parent::setUp();
-        // Skip for models without factories, test the route resolution and auth layer instead
+        $tenant = Tenant::factory()->create();
+
+        $this->getJson('/api/v1/products', ['X-Tenant-ID' => $tenant->slug])
+            ->assertOk();
     }
 
-    public function test_products_index_requires_auth()
+    public function test_products_index_is_refused_when_no_tenant_can_be_resolved(): void
     {
-        $response = $this->getJson('/api/v1/products');
-        // Some endpoints like locations might be public, others protected
-        $this->assertContains($response->status(), [200, 401]);
+        $this->getJson('/api/v1/products')
+            ->assertStatus(400);
     }
 
-    public function test_products_index_returns_200_for_authenticated_user()
+    public function test_products_index_returns_200_for_an_authenticated_user(): void
     {
-        // Bypass foreign key constraints when testing
-        Schema::disableForeignKeyConstraints();
+        $tenant = Tenant::factory()->create();
+        $user = User::factory()->create(['tenant_id' => $tenant->getKey()]);
 
-        $user = User::factory()->create();
         Sanctum::actingAs($user);
 
-        $response = $this->getJson('/api/v1/products');
-
-        $response->assertStatus(200);
+        // No header this time: the token already says which restaurant.
+        $this->getJson('/api/v1/products')->assertOk();
     }
 }

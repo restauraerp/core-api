@@ -31,7 +31,7 @@ class InventoryItemController extends Controller
             return response()->json($query->get());
         }
 
-        return response()->json($query->paginate((int) env('PAGINATION_LIMIT', 15)));
+        return response()->json($query->paginate(config('pagination.limit')));
     }
 
     public function store(Request $request)

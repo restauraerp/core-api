@@ -9,7 +9,7 @@ class ExpenseController extends Controller
 {
     public function index()
     {
-        return response()->json(Expense::with(['location', 'loggedBy', 'header'])->paginate((int) env('PAGINATION_LIMIT', 15)));
+        return response()->json(Expense::with(['location', 'loggedBy', 'header'])->paginate(config('pagination.limit')));
     }
 
     public function store(Request $request)

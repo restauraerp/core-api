@@ -14,6 +14,7 @@ use App\Http\Controllers\DemoLeadController;
 use App\Http\Controllers\DiscountController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\GoogleReviewController;
+use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\HallController;
 use App\Http\Controllers\InventoryItemController;
 use App\Http\Controllers\LeaveController;
@@ -23,6 +24,9 @@ use App\Http\Controllers\LoyaltyTransactionController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OneTimeLoginController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\OrderDueController;
+use App\Http\Controllers\PartnerController;
+use App\Http\Controllers\PartnerPayoutController;
 use App\Http\Controllers\OrderItemController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\PageController;
@@ -101,6 +105,20 @@ Route::prefix('v1')->group(function () {
 
     // Public Order API
     Route::post('storefront/orders', [OrderController::class, 'store']);
+
+    // One order's invoice, to whoever holds the signed link the restaurant
+    // shared with them.
+    //
+    // Public and unauthenticated because the customer has no account: the
+    // signature is the credential, and it covers the order id and the expiry,
+    // so the URL cannot be edited into somebody else's invoice. ResolveTenant
+    // is skipped for the same reason demo-config skips it - a customer opening
+    // a WhatsApp link has no restaurant to name - and the controller takes the
+    // tenant from the order instead.
+    Route::get('orders/{order}/invoice', [InvoiceController::class, 'show'])
+        ->name('orders.invoice')
+        ->middleware(['signed:relative', 'throttle:60,1'])
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
 
     // Demo credentials, for clients that were asked for a demo (the front's
     // /login?demo=true). 404s unless DEMO_MODE is on.
@@ -250,10 +268,22 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('expenses', ExpenseController::class);
         Route::apiResource('tax-rules', TaxRuleController::class);
 
+        // Customers, outside the CRM gate.
+        //
+        // Every tier lets a cashier type a customer's name and number into the
+        // till, so every tier has to be able to see what it collected - and to
+        // take it away again. Locked behind module:crm, a Starter restaurant
+        // could fill this table for a year and never read a row of it. See
+        // Modules::ESSENTIAL for where the line between "usable account" and
+        // "upsell" is drawn; what CRM sells is the loyalty, reservations and
+        // quotations below, not the address book.
+        Route::apiResource('customers', CustomerController::class);
+        Route::get('customers/{customer}/orders', [CustomerController::class, 'orders']);
+        Route::get('customers-export', [CustomerController::class, 'export']);
+
         // CRM API
         Route::middleware('module:crm')->group(function () {
             Route::apiResource('organizations', OrganizationController::class);
-            Route::apiResource('customers', CustomerController::class);
             Route::apiResource('loyalty-settings', LoyaltySettingController::class);
             Route::apiResource('loyalty-transactions', LoyaltyTransactionController::class);
             Route::apiResource('reservations', ReservationController::class);
@@ -265,6 +295,18 @@ Route::prefix('v1')->group(function () {
         // payments belong to taking money, not to CRM.
         Route::apiResource('discounts', DiscountController::class);
         Route::apiResource('orders', OrderController::class);
+        // Mints the shareable invoice link. Staff only - creating the
+        // authority to read an invoice is the restaurant's act, reading it is
+        // the customer's.
+        Route::post('orders/{order}/invoice-link', [InvoiceController::class, 'link']);
+
+        // Third parties that send the restaurant orders and keep a cut.
+        Route::apiResource('partners', PartnerController::class);
+        Route::apiResource('partner-payouts', PartnerPayoutController::class)->only(['index', 'store', 'destroy']);
+
+        // Owed money: putting an order on account, and collecting it later.
+        Route::post('orders/{order}/due', [OrderDueController::class, 'markDue']);
+        Route::post('orders/{order}/settle', [OrderDueController::class, 'settle']);
         Route::get('orders-trashed', [OrderController::class, 'trashed']);
         Route::post('orders/{order}/trash', [OrderController::class, 'trash']);
         Route::post('orders-trashed/{id}/restore', [OrderController::class, 'restore']);
@@ -280,6 +322,8 @@ Route::prefix('v1')->group(function () {
         Route::prefix('reports')->group(function () {
             Route::get('sales', [ReportController::class, 'sales']);
             Route::get('products', [ReportController::class, 'products']);
+            Route::get('staff', [ReportController::class, 'staff']);
+            Route::get('partners', [ReportController::class, 'partners']);
             Route::get('hourly', [ReportController::class, 'hourly']);
             Route::get('inventory', [ReportController::class, 'inventory']);
             Route::get('expenses', [ReportController::class, 'expenses']);

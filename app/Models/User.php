@@ -13,13 +13,14 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 use App\Models\Concerns\BelongsToTenant;
+use App\Models\Concerns\NormalisesPhone;
 use App\Models\Concerns\TracksUploadedAssets;
 
 #[Fillable(['name', 'email', 'password', 'location_id', 'phone', 'image_url'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
-    use BelongsToTenant;
+    use BelongsToTenant, NormalisesPhone;
     use TracksUploadedAssets;
 
     /** @use HasFactory<UserFactory> */

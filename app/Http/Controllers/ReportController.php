@@ -6,7 +6,10 @@ use App\Models\ConsumptionLog;
 use App\Models\Expense;
 use App\Models\InventoryItem;
 use App\Models\Order;
+use App\Models\Partner;
+use App\Models\PartnerPayout;
 use App\Models\PurchaseOrder;
+use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -162,6 +165,158 @@ class ReportController extends Controller
                 'item_revenue' => (float) $row->item_revenue,
                 'collected' => (float) $row->collected,
             ]),
+        ]);
+    }
+
+    /**
+     * What each employee sold in the window.
+     *
+     * Grouped by `served_by_user_id`, never by `user_id`. The latter records
+     * whichever account created the order, and a restaurant running one shared
+     * till login would see a single "POS" employee credited with every sale in
+     * the building - a report that looks fine and means nothing.
+     *
+     * Orders nobody was credited on are counted and returned as their own row
+     * rather than dropped. Hiding them would make the report's total quietly
+     * disagree with the sales report over the same window, and the size of that
+     * unattributed row is itself worth seeing: it is how a manager knows
+     * whether the staff are actually tagging their sales.
+     *
+     * GET /reports/staff?from=&to=&location_id=
+     */
+    public function staff(Request $request)
+    {
+        // Grouped without joining `users`, and the names resolved afterwards.
+        // scope() writes its window and status filters unqualified - it is
+        // shared with every other report - so joining a table that also has
+        // `created_at` and `status` makes those clauses ambiguous and the query
+        // fails outright. One extra indexed lookup is cheaper than qualifying
+        // every column in a helper eight other reports depend on.
+        $rows = (clone $this->scope($request))
+            ->selectRaw('
+                served_by_user_id                               as user_id,
+                COUNT(*)                                        as orders_count,
+                COALESCE(SUM(total), 0)                         as revenue,
+                COALESCE(SUM(subtotal), 0)                      as item_revenue,
+                COALESCE(SUM(discount_amount), 0)               as discount_total,
+                COALESCE(SUM(CASE WHEN payment_status = "paid" THEN total ELSE 0 END), 0) as collected
+            ')
+            ->groupBy('served_by_user_id')
+            ->orderByDesc('revenue')
+            ->get();
+
+        $names = User::query()
+            ->whereIn('id', $rows->pluck('user_id')->filter()->all())
+            ->pluck('name', 'id');
+
+        $totalRevenue = (float) $rows->sum(fn ($row) => (float) $row->revenue);
+
+        return response()->json([
+            'summary' => [
+                'employees' => $rows->whereNotNull('user_id')->count(),
+                'total_revenue' => $totalRevenue,
+                'attributed_revenue' => (float) $rows->whereNotNull('user_id')->sum(fn ($row) => (float) $row->revenue),
+                'unattributed_orders' => (int) ($rows->firstWhere('user_id', null)->orders_count ?? 0),
+            ],
+            'employees' => $rows->map(function ($row) use ($totalRevenue, $names) {
+                $revenue = (float) $row->revenue;
+                $orders = (int) $row->orders_count;
+
+                return [
+                    'user_id' => $row->user_id === null ? null : (int) $row->user_id,
+                    // Named here rather than left to the client, so a deleted
+                    // employee's sales still read as something.
+                    'name' => $names[$row->user_id] ?? 'Not attributed',
+                    'orders_count' => $orders,
+                    'revenue' => $revenue,
+                    'item_revenue' => (float) $row->item_revenue,
+                    'discount_total' => (float) $row->discount_total,
+                    'collected' => (float) $row->collected,
+                    'avg_order_value' => $orders > 0 ? $revenue / $orders : 0.0,
+                    'share' => $totalRevenue > 0 ? $revenue / $totalRevenue : 0.0,
+                ];
+            })->values(),
+        ]);
+    }
+
+    /**
+     * What each partner brought in, kept, and still owes.
+     *
+     * Three numbers that are easy to confuse and worth keeping apart:
+     *   gross     - what the diner was billed, which is what the order says
+     *   commission- what the partner keeps
+     *   net       - what the restaurant actually earned
+     *
+     * The balance is deliberately NOT windowed by the date filter. Earnings are
+     * for the period the user picked; money owed is money owed, and showing a
+     * partner as square because their outstanding invoices happen to fall
+     * outside this month would be worse than showing nothing.
+     *
+     * GET /reports/partners?from=&to=&location_id=
+     */
+    public function partners(Request $request)
+    {
+        $windowed = (clone $this->scope($request))
+            ->whereNotNull('partner_id')
+            ->selectRaw('
+                partner_id,
+                COUNT(*)                                                as orders_count,
+                COALESCE(SUM(total), 0)                                 as gross,
+                COALESCE(SUM(partner_commission_amount), 0)             as commission
+            ')
+            ->groupBy('partner_id')
+            ->get()
+            ->keyBy('partner_id');
+
+        // Lifetime, not windowed - see the note above.
+        $earnedAllTime = Order::query()
+            ->whereNotNull('partner_id')
+            ->whereNotIn('status', self::EXCLUDED_STATUSES)
+            ->selectRaw('partner_id, COALESCE(SUM(total - COALESCE(partner_commission_amount, 0)), 0) as net')
+            ->groupBy('partner_id')
+            ->pluck('net', 'partner_id');
+
+        $paidAllTime = PartnerPayout::query()
+            ->selectRaw('partner_id, COALESCE(SUM(amount), 0) as paid')
+            ->groupBy('partner_id')
+            ->pluck('paid', 'partner_id');
+
+        $partners = Partner::query()->orderBy('name')->get();
+
+        $rows = $partners->map(function (Partner $partner) use ($windowed, $earnedAllTime, $paidAllTime) {
+            $period = $windowed->get($partner->getKey());
+
+            $gross = (float) ($period->gross ?? 0);
+            $commission = (float) ($period->commission ?? 0);
+            $earned = (float) ($earnedAllTime[$partner->getKey()] ?? 0);
+            $paid = (float) ($paidAllTime[$partner->getKey()] ?? 0);
+
+            return [
+                'partner_id' => $partner->getKey(),
+                'name' => $partner->name,
+                'commission_rate' => (float) $partner->commission_rate,
+                'is_active' => (bool) $partner->is_active,
+                'orders_count' => (int) ($period->orders_count ?? 0),
+                'gross' => $gross,
+                'commission' => $commission,
+                'net' => round($gross - $commission, 2),
+                // Lifetime figures, which is what a balance has to be.
+                'earned_to_date' => round($earned, 2),
+                'paid_to_date' => round($paid, 2),
+                'outstanding' => round($earned - $paid, 2),
+            ];
+        });
+
+        return response()->json([
+            'summary' => [
+                'partners' => $rows->count(),
+                'orders_count' => (int) $rows->sum('orders_count'),
+                'gross' => round((float) $rows->sum('gross'), 2),
+                'commission' => round((float) $rows->sum('commission'), 2),
+                'net' => round((float) $rows->sum('net'), 2),
+                'outstanding' => round((float) $rows->sum('outstanding'), 2),
+            ],
+            'partners' => $rows->values(),
         ]);
     }
 

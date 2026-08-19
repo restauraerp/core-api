@@ -1204,7 +1204,8 @@
                                 "properties": {
                                     "email": {
                                         "type": "string",
-                                        "format": "email"
+                                        "format": "email",
+                                        "description": "Deliberately the loose rule, unlike register above. An account\ncreated before validation was tightened may hold an address the\nstrict rule rejects, and refusing to let that owner log in would\nturn a data-quality problem into a lockout. What they typed only\nhas to match a stored row."
                                     },
                                     "password": {
                                         "type": "string"
@@ -2334,137 +2335,15 @@
                 "tags": [
                     "Customer"
                 ],
-                "parameters": [
-                    {
-                        "name": "search",
-                        "in": "query",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                ],
                 "responses": {
                     "200": {
-                        "description": "",
+                        "description": "`total` on the paginator already counts only what the filters\nmatched, which is what \"Showing 15 of 213\" has to say on a search.\n`total_customers` is the restaurant's whole address book, so the\nclient can also say what fraction of it is being looked at.",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "anyOf": [
                                         {
-                                            "type": "object",
-                                            "properties": {
-                                                "current_page": {
-                                                    "type": "integer",
-                                                    "minimum": 1
-                                                },
-                                                "data": {
-                                                    "type": "array",
-                                                    "items": {
-                                                        "$ref": "#/components/schemas/Customer"
-                                                    }
-                                                },
-                                                "first_page_url": {
-                                                    "type": [
-                                                        "string",
-                                                        "null"
-                                                    ]
-                                                },
-                                                "from": {
-                                                    "type": [
-                                                        "integer",
-                                                        "null"
-                                                    ],
-                                                    "minimum": 1
-                                                },
-                                                "last_page_url": {
-                                                    "type": [
-                                                        "string",
-                                                        "null"
-                                                    ]
-                                                },
-                                                "last_page": {
-                                                    "type": "integer",
-                                                    "minimum": 1
-                                                },
-                                                "links": {
-                                                    "type": "array",
-                                                    "description": "Generated paginator links.",
-                                                    "items": {
-                                                        "type": "object",
-                                                        "properties": {
-                                                            "url": {
-                                                                "type": [
-                                                                    "string",
-                                                                    "null"
-                                                                ]
-                                                            },
-                                                            "label": {
-                                                                "type": "string"
-                                                            },
-                                                            "active": {
-                                                                "type": "boolean"
-                                                            }
-                                                        },
-                                                        "required": [
-                                                            "url",
-                                                            "label",
-                                                            "active"
-                                                        ]
-                                                    }
-                                                },
-                                                "next_page_url": {
-                                                    "type": [
-                                                        "string",
-                                                        "null"
-                                                    ]
-                                                },
-                                                "path": {
-                                                    "type": [
-                                                        "string",
-                                                        "null"
-                                                    ],
-                                                    "description": "Base path for paginator generated URLs."
-                                                },
-                                                "per_page": {
-                                                    "type": "integer",
-                                                    "description": "Number of items shown per page.",
-                                                    "minimum": 0
-                                                },
-                                                "prev_page_url": {
-                                                    "type": [
-                                                        "string",
-                                                        "null"
-                                                    ]
-                                                },
-                                                "to": {
-                                                    "type": [
-                                                        "integer",
-                                                        "null"
-                                                    ],
-                                                    "description": "Number of the last item in the slice.",
-                                                    "minimum": 1
-                                                },
-                                                "total": {
-                                                    "type": "integer",
-                                                    "description": "Total number of items being paginated.",
-                                                    "minimum": 0
-                                                }
-                                            },
-                                            "required": [
-                                                "current_page",
-                                                "data",
-                                                "first_page_url",
-                                                "from",
-                                                "last_page_url",
-                                                "last_page",
-                                                "links",
-                                                "next_page_url",
-                                                "path",
-                                                "per_page",
-                                                "prev_page_url",
-                                                "to",
-                                                "total"
-                                            ]
+                                            "type": "string"
                                         },
                                         {
                                             "type": "array",
@@ -2743,6 +2622,81 @@
                     },
                     "404": {
                         "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/customers/{customer}/orders": {
+            "get": {
+                "operationId": "customer.orders",
+                "description": "The outstanding balance rides along with the page rather than being a\nsecond call: what a customer owes is the first thing anyone opening their\nrecord wants to know, and a number that arrives a moment later is a\nnumber somebody acts before seeing.",
+                "summary": "One customer, with everything they have ever bought",
+                "tags": [
+                    "Customer"
+                ],
+                "parameters": [
+                    {
+                        "name": "customer",
+                        "in": "path",
+                        "required": true,
+                        "description": "The customer ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/customers-export": {
+            "get": {
+                "operationId": "customer.export",
+                "description": "Streamed rather than built in memory: an export is the one call that\ndeliberately has no page limit, and a chain with tens of thousands of\ncustomers should not decide how much memory PHP needs.",
+                "summary": "The list as CSV, under whatever search, filter and sort is applied",
+                "tags": [
+                    "Customer"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "text/csv; charset=UTF-8": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "headers": {
+                            "Transfer-Encoding": {
+                                "required": true,
+                                "schema": {
+                                    "type": "string",
+                                    "enum": [
+                                        "chunked"
+                                    ]
+                                }
+                            }
+                        }
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -4633,6 +4587,81 @@
                 }
             }
         },
+        "/v1/orders/{order}/invoice": {
+            "get": {
+                "operationId": "orders.invoice",
+                "description": "Unauthenticated by design - the customer has no account and the signature\nis the credential. Two consequences the route declaration handles:\nResolveTenant is skipped, because a customer has no restaurant to name,\nand the tenant is instead taken from the order once it is found.\n\nThat means loading the order past its tenant scope, which is only safe\nbecause the signature already proved this exact order id was the one\ngranted. Nothing here reads a tenant from the request.",
+                "summary": "The invoice itself, to whoever holds the signed link",
+                "tags": [
+                    "Invoice"
+                ],
+                "parameters": [
+                    {
+                        "name": "order",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFoundHttpException"
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/orders/{order}/invoice-link": {
+            "post": {
+                "operationId": "invoice.link",
+                "description": "Separate from show() below on purpose: creating the authority to read an\ninvoice is a thing the restaurant does, and reading it is a thing their\ncustomer does. Only the first needs a login.",
+                "summary": "Mints a shareable link for an order. Staff only",
+                "tags": [
+                    "Invoice"
+                ],
+                "parameters": [
+                    {
+                        "name": "order",
+                        "in": "path",
+                        "required": true,
+                        "description": "The order ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/leaves": {
             "get": {
                 "operationId": "leaves.index",
@@ -5312,6 +5341,8 @@
             },
             "delete": {
                 "operationId": "locations.destroy",
+                "description": "Twelve tables carry `location_id` with `cascadeOnDelete`, and `orders` is\none of them - which cascades again to `order_items` and `payments`.\nLocations are not soft-deleted, so this was a hard delete of a\nrestaurant's entire trading history behind a confirm() that only asked\n\"are you sure you want to delete Banani Branch?\". Against the local demo\ntenant that one click removed 10,269 orders and 10,261 payments, with\nnothing to restore from.\n\nIt matters more now than it did: with the outlet picker hidden for\nsingle-outlet restaurants, most owners never think about locations at\nall, so the Locations screen becomes an unfamiliar place where a stray\ntrash icon looks harmless.\n\nSo two refusals, both recoverable and both explaining themselves:\n\n - The last outlet cannot go. A restaurant with nowhere to sell from is a\n   broken account, not a configured one - the same reasoning that keeps\n   `update_location` in Modules::ESSENTIAL.\n - An outlet that has traded cannot go. `is_active` already exists and is\n   what retiring a branch means: it stops appearing to staff and keeps\n   every order that was rung through it.",
+                "summary": "Deleting an outlet is not an undo button, and used to behave like one",
                 "tags": [
                     "Location"
                 ],
@@ -5329,6 +5360,55 @@
                 "responses": {
                     "204": {
                         "description": "No content"
+                    },
+                    "422": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "message": {
+                                                    "type": "string"
+                                                },
+                                                "error": {
+                                                    "type": "string",
+                                                    "const": "location_has_orders"
+                                                },
+                                                "orders": {
+                                                    "type": "integer",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "message",
+                                                "error",
+                                                "orders"
+                                            ]
+                                        },
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "message": {
+                                                    "type": "string",
+                                                    "const": "This is your only outlet, and a restaurant needs somewhere to sell from. Add another outlet before removing this one."
+                                                },
+                                                "error": {
+                                                    "type": "string",
+                                                    "const": "last_location"
+                                                }
+                                            },
+                                            "required": [
+                                                "message",
+                                                "error"
+                                            ]
+                                        }
+                                    ]
+                                }
+                            }
+                        }
                     },
                     "404": {
                         "$ref": "#/components/responses/ModelNotFoundException"
@@ -6245,6 +6325,20 @@
                                             "null"
                                         ]
                                     },
+                                    "served_by_user_id": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ],
+                                        "description": "Who to credit for the sale, which is not necessarily who rang\nit up - tills are often shared logins. user_id keeps recording\nthe account that created the order; this records the employee."
+                                    },
+                                    "partner_id": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ],
+                                        "description": "The third party that sent this order in, if any. Its commission\nis worked out server-side from the partner's own rate."
+                                    },
                                     "payment_method": {
                                         "type": [
                                             "string",
@@ -6565,6 +6659,20 @@
                                             "integer",
                                             "null"
                                         ]
+                                    },
+                                    "served_by_user_id": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ],
+                                        "description": "Who to credit for the sale, which is not necessarily who rang\nit up - tills are often shared logins. user_id keeps recording\nthe account that created the order; this records the employee."
+                                    },
+                                    "partner_id": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ],
+                                        "description": "The third party that sent this order in, if any. Its commission\nis worked out server-side from the partner's own rate."
                                     },
                                     "payment_method": {
                                         "type": [
@@ -7012,6 +7120,142 @@
                                 }
                             }
                         }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/orders/{order}/due": {
+            "post": {
+                "operationId": "orderDue.markDue",
+                "description": "A customer is required, and that is the point rather than a formality: a\ndebt nobody is named on cannot be collected, and \"the man in the blue\n     * shirt\" is not a debtor. The note is where the arrangement goes - a room\nnumber, a company account, who authorised it - because that is exactly\nwhat otherwise lives only in the memory of whoever was on shift.",
+                "summary": "Marks an order as owed rather than unpaid",
+                "tags": [
+                    "OrderDue"
+                ],
+                "parameters": [
+                    {
+                        "name": "order",
+                        "in": "path",
+                        "required": true,
+                        "description": "The order ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "due_note": {
+                                        "type": "string",
+                                        "maxLength": 500
+                                    }
+                                },
+                                "required": [
+                                    "due_note"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {}
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/orders/{order}/settle": {
+            "post": {
+                "operationId": "orderDue.settle",
+                "description": "Part payments are allowed because they happen - a guest settles half the\ntab on Friday and the rest on Sunday. The order flips to paid the moment\nthe payments cover the total, so nothing has to remember to close it.",
+                "summary": "Records money collected against a due order, in part or in full",
+                "tags": [
+                    "OrderDue"
+                ],
+                "parameters": [
+                    {
+                        "name": "order",
+                        "in": "path",
+                        "required": true,
+                        "description": "The order ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "amount": {
+                                        "type": "number",
+                                        "minimum": 0.01
+                                    },
+                                    "method": {
+                                        "type": "string",
+                                        "maxLength": 255
+                                    },
+                                    "note": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 500
+                                    }
+                                },
+                                "required": [
+                                    "amount",
+                                    "method"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": {}
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
                     },
                     "401": {
                         "$ref": "#/components/responses/AuthenticationException"
@@ -7552,6 +7796,549 @@
                 "security": []
             }
         },
+        "/v1/partners": {
+            "get": {
+                "operationId": "partners.index",
+                "tags": [
+                    "Partner"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/Partner"
+                                                    }
+                                                },
+                                                "first_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "from": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 1
+                                                },
+                                                "last_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "links": {
+                                                    "type": "array",
+                                                    "description": "Generated paginator links.",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "url": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "active": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "url",
+                                                            "label",
+                                                            "active"
+                                                        ]
+                                                    }
+                                                },
+                                                "next_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "path": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Base path for paginator generated URLs."
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "description": "Number of items shown per page.",
+                                                    "minimum": 0
+                                                },
+                                                "prev_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "to": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "Number of the last item in the slice.",
+                                                    "minimum": 1
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "description": "Total number of items being paginated.",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "data",
+                                                "first_page_url",
+                                                "from",
+                                                "last_page_url",
+                                                "last_page",
+                                                "links",
+                                                "next_page_url",
+                                                "path",
+                                                "per_page",
+                                                "prev_page_url",
+                                                "to",
+                                                "total"
+                                            ]
+                                        },
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Partner"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "partners.store",
+                "tags": [
+                    "Partner"
+                ],
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Partner"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/partners/{partner}": {
+            "get": {
+                "operationId": "partners.show",
+                "tags": [
+                    "Partner"
+                ],
+                "parameters": [
+                    {
+                        "name": "partner",
+                        "in": "path",
+                        "required": true,
+                        "description": "The partner ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Partner"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "partners.update",
+                "tags": [
+                    "Partner"
+                ],
+                "parameters": [
+                    {
+                        "name": "partner",
+                        "in": "path",
+                        "required": true,
+                        "description": "The partner ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Partner"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "partners.destroy",
+                "summary": "Deleting a partner would take its orders' attribution with it, so a\npartner that has ever sent an order is switched off rather than removed -\nthe same rule outlets follow, and for the same reason",
+                "tags": [
+                    "Partner"
+                ],
+                "parameters": [
+                    {
+                        "name": "partner",
+                        "in": "path",
+                        "required": true,
+                        "description": "The partner ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "422": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "const": "This partner has sent orders, and deleting it would detach them from the money they earned. Switch it off instead to stop it appearing at the till."
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "const": "partner_has_orders"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/partner-payouts": {
+            "get": {
+                "operationId": "partner-payouts.index",
+                "tags": [
+                    "PartnerPayout"
+                ],
+                "parameters": [
+                    {
+                        "name": "partner_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/PartnerPayout"
+                                                    }
+                                                },
+                                                "first_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "from": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 1
+                                                },
+                                                "last_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "links": {
+                                                    "type": "array",
+                                                    "description": "Generated paginator links.",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "url": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "active": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "url",
+                                                            "label",
+                                                            "active"
+                                                        ]
+                                                    }
+                                                },
+                                                "next_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "path": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Base path for paginator generated URLs."
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "description": "Number of items shown per page.",
+                                                    "minimum": 0
+                                                },
+                                                "prev_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "to": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "Number of the last item in the slice.",
+                                                    "minimum": 1
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "description": "Total number of items being paginated.",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "data",
+                                                "first_page_url",
+                                                "from",
+                                                "last_page_url",
+                                                "last_page",
+                                                "links",
+                                                "next_page_url",
+                                                "path",
+                                                "per_page",
+                                                "prev_page_url",
+                                                "to",
+                                                "total"
+                                            ]
+                                        },
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/PartnerPayout"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "partner-payouts.store",
+                "tags": [
+                    "PartnerPayout"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "partner_id": {
+                                        "type": "integer"
+                                    },
+                                    "amount": {
+                                        "type": "number",
+                                        "minimum": 0.01
+                                    },
+                                    "received_on": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                    },
+                                    "reference": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 255
+                                    },
+                                    "note": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 2000
+                                    }
+                                },
+                                "required": [
+                                    "partner_id",
+                                    "amount",
+                                    "received_on"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PartnerPayout"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/partner-payouts/{partnerPayout}": {
+            "delete": {
+                "operationId": "partner-payouts.destroy",
+                "tags": [
+                    "PartnerPayout"
+                ],
+                "parameters": [
+                    {
+                        "name": "partnerPayout",
+                        "in": "path",
+                        "required": true,
+                        "description": "The partner payout ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/auth/password/forgot": {
             "post": {
                 "operationId": "passwordReset.forgot",
@@ -7680,6 +8467,14 @@
                                             "null"
                                         ],
                                         "maxLength": 255
+                                    },
+                                    "note": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "Why this payment looks the way it does - a bKash transaction id,\na card's last four, which guest paid for a shared table.",
+                                        "maxLength": 500
                                     }
                                 },
                                 "required": [
@@ -7790,6 +8585,13 @@
                                             "null"
                                         ],
                                         "maxLength": 255
+                                    },
+                                    "note": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 500
                                     }
                                 }
                             }
@@ -11234,6 +12036,179 @@
                                     },
                                     "required": [
                                         "data"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/reports/staff": {
+            "get": {
+                "operationId": "report.staff",
+                "description": "Grouped by `served_by_user_id`, never by `user_id`. The latter records\nwhichever account created the order, and a restaurant running one shared\ntill login would see a single \"POS\" employee credited with every sale in\nthe building - a report that looks fine and means nothing.\n\nOrders nobody was credited on are counted and returned as their own row\nrather than dropped. Hiding them would make the report's total quietly\ndisagree with the sales report over the same window, and the size of that\nunattributed row is itself worth seeing: it is how a manager knows\nwhether the staff are actually tagging their sales.\n\nGET /reports/staff?from=&to=&location_id=",
+                "summary": "What each employee sold in the window",
+                "tags": [
+                    "Report"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "summary": {
+                                            "type": "object",
+                                            "properties": {
+                                                "employees": {
+                                                    "type": "string"
+                                                },
+                                                "total_revenue": {
+                                                    "type": "number"
+                                                },
+                                                "attributed_revenue": {
+                                                    "type": "number"
+                                                },
+                                                "unattributed_orders": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "employees",
+                                                "total_revenue",
+                                                "attributed_revenue",
+                                                "unattributed_orders"
+                                            ]
+                                        },
+                                        "employees": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "summary",
+                                        "employees"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/reports/partners": {
+            "get": {
+                "operationId": "report.partners",
+                "description": "Three numbers that are easy to confuse and worth keeping apart:\n  gross     - what the diner was billed, which is what the order says\n  commission- what the partner keeps\n  net       - what the restaurant actually earned\n\nThe balance is deliberately NOT windowed by the date filter. Earnings are\nfor the period the user picked; money owed is money owed, and showing a\npartner as square because their outstanding invoices happen to fall\noutside this month would be worse than showing nothing.\n\nGET /reports/partners?from=&to=&location_id=",
+                "summary": "What each partner brought in, kept, and still owes",
+                "tags": [
+                    "Report"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "summary": {
+                                            "type": "object",
+                                            "properties": {
+                                                "partners": {
+                                                    "type": "integer",
+                                                    "minimum": 0
+                                                },
+                                                "orders_count": {
+                                                    "type": "integer"
+                                                },
+                                                "gross": {
+                                                    "type": "number"
+                                                },
+                                                "commission": {
+                                                    "type": "number"
+                                                },
+                                                "net": {
+                                                    "type": "number"
+                                                },
+                                                "outstanding": {
+                                                    "type": "number"
+                                                }
+                                            },
+                                            "required": [
+                                                "partners",
+                                                "orders_count",
+                                                "gross",
+                                                "commission",
+                                                "net",
+                                                "outstanding"
+                                            ]
+                                        },
+                                        "partners": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "partner_id": {},
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "commission_rate": {
+                                                        "type": "number"
+                                                    },
+                                                    "is_active": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "orders_count": {
+                                                        "type": "integer"
+                                                    },
+                                                    "gross": {
+                                                        "type": "number"
+                                                    },
+                                                    "commission": {
+                                                        "type": "number"
+                                                    },
+                                                    "net": {
+                                                        "type": "number"
+                                                    },
+                                                    "earned_to_date": {
+                                                        "type": "number",
+                                                        "description": "Lifetime figures, which is what a balance has to be."
+                                                    },
+                                                    "paid_to_date": {
+                                                        "type": "number"
+                                                    },
+                                                    "outstanding": {
+                                                        "type": "number"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "partner_id",
+                                                    "name",
+                                                    "commission_rate",
+                                                    "is_active",
+                                                    "orders_count",
+                                                    "gross",
+                                                    "commission",
+                                                    "net",
+                                                    "earned_to_date",
+                                                    "paid_to_date",
+                                                    "outstanding"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "summary",
+                                        "partners"
                                     ]
                                 }
                             }
@@ -17280,7 +18255,10 @@
                         "type": "integer"
                     },
                     "location_id": {
-                        "type": "integer"
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
                     },
                     "transaction_type": {
                         "type": [
@@ -18453,7 +19431,31 @@
                             "null"
                         ]
                     },
+                    "partner_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "partner_commission_rate": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "partner_commission_amount": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
                     "user_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "served_by_user_id": {
                         "type": [
                             "integer",
                             "null"
@@ -18494,6 +19496,12 @@
                     },
                     "payment_status": {
                         "type": "string"
+                    },
+                    "due_note": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
                     "subtotal": {
                         "type": [
@@ -18591,7 +19599,11 @@
                     "id",
                     "location_id",
                     "customer_id",
+                    "partner_id",
+                    "partner_commission_rate",
+                    "partner_commission_amount",
                     "user_id",
+                    "served_by_user_id",
                     "table_id",
                     "hall_id",
                     "discount_id",
@@ -18599,6 +19611,7 @@
                     "status",
                     "needs_cooking",
                     "payment_status",
+                    "due_note",
                     "subtotal",
                     "tax_amount",
                     "discount_amount",
@@ -18763,6 +19776,137 @@
                 ],
                 "title": "Page"
             },
+            "Partner": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "tenant_id": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "contact_name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "phone": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "email": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "commission_rate": {
+                        "type": "string"
+                    },
+                    "is_active": {
+                        "type": "boolean"
+                    },
+                    "notes": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    }
+                },
+                "required": [
+                    "id",
+                    "tenant_id",
+                    "name",
+                    "contact_name",
+                    "phone",
+                    "email",
+                    "commission_rate",
+                    "is_active",
+                    "notes",
+                    "created_at",
+                    "updated_at"
+                ],
+                "title": "Partner"
+            },
+            "PartnerPayout": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "tenant_id": {
+                        "type": "integer"
+                    },
+                    "partner_id": {
+                        "type": "integer"
+                    },
+                    "amount": {
+                        "type": "string"
+                    },
+                    "received_on": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "reference": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "note": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    }
+                },
+                "required": [
+                    "id",
+                    "tenant_id",
+                    "partner_id",
+                    "amount",
+                    "received_on",
+                    "reference",
+                    "note",
+                    "created_at",
+                    "updated_at"
+                ],
+                "title": "PartnerPayout"
+            },
             "Payment": {
                 "type": "object",
                 "properties": {
@@ -18785,6 +19929,12 @@
                         ]
                     },
                     "status": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "note": {
                         "type": [
                             "string",
                             "null"
@@ -18814,6 +19964,7 @@
                     "method",
                     "amount",
                     "status",
+                    "note",
                     "created_at",
                     "updated_at",
                     "tenant_id"
