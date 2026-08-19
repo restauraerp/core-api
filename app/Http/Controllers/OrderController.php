@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AccountingLedger;
 use App\Models\Order;
 use App\Models\Partner;
+use App\Models\Payment;
 use App\Support\Inventory\SellableInventory;
 use App\Support\Orders\KitchenLead;
 use App\Support\Orders\OrderFlow;
@@ -84,6 +85,37 @@ class OrderController extends Controller
             $query->completed();
         }
 
+        // Completed orders can be grouped by how they were paid - "show me
+        // everything that came through bKash yesterday" is the question asked
+        // when the till is being reconciled against a mobile-money statement.
+        if ($request->filled('payment_method')) {
+            $query->whereHas('payments', fn ($payment) => $payment->where('method', $request->input('payment_method')));
+        }
+
+        // Ordered by payment method, then newest first within each - so the
+        // cash sits together and the cards sit together.
+        //
+        // Ordered by a subquery rather than a join. scopeCompleted() writes its
+        // status conditions unqualified and is shared with the Completed tab,
+        // so joining a table that also has a `status` column makes those
+        // clauses ambiguous and the query dies. An order can also carry several
+        // payments, and a join would list it once per payment.
+        if ($request->input('sort') === 'payment_method') {
+            $query->orderBy(
+                Payment::query()
+                    ->select('method')
+                    ->whereColumn('payments.order_id', 'orders.id')
+                    ->orderBy('id')
+                    ->limit(1)
+            )->orderByDesc('created_at');
+
+            if ($request->has('nopaginate')) {
+                return response()->json($query->get());
+            }
+
+            return response()->json($query->paginate(config('pagination.limit')));
+        }
+
         if ($request->has('nopaginate')) {
             return response()->json($query->orderBy('created_at', 'desc')->get());
         }
@@ -121,6 +153,9 @@ class OrderController extends Controller
             // is worked out server-side from the partner's own rate.
             'partner_id' => ['nullable', 'integer', $this->tenantExists('partners')],
             'payment_method' => 'nullable|string',
+            // Why this payment looks the way it does - a bKash transaction id,
+            // a card's last four, which guest paid for a shared table.
+            'payment_note' => 'nullable|string|max:500',
             'delivery_time' => 'nullable|date',
             'delivery_address' => 'nullable|string',
             'latitude' => 'nullable|numeric',
@@ -186,7 +221,7 @@ class OrderController extends Controller
         $validated['status'] = $this->flow->openingStatus($deliveryTime, $validated['needs_cooking']);
 
         $order = DB::transaction(function () use ($validated, $request, $money) {
-            $orderData = collect($validated)->except(['items', 'payment_method'])->toArray();
+            $orderData = collect($validated)->except(['items', 'payment_method', 'payment_note'])->toArray();
             $orderData['user_id'] = $request->user() ? $request->user()->id : null;
 
             if (! empty($validated['payment_method'])) {
@@ -354,6 +389,7 @@ class OrderController extends Controller
             'status' => 'sometimes|string',
             'payment_status' => 'sometimes|string',
             'payment_method' => 'sometimes|string',
+            'payment_note' => 'sometimes|nullable|string|max:500',
             'discount_id' => ['sometimes', 'nullable', 'integer', $this->tenantExists('discounts')],
             'discount_amount' => 'sometimes|numeric',
             'delivery_charge' => 'sometimes|numeric',
@@ -387,7 +423,7 @@ class OrderController extends Controller
         }
 
         $payload = collect($validated)
-            ->except(['payment_method', 'tax_amount', 'total'])
+            ->except(['payment_method', 'payment_note', 'tax_amount', 'total'])
             ->toArray();
 
         if ($request->hasAny(['discount_amount', 'delivery_charge'])) {
@@ -417,6 +453,7 @@ class OrderController extends Controller
                     'method' => $validated['payment_method'],
                     'amount' => $order->total,
                     'status' => 'completed',
+                    'note' => $validated['payment_note'] ?? null,
                 ]);
 
                 $alreadyPosted = AccountingLedger::where('transaction_type', 'order_payment')
