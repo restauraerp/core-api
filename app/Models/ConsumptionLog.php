@@ -16,12 +16,17 @@ class ConsumptionLog extends Model
         'quantity',
         'reason',
         'consumed_at',
+        'entry_unit',
+        'stock_quantity',
         'logged_by',
     ];
 
     protected $casts = [
         'consumed_at' => 'date',
         'quantity'    => 'decimal:3',
+        'stock_quantity' => 'decimal:4',
+        'edited_at'   => 'datetime',
+        'original_quantity' => 'decimal:3',
     ];
 
     public function inventoryItem()
@@ -42,5 +47,22 @@ class ConsumptionLog extends Model
     public function trashedByUser()
     {
         return $this->belongsTo(User::class, 'trashed_by');
+    }
+
+    /** Whoever last corrected this log. See ConsumptionLogController::update. */
+    public function editedByUser()
+    {
+        return $this->belongsTo(User::class, 'edited_by');
+    }
+
+    /**
+     * What this log actually moved off the shelf, in purchase units.
+     *
+     * Falls back to `quantity` for rows written before the sale unit existed,
+     * where the two were the same thing by definition.
+     */
+    public function stockQuantity(): float
+    {
+        return (float) ($this->stock_quantity ?? $this->quantity);
     }
 }

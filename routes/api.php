@@ -253,7 +253,12 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('stock-transfers', StockTransferController::class);
         Route::apiResource('stock-transfers.items', StockTransferItemController::class)->shallow();
         Route::apiResource('waste-logs', WasteLogController::class);
-        Route::apiResource('consumption-logs', ConsumptionLogController::class)->except(['update']);
+        // Several items written off in one go - a cook closing the kitchen
+        // reports eight things at once.
+        Route::post('consumption-logs/batch', [ConsumptionLogController::class, 'storeBatch']);
+        // update() is admin-only and adjusts the stock it moved; see the
+        // controller. It was previously excluded outright.
+        Route::apiResource('consumption-logs', ConsumptionLogController::class);
         Route::get('consumption-logs-trashed', [ConsumptionLogController::class, 'trashed']);
         Route::post('consumption-logs/{consumptionLog}/trash', [ConsumptionLogController::class, 'trash']);
         Route::post('consumption-logs-trashed/{id}/restore', [ConsumptionLogController::class, 'restore']);

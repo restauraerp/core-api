@@ -423,16 +423,25 @@ class ReportController extends Controller
             ->selectRaw('inventory_item_id, COALESCE(SUM(quantity), 0) as quantity')
             ->pluck('quantity', 'inventory_item_id');
 
-        $items = InventoryItem::query()->orderBy('title')->get();
+        // Images eager-loaded rather than left to lazy-load per row: this
+        // report lists every item a restaurant stocks, and one query per item
+        // is the difference between a page and a stall.
+        $items = InventoryItem::query()->with('images')->orderBy('title')->get();
 
         $data = $items->map(function (InventoryItem $item) use ($stock) {
             $quantity = (float) ($stock[$item->id] ?? 0);
             $costPerUnit = (float) $item->cost_per_unit;
             $minLevel = (float) $item->min_stock_level;
 
+            // The item's own picture, so a cook scanning the list recognises
+            // the thing rather than parsing its name. Featured first, else
+            // whichever was uploaded first.
+            $image = $item->images->firstWhere('is_featured', true) ?? $item->images->first();
+
             return [
                 'id' => $item->id,
                 'name' => $item->title ?: $item->description,
+                'image_url' => $image?->url,
                 'sku' => $item->sku,
                 'unit' => $item->unit,
                 'cost_per_unit' => $costPerUnit,

@@ -5,9 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\AccountingLedger;
 use App\Models\Order;
 use App\Models\Partner;
+use App\Models\Payment;
 use App\Support\Inventory\SellableInventory;
 use App\Support\Orders\KitchenLead;
 use App\Support\Orders\OrderFlow;
+use App\Models\Discount;
+use App\Support\Sales\DiscountCalculator;
 use App\Support\Sales\PartnerCommission;
 use App\Support\Sales\TaxCalculator;
 use Illuminate\Http\Request;
@@ -82,6 +85,37 @@ class OrderController extends Controller
             $query->completed();
         }
 
+        // Completed orders can be grouped by how they were paid - "show me
+        // everything that came through bKash yesterday" is the question asked
+        // when the till is being reconciled against a mobile-money statement.
+        if ($request->filled('payment_method')) {
+            $query->whereHas('payments', fn ($payment) => $payment->where('method', $request->input('payment_method')));
+        }
+
+        // Ordered by payment method, then newest first within each - so the
+        // cash sits together and the cards sit together.
+        //
+        // Ordered by a subquery rather than a join. scopeCompleted() writes its
+        // status conditions unqualified and is shared with the Completed tab,
+        // so joining a table that also has a `status` column makes those
+        // clauses ambiguous and the query dies. An order can also carry several
+        // payments, and a join would list it once per payment.
+        if ($request->input('sort') === 'payment_method') {
+            $query->orderBy(
+                Payment::query()
+                    ->select('method')
+                    ->whereColumn('payments.order_id', 'orders.id')
+                    ->orderBy('id')
+                    ->limit(1)
+            )->orderByDesc('created_at');
+
+            if ($request->has('nopaginate')) {
+                return response()->json($query->get());
+            }
+
+            return response()->json($query->paginate(config('pagination.limit')));
+        }
+
         if ($request->has('nopaginate')) {
             return response()->json($query->orderBy('created_at', 'desc')->get());
         }
@@ -119,6 +153,9 @@ class OrderController extends Controller
             // is worked out server-side from the partner's own rate.
             'partner_id' => ['nullable', 'integer', $this->tenantExists('partners')],
             'payment_method' => 'nullable|string',
+            // Why this payment looks the way it does - a bKash transaction id,
+            // a card's last four, which guest paid for a shared table.
+            'payment_note' => 'nullable|string|max:500',
             'delivery_time' => 'nullable|date',
             'delivery_address' => 'nullable|string',
             'latitude' => 'nullable|numeric',
@@ -128,12 +165,38 @@ class OrderController extends Controller
             'items.*.qty' => 'required|integer|min:1',
             'items.*.price' => 'required|numeric',
             'items.*.notes' => 'nullable|string|max:500',
+            // Per-item reductions - "the steak came out cold, take 200 off it".
+            'items.*.discount_type' => ['nullable', Rule::in([DiscountCalculator::FLAT, DiscountCalculator::PERCENT])],
+            'items.*.discount_value' => 'nullable|numeric|min:0',
+            // And one on the whole bill, on top of any coupon.
+            'discount_type' => ['nullable', Rule::in([DiscountCalculator::FLAT, DiscountCalculator::PERCENT])],
+            'discount_value' => 'nullable|numeric|min:0',
+            'discount_reason' => 'nullable|string|max:255',
         ]);
 
         // Tax comes from the restaurant's own rules, not from the request. With
         // no active rule the sale carries no tax at all, which is the seeded
         // default until an owner sets a rate that is right for them.
-        $taxable = max(0, (float) $validated['subtotal'] - (float) $validated['discount_amount']);
+        // Every reduction, worked out here from the lines and the tenant's own
+        // coupon record. subtotal and discount_amount are still accepted from
+        // the till for backwards compatibility and then overwritten, exactly as
+        // tax_amount is: a client that prices its own discount can price any
+        // discount, and the figure it posts is what reporting and the books
+        // would then be built on.
+        $coupon = ! empty($validated['discount_id']) ? Discount::find($validated['discount_id']) : null;
+
+        $money = DiscountCalculator::forOrder(
+            $validated['items'],
+            $coupon,
+            $validated['discount_type'] ?? null,
+            $validated['discount_value'] ?? null,
+            $validated['discount_amount'] ?? null,
+        );
+
+        $validated['subtotal'] = $money['subtotal'];
+        $validated['discount_amount'] = $money['discount_amount'];
+
+        $taxable = max(0, $money['subtotal'] - $money['discount_amount']);
         $validated['tax_amount'] = TaxCalculator::on($taxable);
         $validated['total'] = round($taxable + $validated['tax_amount'] + (float) ($validated['delivery_charge'] ?? 0), 2);
 
@@ -157,8 +220,8 @@ class OrderController extends Controller
         );
         $validated['status'] = $this->flow->openingStatus($deliveryTime, $validated['needs_cooking']);
 
-        $order = DB::transaction(function () use ($validated, $request) {
-            $orderData = collect($validated)->except(['items', 'payment_method'])->toArray();
+        $order = DB::transaction(function () use ($validated, $request, $money) {
+            $orderData = collect($validated)->except(['items', 'payment_method', 'payment_note'])->toArray();
             $orderData['user_id'] = $request->user() ? $request->user()->id : null;
 
             if (! empty($validated['payment_method'])) {
@@ -167,11 +230,16 @@ class OrderController extends Controller
 
             $order = Order::create($orderData);
 
-            foreach ($validated['items'] as $item) {
+            foreach ($validated['items'] as $index => $item) {
                 $order->items()->create([
                     'product_id' => $item['product_id'],
                     'quantity' => $item['qty'],
                     'price' => $item['price'],
+                    'discount_type' => $item['discount_type'] ?? null,
+                    'discount_value' => $item['discount_value'] ?? null,
+                    // Stored, not recomputed on read: a receipt reprinted next
+                    // year has to show what was actually taken off.
+                    'discount_amount' => $money['lines'][$index]['discount_amount'] ?? 0,
                     'notes' => $item['notes'] ?? null,
                 ]);
             }
@@ -244,12 +312,28 @@ class OrderController extends Controller
             'items.*.qty' => 'required|integer|min:1',
             'items.*.price' => 'required|numeric',
             'items.*.notes' => 'nullable|string|max:500',
+            'items.*.discount_type' => ['nullable', Rule::in([DiscountCalculator::FLAT, DiscountCalculator::PERCENT])],
+            'items.*.discount_value' => 'nullable|numeric|min:0',
+            'discount_type' => ['nullable', Rule::in([DiscountCalculator::FLAT, DiscountCalculator::PERCENT])],
+            'discount_value' => 'nullable|numeric|min:0',
+            'discount_reason' => 'nullable|string|max:255',
         ]);
 
         return DB::transaction(function () use ($validated, $order) {
             $this->sellable->restoreForOrder($order);
 
-            $taxable = max(0, (float) $validated['subtotal'] - (float) $validated['discount_amount']);
+            // Same rule as store(): the lines decide, not the posted totals.
+            $coupon = ! empty($validated['discount_id']) ? Discount::find($validated['discount_id']) : null;
+
+            $money = DiscountCalculator::forOrder(
+                $validated['items'],
+                $coupon,
+                $validated['discount_type'] ?? null,
+                $validated['discount_value'] ?? null,
+                $validated['discount_amount'] ?? null,
+            );
+
+            $taxable = max(0, $money['subtotal'] - $money['discount_amount']);
             $taxAmount = TaxCalculator::on($taxable);
             $delivery = (float) ($validated['delivery_charge'] ?? 0);
 
@@ -264,8 +348,11 @@ class OrderController extends Controller
                 'table_id' => $validated['table_id'] ?? null,
                 'customer_id' => $validated['customer_id'] ?? null,
                 'discount_id' => $validated['discount_id'] ?? null,
-                'subtotal' => $validated['subtotal'],
-                'discount_amount' => $validated['discount_amount'],
+                'subtotal' => $money['subtotal'],
+                'discount_amount' => $money['discount_amount'],
+                'discount_type' => $validated['discount_type'] ?? null,
+                'discount_value' => $validated['discount_value'] ?? null,
+                'discount_reason' => $validated['discount_reason'] ?? null,
                 'delivery_charge' => $delivery,
                 'tax_amount' => $taxAmount,
                 'total' => round($taxable + $taxAmount + $delivery, 2),
@@ -278,11 +365,14 @@ class OrderController extends Controller
 
             $order->items()->delete();
 
-            foreach ($validated['items'] as $item) {
+            foreach ($validated['items'] as $index => $item) {
                 $order->items()->create([
                     'product_id' => $item['product_id'],
                     'quantity' => $item['qty'],
                     'price' => $item['price'],
+                    'discount_type' => $item['discount_type'] ?? null,
+                    'discount_value' => $item['discount_value'] ?? null,
+                    'discount_amount' => $money['lines'][$index]['discount_amount'] ?? 0,
                     'notes' => $item['notes'] ?? null,
                 ]);
             }
@@ -299,6 +389,7 @@ class OrderController extends Controller
             'status' => 'sometimes|string',
             'payment_status' => 'sometimes|string',
             'payment_method' => 'sometimes|string',
+            'payment_note' => 'sometimes|nullable|string|max:500',
             'discount_id' => ['sometimes', 'nullable', 'integer', $this->tenantExists('discounts')],
             'discount_amount' => 'sometimes|numeric',
             'delivery_charge' => 'sometimes|numeric',
@@ -332,7 +423,7 @@ class OrderController extends Controller
         }
 
         $payload = collect($validated)
-            ->except(['payment_method', 'tax_amount', 'total'])
+            ->except(['payment_method', 'payment_note', 'tax_amount', 'total'])
             ->toArray();
 
         if ($request->hasAny(['discount_amount', 'delivery_charge'])) {
@@ -362,6 +453,7 @@ class OrderController extends Controller
                     'method' => $validated['payment_method'],
                     'amount' => $order->total,
                     'status' => 'completed',
+                    'note' => $validated['payment_note'] ?? null,
                 ]);
 
                 $alreadyPosted = AccountingLedger::where('transaction_type', 'order_payment')
