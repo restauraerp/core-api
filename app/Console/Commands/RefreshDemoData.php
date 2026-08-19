@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Tenant;
+use App\Support\Demo\SeededIdSpace;
 use Database\Seeders\DemoSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Console\Isolatable;
@@ -150,11 +151,24 @@ class RefreshDemoData extends Command implements Isolatable
             return self::FAILURE;
         }
 
+        $this->reclaimIdSpace();
+
         $this->line('');
         $this->info('Demo refreshed. Current tenants:');
         $this->call('tenants:list');
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Hands back the id space the seed reserved and did not use. The reasoning,
+     * and the numbers behind it, are in SeededIdSpace.
+     */
+    private function reclaimIdSpace(): void
+    {
+        SeededIdSpace::reclaim();
+
+        $this->line('  Reclaimed the id headroom the seed reserved.');
     }
 
     /**

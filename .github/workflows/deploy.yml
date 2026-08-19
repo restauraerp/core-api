@@ -19,6 +19,14 @@ on:
   push:
     tags:
       - "v*"
+  # Lets a demo rebuild be asked for deliberately, which is now the only way
+  # one happens. See the demo step at the end of the deploy job.
+  workflow_dispatch:
+    inputs:
+      refresh_demo:
+        description: "Rebuild the demo restaurant after deploying (demo box only)"
+        type: boolean
+        default: false
 
 concurrency:
   group: core-api-deploy
@@ -92,9 +100,8 @@ jobs:
 
       - name: Activate release (link shared, migrate, flip current, restart)
         run: |
-          # Keepalives: the demo refresh at the end of this script reseeds two
-          # years of orders and can hold the connection open for minutes with
-          # no output. Without them an idle timeout kills otherwise fine deploys.
+          # Keepalives: migrations on a large database can run for minutes with
+          # no output, and an idle timeout would kill an otherwise fine deploy.
           ssh -i ~/.ssh/id_deploy \
             -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
             "$DEPLOY_USER@$DEPLOY_HOST" "RELEASE='$RELEASE' bash -s" <<'DEPLOY'
@@ -166,20 +173,29 @@ jobs:
           ls -1dt */ | tail -n +6 | xargs -r rm -rf
           echo "Deployed $RELEASE"
 
-          # Demo data, last and only on the demo box.
-          #
-          # --if-demo makes this a no-op exiting 0 wherever DEMO_MODE is not
-          # true, so the same block is safe on a customer install. The command
-          # itself only ever rebuilds the demo tenant; every other restaurant
-          # on the box is left alone.
-          #
-          # Not backgrounded and not silenced, unlike the `nohup ./demodata.sh
-          # > /dev/null 2>&1 &` this replaces: a failed refresh now fails the
-          # job instead of disappearing. It runs after the health check so a
-          # seeding failure cannot hold back a release that is already serving.
-          cd "$APP/current"
-          php artisan demo:refresh --force --if-demo --isolated
           DEPLOY
+
+      # Demo data, only when somebody asks for it.
+      #
+      # This used to run on every deploy. It rebuilds two years of orders -
+      # around 51,000 rows - and a nightly cron already does the same job, so
+      # every release was paying for a rebuild that would happen anyway within
+      # hours. On a 1 GiB box that is minutes of held connection and a large
+      # write burst for no change in what the demo shows.
+      #
+      # Releasing does not alter demo data, so a deploy is the wrong trigger.
+      # Ask for it deliberately after a change to the seeders, or let the cron
+      # do it.
+      #
+      # --if-demo still makes it a no-op wherever DEMO_MODE is not true, so
+      # running this by hand against a customer box does nothing.
+      - name: Rebuild demo data (only when requested)
+        if: github.event_name == 'workflow_dispatch' && inputs.refresh_demo
+        run: |
+          ssh -i ~/.ssh/id_deploy \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cd /var/www/core-api/current && php artisan demo:refresh --force --if-demo --isolated"
 
       # Calls the website's generic notification webhook — no SMTP config
       # needed here, the website queues and sends it with its own mailer.
