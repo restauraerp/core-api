@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Models\Organization;
+use App\Rules\PhoneNumber;
+use App\Support\PhoneNumber as PhoneNumberSupport;
 use Illuminate\Http\Request;
 
 class CustomerController extends Controller
@@ -27,12 +29,32 @@ class CustomerController extends Controller
         return response()->json($query->paginate((int) env('PAGINATION_LIMIT', 15)));
     }
 
+    /**
+     * The phone is canonicalised before the rules run, not after.
+     *
+     * Customer::setPhoneAttribute would normalise it either way, but by then
+     * the uniqueness rule has already looked - and it would have looked for
+     * `01712345678` while the row it should have found is stored as
+     * `+8801712345678`. The duplicate is created, and the second row quietly
+     * shadows the first customer's order history.
+     */
+    private function canonicalisePhone(Request $request): void
+    {
+        if ($request->filled('phone')) {
+            $request->merge([
+                'phone' => PhoneNumberSupport::normalise($request->input('phone')) ?? $request->input('phone'),
+            ]);
+        }
+    }
+
     public function store(Request $request)
     {
+        $this->canonicalisePhone($request);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'phone' => ['required', 'string', 'max:20', $this->tenantUnique('customers')],
-            'email' => 'nullable|email|max:255',
+            'phone' => ['required', 'string', 'max:20', PhoneNumber::mobile(), $this->tenantUnique('customers')],
+            'email' => 'nullable|email:rfc,strict|max:255',
             'address' => 'nullable|string',
             'loyalty_points' => 'nullable|integer',
             'tier' => 'nullable|string|max:50',
@@ -59,10 +81,12 @@ class CustomerController extends Controller
 
     public function update(Request $request, Customer $customer)
     {
+        $this->canonicalisePhone($request);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'phone' => ['required', 'string', 'max:20', $this->tenantUnique('customers')->ignore($customer->id)],
-            'email' => 'nullable|email|max:255',
+            'phone' => ['required', 'string', 'max:20', PhoneNumber::mobile(), $this->tenantUnique('customers')->ignore($customer->id)],
+            'email' => 'nullable|email:rfc,strict|max:255',
             'address' => 'nullable|string',
             'loyalty_points' => 'nullable|integer',
             'tier' => 'nullable|string|max:50',

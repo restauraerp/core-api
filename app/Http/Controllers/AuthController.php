@@ -25,7 +25,10 @@ class AuthController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => [
-                'required', 'string', 'email', 'max:255',
+                // rfc,strict, not the bare rule: on its own `email` accepts
+                // `a@b` and `owner@localhost`, neither of which any mail we
+                // send will ever reach.
+                'required', 'string', 'email:rfc,strict', 'max:255',
                 // Scoped: two restaurants may each have a manager@ address.
                 Rule::unique('users')->where('tenant_id', $tenant->id()),
             ],
@@ -48,6 +51,11 @@ class AuthController extends Controller
     public function login(Request $request, TenantContext $tenant)
     {
         $request->validate([
+            // Deliberately the loose rule, unlike register above. An account
+            // created before validation was tightened may hold an address the
+            // strict rule rejects, and refusing to let that owner log in would
+            // turn a data-quality problem into a lockout. What they typed only
+            // has to match a stored row.
             'email' => 'required|email',
             'password' => 'required',
         ]);

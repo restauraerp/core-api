@@ -35,7 +35,7 @@ class PasswordResetController extends Controller
     public function forgot(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'email' => ['required', 'email', 'max:255'],
+            'email' => ['required', 'email:rfc,strict', 'max:255'],
             // Optional, and only used to disambiguate: one address can own more
             // than one restaurant.
             'restaurant_code' => ['nullable', 'string', 'max:255'],

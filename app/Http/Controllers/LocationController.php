@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\LocationType;
 use App\Models\Location;
+use App\Rules\PhoneNumber;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rules\Enum;
@@ -46,8 +47,8 @@ class LocationController extends Controller
             'type' => ['nullable', 'string', new Enum(LocationType::class)],
             'address' => 'nullable|string',
             'map_url' => 'nullable|url',
-            'phone' => 'nullable|string|max:50',
-            'email' => 'nullable|email|max:255',
+            'phone' => ['nullable', 'string', 'max:50', PhoneNumber::any()],
+            'email' => 'nullable|email:rfc,strict|max:255',
             'is_active' => 'boolean',
             'featured_image' => 'nullable|image|max:5120',
             'featured_video' => 'nullable|mimes:mp4,mov,ogg,qt|max:20480',
@@ -97,8 +98,8 @@ class LocationController extends Controller
             'type' => ['nullable', 'string', new Enum(LocationType::class)],
             'address' => 'nullable|string',
             'map_url' => 'nullable|url',
-            'phone' => 'nullable|string|max:50',
-            'email' => 'nullable|email|max:255',
+            'phone' => ['nullable', 'string', 'max:50', PhoneNumber::any()],
+            'email' => 'nullable|email:rfc,strict|max:255',
             'is_active' => 'boolean',
             'featured_image' => 'nullable|image|max:5120',
             'featured_video' => 'nullable|mimes:mp4,mov,ogg,qt|max:20480',
