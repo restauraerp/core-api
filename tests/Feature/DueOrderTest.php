@@ -265,4 +265,59 @@ class DueOrderTest extends TestCase
             // 750 still owed on the first, 500 on the second.
             ->assertJsonPath('outstanding.amount', fn ($value) => (float) $value === 1250.0);
     }
+
+    /**
+     * A due order belongs in the customer's history beside everything else they
+     * have bought, not on a list of its own - "what has this person had, and
+     * what do they still owe on it" is one question.
+     */
+    #[Test]
+    public function a_due_order_sits_in_the_customers_history_carrying_its_balance(): void
+    {
+        $customer = $this->customer();
+
+        $settled = $this->placeOrder($customer, 800);
+        $this->putJson("/api/v1/orders/{$settled->getKey()}", ['payment_method' => 'cash'], $this->headers())
+            ->assertOk();
+
+        $onAccount = $this->placeOrder($customer, 1000);
+        $this->postJson("/api/v1/orders/{$onAccount->getKey()}/due", ['due_note' => 'Room 402'], $this->headers());
+        $this->postJson("/api/v1/orders/{$onAccount->getKey()}/settle", ['amount' => 250, 'method' => 'cash'], $this->headers());
+
+        $rows = collect($this->getJson("/api/v1/customers/{$customer->getKey()}/orders", $this->headers())
+            ->assertOk()
+            ->json('data'))
+            ->keyBy('id');
+
+        $this->assertCount(2, $rows);
+
+        $this->assertSame(Order::PAYMENT_DUE, $rows[$onAccount->getKey()]['payment_status']);
+        $this->assertEqualsWithDelta(250.0, $rows[$onAccount->getKey()]['amount_paid'], 0.001);
+        $this->assertEqualsWithDelta(750.0, $rows[$onAccount->getKey()]['amount_outstanding'], 0.001);
+
+        // Nothing is owed on a settled one, and the same fields say so.
+        $this->assertSame(Order::PAYMENT_PAID, $rows[$settled->getKey()]['payment_status']);
+        $this->assertEqualsWithDelta(0.0, $rows[$settled->getKey()]['amount_outstanding'], 0.001);
+    }
+
+    /**
+     * The Due tab has to quote the balance, not the bill. A tab half settled on
+     * Friday must not ask for the whole of it again on Sunday.
+     */
+    #[Test]
+    public function the_due_list_quotes_what_is_left_rather_than_the_bill(): void
+    {
+        $order = $this->placeOrder($this->customer(), 1000);
+        $this->postJson("/api/v1/orders/{$order->getKey()}/due", ['due_note' => 'Room 402'], $this->headers());
+        $this->postJson("/api/v1/orders/{$order->getKey()}/settle", ['amount' => 400, 'method' => 'cash'], $this->headers());
+
+        $row = collect($this->getJson('/api/v1/orders?due_only=1&nopaginate=1', $this->headers())
+            ->assertOk()
+            ->json())
+            ->firstWhere('id', $order->getKey());
+
+        $this->assertEqualsWithDelta(1000.0, (float) $row['total'], 0.001);
+        $this->assertEqualsWithDelta(600.0, $row['amount_outstanding'], 0.001);
+        $this->assertSame('Room 402', $row['due_note']);
+    }
 }

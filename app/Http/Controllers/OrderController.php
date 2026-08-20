@@ -426,7 +426,19 @@ class OrderController extends Controller
             ->except(['payment_method', 'payment_note', 'tax_amount', 'total'])
             ->toArray();
 
-        if ($request->hasAny(['discount_amount', 'delivery_charge'])) {
+        if ($request->filled('payment_method')) {
+            // Taking payment records how the money arrived. It does not reprice
+            // the bill, and a till that posts totals alongside a payment method
+            // is posting figures it worked out itself - which is how a bill
+            // discounted at the POS came to be charged at full price and then
+            // stored that way, the discount gone from the order as well.
+            // Changing what is owed is an edit to the order, made on its own.
+            //
+            // Dropped rather than refused, so a till still on the old build
+            // stops damaging orders the day this ships instead of losing the
+            // ability to take payment at all.
+            unset($payload['discount_id'], $payload['discount_amount'], $payload['delivery_charge']);
+        } elseif ($request->hasAny(['discount_amount', 'delivery_charge'])) {
             $discount = (float) ($payload['discount_amount'] ?? $order->discount_amount);
             $delivery = (float) ($payload['delivery_charge'] ?? $order->delivery_charge);
             $taxable = max(0, (float) $order->subtotal - $discount);

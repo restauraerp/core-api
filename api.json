@@ -20010,6 +20010,12 @@
                     },
                     "status_label": {
                         "type": "string"
+                    },
+                    "amount_paid": {
+                        "type": "string"
+                    },
+                    "amount_outstanding": {
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -20047,7 +20053,9 @@
                     "deleted_at",
                     "trashed_by",
                     "next_statuses",
-                    "status_label"
+                    "status_label",
+                    "amount_paid",
+                    "amount_outstanding"
                 ],
                 "title": "Order"
             },
