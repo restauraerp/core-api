@@ -167,6 +167,60 @@ class PlanEntitlementTest extends TestCase
         }
     }
 
+    /**
+     * Reading the list back is half of it; the till has to be able to add to it.
+     *
+     * A cashier taking a phone number for a delivery, or naming the customer an
+     * order is going on account for, is creating a customer record - and an
+     * order cannot be put on account without one. A Starter restaurant refused
+     * here would be unable to take a delivery order or let a regular settle up
+     * later, which is a broken account rather than a cheaper one.
+     */
+    public function test_starter_can_record_a_customer_at_the_till(): void
+    {
+        $tenant = $this->tenantOn('starter');
+        $this->actingAsOwnerOf($tenant);
+
+        $id = $this->postJson('/api/v1/customers', [
+            'name' => 'Rahim Ahmed',
+            'phone' => '01711000027',
+        ], ['X-Tenant-ID' => $tenant->slug])
+            ->assertCreated()
+            ->json('id');
+
+        // And can find, correct and remove what it recorded.
+        $this->getJson("/api/v1/customers/{$id}", ['X-Tenant-ID' => $tenant->slug])
+            ->assertOk()
+            ->assertJsonPath('name', 'Rahim Ahmed');
+
+        $this->putJson("/api/v1/customers/{$id}", [
+            'name' => 'Rahim Ahmed',
+            'phone' => '01711000027',
+            'address' => 'Gulshan, Dhaka',
+        ], ['X-Tenant-ID' => $tenant->slug])->assertOk();
+
+        $this->deleteJson("/api/v1/customers/{$id}", [], ['X-Tenant-ID' => $tenant->slug])
+            ->assertSuccessful();
+    }
+
+    /**
+     * The loyalty scheme built on top of the address book is still an upsell.
+     */
+    public function test_starter_recording_a_customer_does_not_unlock_crm(): void
+    {
+        $tenant = $this->tenantOn('starter');
+        $this->actingAsOwnerOf($tenant);
+
+        $this->postJson('/api/v1/customers', [
+            'name' => 'Rahim Ahmed',
+            'phone' => '01711000027',
+        ], ['X-Tenant-ID' => $tenant->slug])->assertCreated();
+
+        $this->getJson('/api/v1/loyalty-settings', ['X-Tenant-ID' => $tenant->slug])
+            ->assertForbidden()
+            ->assertJsonPath('error', 'module_not_in_plan');
+    }
+
     public function test_starter_keeps_the_six_core_modules(): void
     {
         $tenant = $this->tenantOn('starter');

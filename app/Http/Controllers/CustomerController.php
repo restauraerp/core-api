@@ -63,8 +63,10 @@ class CustomerController extends Controller
             ->orderByDesc('created_at')
             ->paginate((int) $request->integer('per_page', config('pagination.limit')));
 
-        // Across every due order, not just this page of them.
-        $due = $customer->orders()->due()->get();
+        // Across every due order, not just this page of them. Payments come
+        // with them because the balance is what is owed less what has already
+        // been collected, and a tab settled in part is the ordinary case.
+        $due = $customer->orders()->due()->with('payments')->get();
 
         return response()->json($orders->toArray() + [
             'outstanding' => [

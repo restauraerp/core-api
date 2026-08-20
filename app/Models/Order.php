@@ -30,8 +30,13 @@ class Order extends Model
     /**
      * The stage this order may move to next, so a till or a kitchen display
      * renders buttons from the rule book rather than from its own copy of it.
+     *
+     * What is still owed rides along for the same reason. A due order settled
+     * in part is the ordinary case - half the tab on Friday, the rest on Sunday
+     * - and a screen left to work the balance out from the payments it happens
+     * to have loaded is a screen that will one day ask for the whole tab again.
      */
-    protected $appends = ['next_statuses', 'status_label'];
+    protected $appends = ['next_statuses', 'status_label', 'amount_paid', 'amount_outstanding'];
 
     /**
      * @return list<string>
@@ -142,7 +147,13 @@ class Order extends Model
      */
     public function getAmountPaidAttribute(): float
     {
-        return (float) $this->payments()->sum('amount');
+        // Summed from the loaded relation when there is one. Every endpoint
+        // that lists orders eager-loads payments, and going back to the
+        // database once per row to ask what was just fetched turns a page of
+        // fifty orders into fifty-one queries.
+        return (float) ($this->relationLoaded('payments')
+            ? $this->payments->sum('amount')
+            : $this->payments()->sum('amount'));
     }
 
     public function getAmountOutstandingAttribute(): float
