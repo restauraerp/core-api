@@ -34,6 +34,7 @@ class ManagedAssets
         'inventory_items' => ['image'],
         'users' => ['image_url'],
         'expenses' => ['receipt_url'],
+        'incomes' => ['receipt_url'],
     ];
 
     /**

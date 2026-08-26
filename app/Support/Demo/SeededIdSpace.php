@@ -26,7 +26,7 @@ class SeededIdSpace
      *
      * @var list<string>
      */
-    public const TABLES = ['orders', 'expenses', 'purchase_orders', 'consumption_logs'];
+    public const TABLES = ['orders', 'expenses', 'incomes', 'purchase_orders', 'consumption_logs'];
 
     /**
      * Puts each counter back to one above its highest row.

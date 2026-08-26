@@ -9,6 +9,7 @@ use App\Models\Payment;
 use App\Support\Inventory\SellableInventory;
 use App\Support\Orders\KitchenLead;
 use App\Support\Orders\OrderFlow;
+use App\Support\Orders\TokenNumber;
 use App\Models\Discount;
 use App\Support\Sales\DiscountCalculator;
 use App\Support\Sales\PartnerCommission;
@@ -25,6 +26,7 @@ class OrderController extends Controller
         private readonly SellableInventory $sellable,
         private readonly OrderFlow $flow,
         private readonly KitchenLead $lead,
+        private readonly TokenNumber $tokens,
     ) {}
 
     public function index(Request $request)
@@ -227,6 +229,12 @@ class OrderController extends Controller
             if (! empty($validated['payment_method'])) {
                 $orderData['payment_status'] = 'paid';
             }
+
+            // The counter number, claimed inside the transaction so a failed
+            // order gives its token back rather than leaving a gap in the day.
+            $token = $this->tokens->allocate((int) $validated['location_id']);
+            $orderData['business_date'] = $token['business_date'];
+            $orderData['token_number'] = $token['token_number'];
 
             $order = Order::create($orderData);
 

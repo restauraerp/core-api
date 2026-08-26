@@ -101,7 +101,7 @@ class Modules
             self::ORDERS => ['view_orders', 'update_order_status', 'delete_order'],
             self::CATALOG => ['view_catalog', 'create_catalog_item', 'update_catalog_item', 'delete_catalog_item'],
             self::INVENTORY => ['view_inventory', 'create_inventory_item', 'update_inventory_item', 'delete_inventory_item'],
-            self::ACCOUNTING => ['view_accounting', 'manage_ledgers', 'manage_expenses'],
+            self::ACCOUNTING => ['view_accounting', 'manage_ledgers', 'manage_expenses', 'manage_incomes'],
             self::REPORTING => ['view_reporting'],
             self::CRM => ['view_crm', 'manage_customers', 'manage_loyalty_settings'],
             self::HR => ['view_hr', 'manage_employees', 'manage_attendance', 'manage_leaves', 'manage_payroll'],

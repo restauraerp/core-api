@@ -74,6 +74,7 @@ class InvoiceController extends Controller
                 'restaurant' => RestaurantBranding::current(),
                 'order' => [
                     'id' => $found->id,
+                    'token_number' => $found->token_number,
                     'created_at' => $found->created_at?->toIso8601String(),
                     'order_type' => $found->order_type,
                     'status' => $found->status,

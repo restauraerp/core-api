@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ConsumptionLog;
 use App\Models\Expense;
+use App\Models\Income;
 use App\Models\InventoryItem;
 use App\Models\Order;
 use App\Models\Partner;
@@ -529,6 +530,19 @@ class ReportController extends Controller
             ->where('payment_status', 'paid')
             ->sum('total');
 
+        // Money in that no order accounts for - hall rental, scrap sales. Kept
+        // separate from `revenue` rather than folded into it: the revenue tile
+        // is documented as "paid orders only" and several other reports reach
+        // the same number their own way, so quietly inflating it here would
+        // make two screens disagree about the same period.
+        $incomeQuery = Income::query();
+        if ($from) $incomeQuery->where('created_at', '>=', $from);
+        if ($to)   $incomeQuery->where('created_at', '<', $to);
+        if ($locationId && $locationId !== '' && $locationId !== 'all') {
+            $incomeQuery->where('location_id', $locationId);
+        }
+        $otherIncome = (float) $incomeQuery->sum('amount');
+
         $expenseQuery = Expense::query();
         if ($from) $expenseQuery->where('created_at', '>=', $from);
         if ($to)   $expenseQuery->where('created_at', '<', $to);
@@ -546,16 +560,22 @@ class ReportController extends Controller
         $purchaseExpenses = (float) $purchaseQuery->sum('total_amount');
 
         $totalExpenses = $operationalExpenses + $purchaseExpenses;
-        $profit = $revenue - $totalExpenses;
+        $totalIncome = $revenue + $otherIncome;
+        $profit = $totalIncome - $totalExpenses;
 
         return response()->json([
             'summary' => [
                 'revenue' => $revenue,
+                'other_income' => $otherIncome,
+                'total_income' => $totalIncome,
                 'operational_expenses' => $operationalExpenses,
                 'purchase_expenses' => $purchaseExpenses,
                 'total_expenses' => $totalExpenses,
                 'net_profit' => $profit,
-                'margin_pct' => $revenue > 0 ? round($profit / $revenue * 100, 1) : 0.0,
+                // Margin is against everything that came in, not just orders -
+                // otherwise a month carried by hall rental reports a margin
+                // above 100%.
+                'margin_pct' => $totalIncome > 0 ? round($profit / $totalIncome * 100, 1) : 0.0,
             ],
         ]);
     }

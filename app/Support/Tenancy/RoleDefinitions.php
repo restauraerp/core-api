@@ -49,7 +49,7 @@ class RoleDefinitions
 
             'view_locations', 'create_location', 'update_location', 'delete_location',
 
-            'view_accounting', 'manage_ledgers', 'manage_expenses',
+            'view_accounting', 'manage_ledgers', 'manage_expenses', 'manage_incomes',
 
             'view_website', 'manage_website_content',
 
@@ -98,7 +98,7 @@ class RoleDefinitions
 
             'accountant' => [
                 'view_dashboard',
-                'view_accounting', 'manage_ledgers', 'manage_expenses',
+                'view_accounting', 'manage_ledgers', 'manage_expenses', 'manage_incomes',
                 'view_reporting',
             ],
         ];
