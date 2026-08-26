@@ -13,6 +13,7 @@ use App\Http\Controllers\DemoController;
 use App\Http\Controllers\DemoLeadController;
 use App\Http\Controllers\DiscountController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\IncomeController;
 use App\Http\Controllers\GoogleReviewController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\HallController;
@@ -271,6 +272,7 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('accounting-headers', AccountingHeaderController::class);
         Route::apiResource('accounting-ledgers', AccountingLedgerController::class);
         Route::apiResource('expenses', ExpenseController::class);
+        Route::apiResource('incomes', IncomeController::class);
         Route::apiResource('tax-rules', TaxRuleController::class);
 
         // Customers, outside the CRM gate.
