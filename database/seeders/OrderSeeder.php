@@ -11,6 +11,7 @@ use App\Models\PurchaseOrder;
 use App\Models\Table;
 use App\Models\User;
 use App\Support\Orders\OrderFlow;
+use App\Support\Orders\TokenNumber;
 use Carbon\Carbon;
 use Database\Seeders\Concerns\SeedsTenantData;
 use Illuminate\Database\Seeder;
@@ -185,6 +186,13 @@ class OrderSeeder extends Seeder
 
         $this->settleInventoryFromPurchases();
         $this->attachReceiptsToRecentOrders();
+
+        // Counter tokens, in one pass at the end rather than while building the
+        // rows. A day's orders are generated at random times within that day,
+        // so numbering them as they were built would hand token 6 to the lunch
+        // sitting and token 5 to the dinner one. Numbering afterwards sorts by
+        // created_at, which is the order a real counter would have called them.
+        TokenNumber::numberExistingOrders();
 
         $this->command->info('✅ OrderSeeder: Chronologically Seeded Orders, Expenses, Income, Purchases and Accounting Ledgers for 2 Years.');
     }
