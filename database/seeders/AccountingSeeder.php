@@ -15,6 +15,8 @@ class AccountingSeeder extends Seeder
         //    so that demo expenses and sales entries can reference them.
         $headersData = [
             ['name' => 'Food & Beverage Sales', 'type' => 'income',  'description' => 'Revenue from food and drink sales'],
+            ['name' => 'Hall & Event Rental',     'type' => 'income',  'description' => 'Private hall bookings, parties and corporate events'],
+            ['name' => 'Other Income',            'type' => 'income',  'description' => 'Scrap sales, vendor commissions and one-off receipts'],
             ['name' => 'Rent & Property',        'type' => 'expense', 'description' => 'Monthly rent, lease, and property costs'],
             ['name' => 'Staff & Salaries',        'type' => 'expense', 'description' => 'Employee wages, salaries, and payroll'],
             ['name' => 'Utilities & Services',    'type' => 'expense', 'description' => 'Electricity, gas, water, internet, and other utility bills'],

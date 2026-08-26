@@ -25,11 +25,17 @@ class OrderSeeder extends Seeder
 
     private int $nextExpenseId = 1;
 
+    private int $nextIncomeId = 1;
+
     private int $nextPurchaseOrderId = 1;
 
     private int $nextConsumptionLogId = 1;
 
     private ?int $incomeHeaderId = null;
+
+    private ?int $hallRentalHeaderId = null;
+
+    private ?int $otherIncomeHeaderId = null;
 
     private ?int $rentHeaderId = null;
 
@@ -75,6 +81,7 @@ class OrderSeeder extends Seeder
 
         $this->nextOrderId = $this->reserveIdBlock('orders');
         $this->nextExpenseId = $this->reserveIdBlock('expenses');
+        $this->nextIncomeId = $this->reserveIdBlock('incomes');
         $this->nextPurchaseOrderId = $this->reserveIdBlock('purchase_orders');
         $this->nextConsumptionLogId = $this->reserveIdBlock('consumption_logs');
 
@@ -85,6 +92,8 @@ class OrderSeeder extends Seeder
             ->pluck('id', 'name');
 
         $this->incomeHeaderId   = $headersByName['Food & Beverage Sales'] ?? null;
+        $this->hallRentalHeaderId = $headersByName['Hall & Event Rental']  ?? null;
+        $this->otherIncomeHeaderId = $headersByName['Other Income']        ?? null;
         $this->rentHeaderId     = $headersByName['Rent & Property']       ?? null;
         $this->salaryHeaderId   = $headersByName['Staff & Salaries']      ?? null;
         $this->utilitiesHeaderId = $headersByName['Utilities & Services'] ?? null;
@@ -95,6 +104,7 @@ class OrderSeeder extends Seeder
         $paymentsData = [];
         $ledgersData = [];
         $expensesData = [];
+        $incomesData = [];
         $purchaseOrdersData = [];
         $purchaseItemsData = [];
         $consumptionLogsData = [];
@@ -132,6 +142,7 @@ class OrderSeeder extends Seeder
                 // 2. Generate Monthly Expenses on the 1st of the month
                 if ($date->day === 1) {
                     $this->generateMonthlyExpenses($date, $location, $admin, $expensesData, $ledgersData);
+                    $this->generateMonthlyIncome($date, $location, $admin, $incomesData, $ledgersData);
                 }
 
                 // 3. Generate Random Purchase Orders (approx 10% chance per day)
@@ -154,8 +165,8 @@ class OrderSeeder extends Seeder
                 }
 
                 // Flush chunks to maintain speed & chronological insert boundaries
-                if (count($ordersData) >= $chunkSize || count($expensesData) >= $chunkSize || count($purchaseOrdersData) >= $chunkSize) {
-                    $this->insertChunks($ordersData, $orderItemsData, $paymentsData, $ledgersData, $expensesData, $purchaseOrdersData, $purchaseItemsData, $consumptionLogsData);
+                if (count($ordersData) >= $chunkSize || count($expensesData) >= $chunkSize || count($incomesData) >= $chunkSize || count($purchaseOrdersData) >= $chunkSize) {
+                    $this->insertChunks($ordersData, $orderItemsData, $paymentsData, $ledgersData, $expensesData, $incomesData, $purchaseOrdersData, $purchaseItemsData, $consumptionLogsData);
                 }
             }
         }
@@ -170,15 +181,15 @@ class OrderSeeder extends Seeder
         }
 
         // Insert remaining
-        $this->insertChunks($ordersData, $orderItemsData, $paymentsData, $ledgersData, $expensesData, $purchaseOrdersData, $purchaseItemsData, $consumptionLogsData);
+        $this->insertChunks($ordersData, $orderItemsData, $paymentsData, $ledgersData, $expensesData, $incomesData, $purchaseOrdersData, $purchaseItemsData, $consumptionLogsData);
 
         $this->settleInventoryFromPurchases();
         $this->attachReceiptsToRecentOrders();
 
-        $this->command->info('✅ OrderSeeder: Chronologically Seeded Orders, Expenses, Purchases and Accounting Ledgers for 2 Years.');
+        $this->command->info('✅ OrderSeeder: Chronologically Seeded Orders, Expenses, Income, Purchases and Accounting Ledgers for 2 Years.');
     }
 
-    private function insertChunks(&$ordersData, &$orderItemsData, &$paymentsData, &$ledgersData, &$expensesData, &$purchaseOrdersData, &$purchaseItemsData, &$consumptionLogsData)
+    private function insertChunks(&$ordersData, &$orderItemsData, &$paymentsData, &$ledgersData, &$expensesData, &$incomesData, &$purchaseOrdersData, &$purchaseItemsData, &$consumptionLogsData)
     {
         // Every insert below is a raw query-builder call, so BelongsToTenant
         // never sees these rows - stampTenant() supplies the tenant_id that the
@@ -195,6 +206,9 @@ class OrderSeeder extends Seeder
 
         if (count($expensesData) > 0) {
             DB::table('expenses')->insert($this->stampTenant($expensesData));
+        }
+        if (count($incomesData) > 0) {
+            DB::table('incomes')->insert($this->stampTenant($incomesData));
         }
         if (count($purchaseOrdersData) > 0) {
             DB::table('purchase_orders')->insert($this->stampTenant($purchaseOrdersData));
@@ -218,6 +232,7 @@ class OrderSeeder extends Seeder
         $paymentsData = [];
         $ledgersData = [];
         $expensesData = [];
+        $incomesData = [];
         $purchaseOrdersData = [];
         $purchaseItemsData = [];
         $consumptionLogsData = [];
@@ -240,6 +255,78 @@ class OrderSeeder extends Seeder
         DB::statement("ALTER TABLE `{$table}` AUTO_INCREMENT = " . ($start + $headroom));
 
         return $start;
+    }
+
+    /**
+     * The money a restaurant takes that never passes through the till.
+     *
+     * Without this the demo's Income screen was an empty table and the profit
+     * report's "Other Income" line was always zero, so neither showed what the
+     * feature is for. Kept deliberately smaller than the food revenue it sits
+     * beside - a demo where hall rental rivals the kitchen would misrepresent
+     * the business, and the profit margin is the number visitors read first.
+     *
+     * Hall rental lands every month; the one-off receipts do not, so that the
+     * list has gaps in it the way a real one does.
+     */
+    private function generateMonthlyIncome($date, $location, $admin, &$incomesData, &$ledgersData)
+    {
+        $dateString = (clone $date)->setTime(11, 0)->toDateTimeString();
+
+        // Hall & event rental - the reliable monthly earner.
+        $rentalAmount = rand(25000, 60000);
+        $incomesData[] = [
+            'id' => $this->nextIncomeId,
+            'location_id' => $location->id,
+            'category' => 'Hall Rental',
+            'header_id' => $this->hallRentalHeaderId,
+            'amount' => $rentalAmount,
+            'logged_by' => $admin->id ?? 1,
+            'receipt_url' => null,
+            'created_at' => $dateString,
+            'updated_at' => $dateString,
+        ];
+        $ledgersData[] = [
+            'location_id' => $location->id,
+            'transaction_type' => 'income',
+            'amount' => $rentalAmount,
+            'reference_id' => $this->nextIncomeId,
+            'description' => 'Hall & Event Rental',
+            'header_id' => $this->hallRentalHeaderId,
+            'created_at' => $dateString,
+            'updated_at' => $dateString,
+        ];
+        $this->nextIncomeId++;
+
+        // Scrap sales, vendor rebates, recovered deposits - roughly every
+        // other month rather than on a schedule.
+        if (rand(1, 100) <= 55) {
+            $otherAmount = rand(4000, 15000);
+            $otherCategory = ['Scrap Sale', 'Vendor Commission', 'Equipment Sale', 'Recovered Deposit'][rand(0, 3)];
+
+            $incomesData[] = [
+                'id' => $this->nextIncomeId,
+                'location_id' => $location->id,
+                'category' => $otherCategory,
+                'header_id' => $this->otherIncomeHeaderId,
+                'amount' => $otherAmount,
+                'logged_by' => $admin->id ?? 1,
+                'receipt_url' => null,
+                'created_at' => $dateString,
+                'updated_at' => $dateString,
+            ];
+            $ledgersData[] = [
+                'location_id' => $location->id,
+                'transaction_type' => 'income',
+                'amount' => $otherAmount,
+                'reference_id' => $this->nextIncomeId,
+                'description' => $otherCategory,
+                'header_id' => $this->otherIncomeHeaderId,
+                'created_at' => $dateString,
+                'updated_at' => $dateString,
+            ];
+            $this->nextIncomeId++;
+        }
     }
 
     private function generateMonthlyExpenses($date, $location, $admin, &$expensesData, &$ledgersData)
