@@ -15,7 +15,7 @@ class ProductController extends Controller
 
     public function index(Request $request)
     {
-        $query = Product::with(['images', 'locations', 'category']);
+        $query = Product::with(['images', 'locations', 'category', 'comboItems']);
 
         if ($request->filled('search')) {
             $query->where('name', 'like', '%' . $request->input('search') . '%');
@@ -23,6 +23,10 @@ class ProductController extends Controller
 
         if ($request->filled('needs_cooking')) {
             $query->where('needs_cooking', (bool) $request->input('needs_cooking'));
+        }
+
+        if ($request->filled('type')) {
+            $query->where('type', $request->input('type'));
         }
 
         if ($request->filled('is_active')) {
@@ -64,6 +68,10 @@ class ProductController extends Controller
             'images'                   => 'nullable|array',
             'images.*'                 => 'image|max:5120',
             'featured_image_index'     => 'nullable|integer',
+            'combo_items'              => 'nullable|array',
+            'combo_items.*.product_id' => 'nullable|integer',
+            'combo_items.*.inventory_item_id' => 'nullable|integer',
+            'combo_items.*.quantity'   => 'nullable|numeric',
         ]);
 
         $product = Product::create($validated);
@@ -74,6 +82,16 @@ class ProductController extends Controller
                 $syncData[$loc['location_id']] = ['is_available' => $loc['is_available']];
             }
             $product->locations()->sync($syncData);
+        }
+
+        if ($request->has('combo_items') && is_array($request->input('combo_items'))) {
+            foreach ($request->input('combo_items') as $item) {
+                $product->comboItems()->create([
+                    'product_id'        => $item['product_id'] ?? null,
+                    'inventory_item_id' => $item['inventory_item_id'] ?? null,
+                    'quantity'          => $item['quantity'] ?? 1,
+                ]);
+            }
         }
 
         $featuredIndex = $request->input('featured_image_index');
@@ -91,12 +109,12 @@ class ProductController extends Controller
             }
         }
 
-        return response()->json($product->load(['images', 'locations']), 201);
+        return response()->json($product->load(['images', 'locations', 'comboItems']), 201);
     }
 
     public function show(Product $product)
     {
-        return response()->json($product->load(['images', 'locations']));
+        return response()->json($product->load(['images', 'locations', 'comboItems']));
     }
 
     public function update(Request $request, Product $product)
@@ -121,6 +139,10 @@ class ProductController extends Controller
             'remove_images.*'          => 'integer',
             'featured_image_id'        => 'nullable|integer',
             'featured_image_index'     => 'nullable|integer',
+            'combo_items'              => 'nullable|array',
+            'combo_items.*.product_id' => 'nullable|integer',
+            'combo_items.*.inventory_item_id' => 'nullable|integer',
+            'combo_items.*.quantity'   => 'nullable|numeric',
         ]);
 
         $product->update($validated);
@@ -131,6 +153,20 @@ class ProductController extends Controller
                 $syncData[$loc['location_id']] = ['is_available' => $loc['is_available']];
             }
             $product->locations()->sync($syncData);
+        }
+
+        if ($request->has('combo_items')) {
+            $product->comboItems()->delete();
+            $items = $request->input('combo_items');
+            if (is_array($items)) {
+                foreach ($items as $item) {
+                    $product->comboItems()->create([
+                        'product_id'        => $item['product_id'] ?? null,
+                        'inventory_item_id' => $item['inventory_item_id'] ?? null,
+                        'quantity'          => $item['quantity'] ?? 1,
+                    ]);
+                }
+            }
         }
 
         // Remove requested images
@@ -159,7 +195,7 @@ class ProductController extends Controller
             $product->images()->where('id', $validated['featured_image_id'])->update(['is_featured' => true]);
         }
 
-        return response()->json($product->load(['images', 'locations']));
+        return response()->json($product->load(['images', 'locations', 'comboItems']));
     }
 
     public function destroy(Product $product)
