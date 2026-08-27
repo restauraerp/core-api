@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\WebsiteSetting;
+use App\Support\Assets\ManagedAssets;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class WebsiteSettingController extends Controller
 {
@@ -45,5 +47,22 @@ class WebsiteSettingController extends Controller
     {
         $websiteSetting->delete();
         return response()->json(null, 204);
+    }
+
+    public function uploadLogo(Request $request, ManagedAssets $assets)
+    {
+        $request->validate(['logo' => 'required|image|max:2048']);
+
+        $path = $request->file('logo')->store('logos', 'public');
+
+        $setting = WebsiteSetting::firstOrNew(['key' => 'logo_url']);
+        $previous = $setting->value;
+        $setting->value = $path;
+        $setting->type = 'string';
+        $setting->save();
+
+        $assets->release($previous);
+
+        return response()->json($setting);
     }
 }
