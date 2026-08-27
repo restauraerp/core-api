@@ -239,6 +239,7 @@ Route::prefix('v1')->group(function () {
         });
 
         // Catalog API (Protected Routes)
+        Route::post('website-settings/logo', [WebsiteSettingController::class, 'uploadLogo']);
         Route::apiResource('product-categories', ProductCategoryController::class)->except(['index', 'show']);
         Route::apiResource('tags', TagController::class);
         Route::apiResource('products', ProductController::class)->except(['index', 'show']);

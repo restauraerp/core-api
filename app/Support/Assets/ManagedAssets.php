@@ -60,6 +60,7 @@ class ManagedAssets
         'inventory',
         'locations',
         'locations_videos',
+        'logos',
         'receipts',
         'users',
     ];
