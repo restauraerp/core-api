@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -33,6 +34,19 @@ class WalkthroughProgressRelayTest extends TestCase
         Config::set('platform.token', 'platform-secret');
 
         Http::fake(['*' => Http::response(['recorded' => true], 200)]);
+    }
+
+    /**
+     * Replaces the fake set up above, rather than adding to it.
+     *
+     * Stubs are matched in the order they were registered, so a second
+     * `Http::fake(['*' => ...])` never gets a look in - the catch-all from setUp
+     * answers first and the test silently asserts against the wrong response.
+     */
+    private function websiteAnswers(mixed $response): void
+    {
+        Http::swap(new Factory);
+        Http::fake(['*' => $response]);
     }
 
     private function report(array $payload = [])
@@ -126,5 +140,78 @@ class WalkthroughProgressRelayTest extends TestCase
             ->assertUnprocessable();
 
         Http::assertNothingSent();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reading it back
+    |--------------------------------------------------------------------------
+    |
+    | The same relay, the other way round, so a half-finished walkthrough can be
+    | resumed. It carries the same obligation the reporting half does: whichever
+    | restaurant is asking comes from the session, never from the request.
+    */
+
+    public function test_a_resume_position_is_relayed_back_to_the_caller(): void
+    {
+        $this->websiteAnswers(Http::response([
+            'found' => true,
+            'kind' => 'demo',
+            'percent' => 66,
+            'last_key' => 'stock-falling',
+            'keys_seen' => ['todays-takings', 'live-orders'],
+            'completed' => false,
+        ], 200));
+
+        $this->getJson('/api/v1/walkthrough/progress?kind=demo&ref=opaque-token')
+            ->assertOk()
+            ->assertJson(['found' => true, 'percent' => 66, 'last_key' => 'stock-falling']);
+
+        Http::assertSent(fn ($request) => str_starts_with($request->url(), 'https://restauraerp.test/api/marketing/progress')
+            && $request['ref'] === 'opaque-token');
+    }
+
+    public function test_a_signed_in_user_reads_their_own_restaurant_position(): void
+    {
+        $this->websiteAnswers(Http::response(['found' => true, 'percent' => 33, 'last_key' => 'set-up-tables'], 200));
+
+        $tenant = Tenant::factory()->create(['slug' => 'spice-garden']);
+        $user = User::factory()->create(['tenant_id' => $tenant->getKey()]);
+
+        $this->withToken($user->createToken('test')->plainTextToken)
+            ->getJson('/api/v1/walkthrough/progress?kind=trial')
+            ->assertOk();
+
+        // Not from the request. A client-supplied code here would let one
+        // restaurant read another's progress out of this endpoint.
+        Http::assertSent(fn ($request) => $request['tenant_code'] === 'spice-garden');
+    }
+
+    public function test_an_unreachable_website_answers_nothing_found_rather_than_failing(): void
+    {
+        // Somebody is opening the product, not waiting on this. A tour that
+        // refuses to start because a lookup timed out is worse than one that
+        // starts at the beginning.
+        $this->websiteAnswers(Http::response('gateway gone', 502));
+
+        $this->getJson('/api/v1/walkthrough/progress?kind=demo&ref=opaque-token')
+            ->assertOk()
+            ->assertJson(['found' => false, 'percent' => 0, 'last_key' => null, 'completed' => false]);
+    }
+
+    public function test_an_unconfigured_platform_link_answers_nothing_found(): void
+    {
+        Config::set('platform.token', '');
+
+        $this->getJson('/api/v1/walkthrough/progress?kind=demo')
+            ->assertOk()
+            ->assertJson(['found' => false]);
+
+        Http::assertNothingSent();
+    }
+
+    public function test_an_unknown_kind_is_refused(): void
+    {
+        $this->getJson('/api/v1/walkthrough/progress?kind=holiday')->assertStatus(422);
     }
 }
