@@ -31,7 +31,7 @@ class OrderController extends Controller
 
     public function index(Request $request)
     {
-        $query = Order::with(['items.product.images', 'payments', 'customer', 'table']);
+        $query = Order::with(['items.product.images', 'items.product.comboItems', 'payments', 'customer', 'table']);
 
         if ($request->has('from')) {
             $query->where('created_at', '>=', $request->from);
@@ -281,7 +281,7 @@ class OrderController extends Controller
 
     public function show(Order $order)
     {
-        return response()->json($order->load(['items.product', 'payments', 'table', 'customer']));
+        return response()->json($order->load(['items.product.comboItems', 'payments', 'table', 'customer']));
     }
 
     public function update(Request $request, Order $order)

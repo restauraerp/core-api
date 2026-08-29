@@ -68,7 +68,7 @@ class InvoiceController extends Controller
         }
 
         return $this->context->runFor($tenant, function () use ($found) {
-            $found->load(['items.product', 'payments', 'customer', 'location']);
+            $found->load(['items.product.comboItems', 'payments', 'customer', 'location']);
 
             return response()->json([
                 'restaurant' => RestaurantBranding::current(),
@@ -95,6 +95,13 @@ class InvoiceController extends Controller
                         'quantity' => $item->quantity,
                         'price' => $item->price,
                         'notes' => $item->notes,
+                        'is_combo' => $item->product?->type === 'combo',
+                        'combo_items' => $item->product?->type === 'combo'
+                            ? $item->product->comboItems->map(fn ($ci) => [
+                                'name' => $ci->product?->name ?? $ci->inventoryItem?->title ?? 'Item',
+                                'quantity' => $ci->quantity,
+                            ])->all()
+                            : null,
                     ])->all(),
                     'payments' => $found->payments->map(fn ($payment) => [
                         'method' => $payment->method,
