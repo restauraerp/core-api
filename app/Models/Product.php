@@ -61,4 +61,9 @@ class Product extends Model
                 ->withTimestamps()
         );
     }
+
+    public function comboItems()
+    {
+        return $this->hasMany(ComboItem::class, 'combo_product_id')->with(['product', 'inventoryItem']);
+    }
 }
