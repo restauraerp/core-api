@@ -29,6 +29,10 @@ class ProductController extends Controller
             $query->where('type', $request->input('type'));
         }
 
+        if ($request->filled('exclude_type')) {
+            $query->where('type', '!=', $request->input('exclude_type'));
+        }
+
         if ($request->filled('is_active')) {
             $query->where('is_active', (bool) $request->input('is_active'));
         }
