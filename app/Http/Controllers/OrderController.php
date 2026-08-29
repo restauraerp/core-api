@@ -31,7 +31,7 @@ class OrderController extends Controller
 
     public function index(Request $request)
     {
-        $query = Order::with(['items.product.images', 'items.product.comboItems', 'payments', 'customer', 'table']);
+        $query = Order::with(['items.product.images', 'items.product.comboItems', 'payments', 'customer', 'table', 'partner']);
 
         if ($request->has('from')) {
             $query->where('created_at', '>=', $request->from);
@@ -74,7 +74,11 @@ class OrderController extends Controller
         // and has agreed to collect later. Separate from `active_only`, which
         // deliberately no longer shows them - see Order::scopeActive().
         if ($request->has('due_only')) {
-            $query->due();
+            $query->due()->whereNull('partner_id');
+        }
+
+        if ($request->has('partner_only')) {
+            $query->whereNotNull('partner_id');
         }
 
         // The Completed tab. Deliberately applies no order_type filter - it
@@ -570,7 +574,7 @@ class OrderController extends Controller
         }
 
         $query = Order::onlyTrashed()
-            ->with(['items.product.images', 'payments', 'customer', 'table', 'trashedByUser']);
+            ->with(['items.product.images', 'payments', 'customer', 'table', 'partner', 'trashedByUser']);
 
         if ($request->has('location_id')) {
             $query->where('location_id', $request->location_id);
