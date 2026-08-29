@@ -205,6 +205,88 @@ class ProductSeeder extends Seeder
                 'is_active' => true,
                 'image' => 'foods/salmon_al_forno.png',
             ],
+            [
+                'category_id' => $pizzaCategory->id,
+                'name' => 'Family Pizza Combo Deal',
+                'description' => 'Includes Margherita Verace, Pizza Diavola, Bruschetta, and 2 Soft Drink Cans.',
+                'price' => 1850,
+                'sale_price' => 1650,
+                'type' => 'combo',
+                'needs_cooking' => true,
+                'is_active' => true,
+                'image' => 'foods/margherita_verace.png',
+                'items' => [
+                    ['product_name' => 'Margherita Verace', 'qty' => 1],
+                    ['product_name' => 'Pizza Diavola', 'qty' => 1],
+                    ['product_name' => 'Bruschetta al Pomodoro', 'qty' => 1],
+                    ['inventory_title' => 'Cola Can 330ml', 'qty' => 2],
+                ],
+            ],
+            [
+                'category_id' => $pastaCategory->id,
+                'name' => 'Italian Pasta Feast Combo',
+                'description' => 'Truffle Carbonara paired with Classic Tiramisu and Chilled Mineral Water.',
+                'price' => 1250,
+                'sale_price' => 1100,
+                'type' => 'combo',
+                'needs_cooking' => true,
+                'is_active' => true,
+                'image' => 'foods/truffle_carbonara.png',
+                'items' => [
+                    ['product_name' => 'Truffle Carbonara', 'qty' => 1],
+                    ['product_name' => 'Classic Tiramisu', 'qty' => 1],
+                    ['inventory_title' => 'Mineral Water 500ml', 'qty' => 1],
+                ],
+            ],
+            [
+                'category_id' => $grillCategory->id,
+                'name' => 'Grilled Feast Set Menu',
+                'description' => 'Premium T-bone steak with Caprese Salad starter and Panna Cotta dessert.',
+                'price' => 3950,
+                'sale_price' => 3500,
+                'type' => 'combo',
+                'needs_cooking' => true,
+                'is_active' => true,
+                'image' => 'foods/bistecca_fiorentina.png',
+                'items' => [
+                    ['product_name' => 'Bistecca alla Fiorentina', 'qty' => 1],
+                    ['product_name' => 'Caprese Salad', 'qty' => 1],
+                    ['product_name' => 'Panna Cotta', 'qty' => 1],
+                ],
+            ],
+            [
+                'category_id' => $pastaCategory->id,
+                'name' => 'Romantic Dinner for Two',
+                'description' => 'Ravioli al Tartufo and Risotto ai Funghi with Classic Tiramisu and bottled water for two.',
+                'price' => 2300,
+                'sale_price' => 1999,
+                'type' => 'combo',
+                'needs_cooking' => true,
+                'is_active' => true,
+                'image' => 'foods/ravioli.png',
+                'items' => [
+                    ['product_name' => 'Ravioli al Tartufo', 'qty' => 1],
+                    ['product_name' => 'Risotto ai Funghi', 'qty' => 1],
+                    ['product_name' => 'Classic Tiramisu', 'qty' => 1],
+                    ['inventory_title' => 'Mineral Water 500ml', 'qty' => 2],
+                ],
+            ],
+            [
+                'category_id' => $pastaCategory->id,
+                'name' => 'Quick Lunch Combo',
+                'description' => 'Spaghetti Bolognese with a warm Minestrone Soup and a chilled Cola.',
+                'price' => 1050,
+                'sale_price' => 899,
+                'type' => 'combo',
+                'needs_cooking' => true,
+                'is_active' => true,
+                'image' => 'foods/spaghetti_bolognese.png',
+                'items' => [
+                    ['product_name' => 'Spaghetti Bolognese', 'qty' => 1],
+                    ['product_name' => 'Minestrone Soup', 'qty' => 1],
+                    ['inventory_title' => 'Cola Can 330ml', 'qty' => 1],
+                ],
+            ],
         ];
 
         foreach ($productsData as $data) {
@@ -233,8 +315,33 @@ class ProductSeeder extends Seeder
                     'type' => 'image',
                 ]
             );
+
+            if (! empty($data['items'])) {
+                $product->comboItems()->delete();
+                foreach ($data['items'] as $itemDef) {
+                    $childProdId = null;
+                    $childInvId = null;
+
+                    if (! empty($itemDef['product_name'])) {
+                        $childProd = Product::where('name', $itemDef['product_name'])->first();
+                        $childProdId = $childProd?->id;
+                    }
+                    if (! empty($itemDef['inventory_title'])) {
+                        $childInv = \App\Models\InventoryItem::where('title', $itemDef['inventory_title'])->first();
+                        $childInvId = $childInv?->id;
+                    }
+
+                    if ($childProdId || $childInvId) {
+                        $product->comboItems()->create([
+                            'product_id' => $childProdId,
+                            'inventory_item_id' => $childInvId,
+                            'quantity' => $itemDef['qty'],
+                        ]);
+                    }
+                }
+            }
         }
 
-        $this->command->info('✅ ProductSeeder: Seeded categories, products, and linked generated food images.');
+        $this->command->info('✅ ProductSeeder: Seeded categories, products, combo set menus, and linked generated food images.');
     }
 }
