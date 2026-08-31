@@ -18546,6 +18546,95 @@
                     }
                 },
                 "security": []
+            },
+            "get": {
+                "operationId": "walkthroughProgress.show",
+                "description": "Answers a usable shape whatever happens. Somebody opening the product is\nnot waiting on this, and a walkthrough that refuses to start because a\nlookup timed out is worse than one that starts from the beginning - so\nevery failure lands on the same \"nothing found\" answer.",
+                "summary": "Where this person had got to, relayed back from the website",
+                "tags": [
+                    "WalkthroughProgress"
+                ],
+                "parameters": [
+                    {
+                        "name": "kind",
+                        "in": "query",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "demo",
+                                "trial",
+                                "video"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "ref",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "maxLength": 2000
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "found": {
+                                                    "type": "boolean"
+                                                },
+                                                "kind": {
+                                                    "type": "string"
+                                                },
+                                                "percent": {
+                                                    "type": "integer"
+                                                },
+                                                "last_key": {
+                                                    "type": "null"
+                                                },
+                                                "keys_seen": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string"
+                                                    },
+                                                    "minItems": 0,
+                                                    "maxItems": 0,
+                                                    "additionalItems": false
+                                                },
+                                                "completed": {
+                                                    "type": "boolean"
+                                                }
+                                            },
+                                            "required": [
+                                                "found",
+                                                "kind",
+                                                "percent",
+                                                "last_key",
+                                                "keys_seen",
+                                                "completed"
+                                            ]
+                                        },
+                                        {}
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                },
+                "security": []
             }
         },
         "/v1/waste-logs": {
