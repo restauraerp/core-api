@@ -13,11 +13,11 @@ use App\Http\Controllers\DemoController;
 use App\Http\Controllers\DemoLeadController;
 use App\Http\Controllers\DiscountController;
 use App\Http\Controllers\ExpenseController;
-use App\Http\Controllers\IncomeController;
 use App\Http\Controllers\GoogleReviewController;
-use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\HallController;
+use App\Http\Controllers\IncomeController;
 use App\Http\Controllers\InventoryItemController;
+use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\LoyaltySettingController;
@@ -26,11 +26,11 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OneTimeLoginController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderDueController;
-use App\Http\Controllers\PartnerController;
-use App\Http\Controllers\PartnerPayoutController;
 use App\Http\Controllers\OrderItemController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\PartnerController;
+use App\Http\Controllers\PartnerPayoutController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PayrollController;
@@ -149,6 +149,14 @@ Route::prefix('v1')->group(function () {
     // walkthrough is exactly what somebody whose trial just lapsed should still
     // be able to finish.
     Route::post('walkthrough/progress', [WalkthroughProgressController::class, 'store'])
+        ->middleware('throttle:120,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+
+    // The same reading back out, so a half-finished walkthrough can be resumed
+    // rather than restarted. Same exemptions, for the same reasons - and the
+    // resume position is looked up against whoever the `ref` or the bearer token
+    // says is asking, never against anything the caller names itself.
+    Route::get('walkthrough/progress', [WalkthroughProgressController::class, 'show'])
         ->middleware('throttle:120,1')
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
 
