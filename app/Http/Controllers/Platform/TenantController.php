@@ -394,10 +394,11 @@ class TenantController extends Controller
         $tenantUsers = User::withoutGlobalScopes()
             ->where('tenant_id', $tenant->getKey());
 
-        $owner = (clone $tenantUsers)
-            ->where('email', $tenant->contact_email)
-            ->role('restaurant_admin')
-            ->first();
+        $isAdmin = fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', 'restaurant_admin'));
+
+        $owner = $isAdmin(
+            (clone $tenantUsers)->where('email', $tenant->contact_email)
+        )->first();
 
         if ($owner === null) {
             $owner = (clone $tenantUsers)
@@ -407,10 +408,7 @@ class TenantController extends Controller
         }
 
         if ($owner === null) {
-            $owner = (clone $tenantUsers)
-                ->role('restaurant_admin')
-                ->oldest()
-                ->first();
+            $owner = $isAdmin(clone $tenantUsers)->oldest()->first();
         }
 
         if ($owner === null) {
