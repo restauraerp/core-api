@@ -9,14 +9,12 @@ use Symfony\Component\HttpFoundation\Response;
 
 class PartnerController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware('can:view_partners');
-        $this->middleware('can:manage_partners')->except(['index', 'show']);
-    }
-
     public function index(Request $request)
     {
+        if (! $request->user()->can('view_partners')) {
+            abort(403);
+        }
+
         $query = Partner::query()->withCount('orders');
 
         if ($request->boolean('active_only')) {
@@ -34,6 +32,10 @@ class PartnerController extends Controller
 
     public function store(Request $request)
     {
+        if (! $request->user()->can('manage_partners')) {
+            abort(403);
+        }
+
         $partner = Partner::create($this->validated($request));
 
         return response()->json($partner, 201);
@@ -46,6 +48,10 @@ class PartnerController extends Controller
 
     public function update(Request $request, Partner $partner)
     {
+        if (! $request->user()->can('manage_partners')) {
+            abort(403);
+        }
+
         $partner->update($this->validated($request, $partner));
 
         return response()->json($partner);
@@ -56,8 +62,12 @@ class PartnerController extends Controller
      * partner that has ever sent an order is switched off rather than removed -
      * the same rule outlets follow, and for the same reason.
      */
-    public function destroy(Partner $partner)
+    public function destroy(Request $request, Partner $partner)
     {
+        if (! $request->user()->can('manage_partners')) {
+            abort(403);
+        }
+
         if ($partner->orders()->exists()) {
             return response()->json([
                 'message' => 'This partner has sent orders, and deleting it would detach them from the money they earned. Switch it off instead to stop it appearing at the till.',
