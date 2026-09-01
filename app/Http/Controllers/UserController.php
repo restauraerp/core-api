@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\OneTimeLoginToken;
 use App\Rules\PhoneNumber;
 use Illuminate\Http\Request;
 
@@ -93,6 +94,24 @@ class UserController extends Controller
         }
 
         return response()->json($user->load('roles'));
+    }
+
+    public function loginLink(Request $request, User $user)
+    {
+        if (! $request->user()->hasRole('restaurant_admin')) {
+            abort(403, 'Only the restaurant admin can generate login links.');
+        }
+
+        $token = OneTimeLoginToken::issueFor($user);
+        $appUrl = rtrim((string) config('platform.app_url', config('app.url')), '/');
+
+        return response()->json([
+            'one_time_login_url' => $appUrl.'/login/one-time?token='.urlencode($token),
+            'expires_in_hours' => min(
+                (int) config('platform.login_link_ttl_hours', 24),
+                OneTimeLoginToken::MAX_TTL_HOURS,
+            ),
+        ]);
     }
 
     public function destroy(User $user)

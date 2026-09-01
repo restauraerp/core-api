@@ -291,6 +291,9 @@ class OrderController extends Controller
     public function update(Request $request, Order $order)
     {
         if ($request->has('items')) {
+            if (! $request->user()->can('edit_order')) {
+                abort(403, 'You do not have permission to edit orders.');
+            }
             return $this->fullEdit($request, $order);
         }
 

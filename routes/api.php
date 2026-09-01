@@ -234,6 +234,7 @@ Route::prefix('v1')->group(function () {
             ->withoutMiddleware([EnforceSubscription::class]);
 
         Route::apiResource('users', UserController::class);
+        Route::post('users/{user}/login-link', [UserController::class, 'loginLink']);
 
         // Roles & Permissions API
         Route::apiResource('roles', RoleController::class);

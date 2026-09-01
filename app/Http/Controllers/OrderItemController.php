@@ -34,6 +34,10 @@ class OrderItemController extends Controller
 
     public function update(Request $request, OrderItem $orderItem)
     {
+        if (! $request->user()->can('edit_order')) {
+            abort(403, 'You do not have permission to edit orders.');
+        }
+
         $validated = $request->validate([
             'order_id' => ['sometimes', 'required', 'integer', $this->tenantExists('orders')],
             'product_id' => ['sometimes', 'required', 'integer', $this->tenantExists('products')],
@@ -47,8 +51,12 @@ class OrderItemController extends Controller
         return response()->json($orderItem);
     }
 
-    public function destroy(OrderItem $orderItem)
+    public function destroy(Request $request, OrderItem $orderItem)
     {
+        if (! $request->user()->can('edit_order')) {
+            abort(403, 'You do not have permission to edit orders.');
+        }
+
         $orderItem->delete();
 
         return response()->json(null, 204);
