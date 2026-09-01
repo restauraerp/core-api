@@ -35,6 +35,8 @@ class RoleDefinitions
 
             'view_orders', 'update_order_status', 'edit_order', 'delete_order', 'trash_order',
 
+            'view_partners', 'manage_partners',
+
             'view_catalog', 'create_catalog_item', 'update_catalog_item', 'delete_catalog_item',
 
             'view_inventory', 'create_inventory_item', 'update_inventory_item', 'delete_inventory_item',

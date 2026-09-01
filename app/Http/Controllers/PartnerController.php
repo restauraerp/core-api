@@ -9,6 +9,12 @@ use Symfony\Component\HttpFoundation\Response;
 
 class PartnerController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('can:view_partners');
+        $this->middleware('can:manage_partners')->except(['index', 'show']);
+    }
+
     public function index(Request $request)
     {
         $query = Partner::query()->withCount('orders');
