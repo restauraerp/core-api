@@ -9,13 +9,12 @@ use Illuminate\Support\Facades\DB;
 
 class PartnerPayoutController extends Controller
 {
-    public function __construct()
-    {
-        $this->middleware('can:manage_partners');
-    }
-
     public function index(Request $request)
     {
+        if (! $request->user()->can('manage_partners')) {
+            abort(403);
+        }
+
         $query = PartnerPayout::query()->with('partner');
 
         if ($request->filled('partner_id')) {
@@ -33,6 +32,10 @@ class PartnerPayoutController extends Controller
 
     public function store(Request $request)
     {
+        if (! $request->user()->can('manage_partners')) {
+            abort(403);
+        }
+
         $validated = $request->validate([
             'partner_id' => ['required', 'integer', $this->tenantExists('partners')],
             'amount' => ['required', 'numeric', 'min:0.01'],
@@ -63,8 +66,12 @@ class PartnerPayoutController extends Controller
         return response()->json($payout->load('partner'), 201);
     }
 
-    public function destroy(PartnerPayout $partnerPayout)
+    public function destroy(Request $request, PartnerPayout $partnerPayout)
     {
+        if (! $request->user()->can('manage_partners')) {
+            abort(403);
+        }
+
         DB::transaction(function () use ($partnerPayout) {
             AccountingLedger::where('transaction_type', 'partner_payout')
                 ->where('reference_id', $partnerPayout->id)
