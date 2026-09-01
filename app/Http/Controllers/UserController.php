@@ -67,6 +67,14 @@ class UserController extends Controller
 
         $request->validate($rules);
 
+        if (isset($validated['email']) && $validated['email'] !== $user->email
+            && $user->hasRole('restaurant_admin')) {
+            return response()->json([
+                'message' => 'The owner account email cannot be changed.',
+                'errors' => ['email' => ['The owner account email cannot be changed.']],
+            ], 422);
+        }
+
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('users', 'public');
             $validated['image_url'] = $path;
