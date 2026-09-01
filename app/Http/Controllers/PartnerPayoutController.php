@@ -9,6 +9,11 @@ use Illuminate\Support\Facades\DB;
 
 class PartnerPayoutController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware('can:manage_partners');
+    }
+
     public function index(Request $request)
     {
         $query = PartnerPayout::query()->with('partner');
