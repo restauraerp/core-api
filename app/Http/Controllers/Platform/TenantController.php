@@ -391,24 +391,30 @@ class TenantController extends Controller
     {
         $tenant = Tenant::where('slug', $slug)->firstOrFail();
 
-        $owner = User::withoutGlobalScopes()
-            ->where('tenant_id', $tenant->getKey())
+        $tenantUsers = User::withoutGlobalScopes()
+            ->where('tenant_id', $tenant->getKey());
+
+        $owner = (clone $tenantUsers)
             ->where('email', $tenant->contact_email)
+            ->role('restaurant_admin')
             ->first();
 
         if ($owner === null) {
-            $owner = User::withoutGlobalScopes()
-                ->where('tenant_id', $tenant->getKey())
+            $owner = (clone $tenantUsers)
+                ->where('email', $tenant->contact_email)
+                ->oldest()
+                ->first();
+        }
+
+        if ($owner === null) {
+            $owner = (clone $tenantUsers)
                 ->role('restaurant_admin')
                 ->oldest()
                 ->first();
         }
 
         if ($owner === null) {
-            $owner = User::withoutGlobalScopes()
-                ->where('tenant_id', $tenant->getKey())
-                ->oldest()
-                ->firstOrFail();
+            $owner = (clone $tenantUsers)->oldest()->firstOrFail();
         }
 
         return response()->json(['login' => $this->loginPayload($tenant, $owner)]);
