@@ -394,7 +394,22 @@ class TenantController extends Controller
         $owner = User::withoutGlobalScopes()
             ->where('tenant_id', $tenant->getKey())
             ->where('email', $tenant->contact_email)
-            ->firstOrFail();
+            ->first();
+
+        if ($owner === null) {
+            $owner = User::withoutGlobalScopes()
+                ->where('tenant_id', $tenant->getKey())
+                ->role('restaurant_admin')
+                ->oldest()
+                ->first();
+        }
+
+        if ($owner === null) {
+            $owner = User::withoutGlobalScopes()
+                ->where('tenant_id', $tenant->getKey())
+                ->oldest()
+                ->firstOrFail();
+        }
 
         return response()->json(['login' => $this->loginPayload($tenant, $owner)]);
     }
