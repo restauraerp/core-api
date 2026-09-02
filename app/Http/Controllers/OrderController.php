@@ -502,8 +502,15 @@ class OrderController extends Controller
         return response()->json($order->load(['items', 'payments']));
     }
 
-    public function destroy(Order $order)
+    public function destroy(Request $request, Order $order)
     {
+        // Cancelling an order is an edit to what the till already rang up, so
+        // it rides on the same permission as "Edit in POS" - a role that
+        // cannot change an order cannot void it either.
+        if (! $request->user()->can('edit_order')) {
+            abort(403, 'You do not have permission to cancel orders.');
+        }
+
         // A deleted order never happened; whatever it sold goes back on the
         // shelf, unless it was already cancelled and put back then.
         if (! $this->isCancelled($order->status)) {
