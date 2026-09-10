@@ -16385,16 +16385,16 @@
                                                         "null"
                                                     ]
                                                 },
-                                                "products_count": {
+                                                "has_products": {
                                                     "type": [
-                                                        "string",
+                                                        "boolean",
                                                         "null"
                                                     ],
-                                                    "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. The website\nreads these to tell an engaged trial from an idle one."
+                                                    "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. Booleans\nrather than counts: the website only asks \"has any\", and answering\nit with EXISTS keeps the tenant list fast. Null when not loaded, so\na caller that did not ask is not told a confident \"no\"."
                                                 },
-                                                "orders_count": {
+                                                "has_orders": {
                                                     "type": [
-                                                        "string",
+                                                        "boolean",
                                                         "null"
                                                     ]
                                                 },
@@ -16424,8 +16424,8 @@
                                                 "max_outlets",
                                                 "locations_count",
                                                 "users_count",
-                                                "products_count",
-                                                "orders_count",
+                                                "has_products",
+                                                "has_orders",
                                                 "trial_ends_at",
                                                 "subscription_ends_at",
                                                 "deleted_at",
@@ -16550,16 +16550,16 @@
                                                         "null"
                                                     ]
                                                 },
-                                                "products_count": {
+                                                "has_products": {
                                                     "type": [
-                                                        "string",
+                                                        "boolean",
                                                         "null"
                                                     ],
-                                                    "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. The website\nreads these to tell an engaged trial from an idle one."
+                                                    "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. Booleans\nrather than counts: the website only asks \"has any\", and answering\nit with EXISTS keeps the tenant list fast. Null when not loaded, so\na caller that did not ask is not told a confident \"no\"."
                                                 },
-                                                "orders_count": {
+                                                "has_orders": {
                                                     "type": [
-                                                        "string",
+                                                        "boolean",
                                                         "null"
                                                     ]
                                                 },
@@ -16589,8 +16589,8 @@
                                                 "max_outlets",
                                                 "locations_count",
                                                 "users_count",
-                                                "products_count",
-                                                "orders_count",
+                                                "has_products",
+                                                "has_orders",
                                                 "trial_ends_at",
                                                 "subscription_ends_at",
                                                 "deleted_at",
@@ -16728,16 +16728,16 @@
                                                             "null"
                                                         ]
                                                     },
-                                                    "products_count": {
+                                                    "has_products": {
                                                         "type": [
-                                                            "string",
+                                                            "boolean",
                                                             "null"
                                                         ],
-                                                        "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. The website\nreads these to tell an engaged trial from an idle one."
+                                                        "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. Booleans\nrather than counts: the website only asks \"has any\", and answering\nit with EXISTS keeps the tenant list fast. Null when not loaded, so\na caller that did not ask is not told a confident \"no\"."
                                                     },
-                                                    "orders_count": {
+                                                    "has_orders": {
                                                         "type": [
-                                                            "string",
+                                                            "boolean",
                                                             "null"
                                                         ]
                                                     },
@@ -16767,8 +16767,8 @@
                                                     "max_outlets",
                                                     "locations_count",
                                                     "users_count",
-                                                    "products_count",
-                                                    "orders_count",
+                                                    "has_products",
+                                                    "has_orders",
                                                     "trial_ends_at",
                                                     "subscription_ends_at",
                                                     "deleted_at",
@@ -16898,16 +16898,16 @@
                                                         "null"
                                                     ]
                                                 },
-                                                "products_count": {
+                                                "has_products": {
                                                     "type": [
-                                                        "string",
+                                                        "boolean",
                                                         "null"
                                                     ],
-                                                    "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. The website\nreads these to tell an engaged trial from an idle one."
+                                                    "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. Booleans\nrather than counts: the website only asks \"has any\", and answering\nit with EXISTS keeps the tenant list fast. Null when not loaded, so\na caller that did not ask is not told a confident \"no\"."
                                                 },
-                                                "orders_count": {
+                                                "has_orders": {
                                                     "type": [
-                                                        "string",
+                                                        "boolean",
                                                         "null"
                                                     ]
                                                 },
@@ -16937,8 +16937,8 @@
                                                 "max_outlets",
                                                 "locations_count",
                                                 "users_count",
-                                                "products_count",
-                                                "orders_count",
+                                                "has_products",
+                                                "has_orders",
                                                 "trial_ends_at",
                                                 "subscription_ends_at",
                                                 "deleted_at",
@@ -17039,16 +17039,16 @@
                                                         "null"
                                                     ]
                                                 },
-                                                "products_count": {
+                                                "has_products": {
                                                     "type": [
-                                                        "string",
+                                                        "boolean",
                                                         "null"
                                                     ],
-                                                    "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. The website\nreads these to tell an engaged trial from an idle one."
+                                                    "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. Booleans\nrather than counts: the website only asks \"has any\", and answering\nit with EXISTS keeps the tenant list fast. Null when not loaded, so\na caller that did not ask is not told a confident \"no\"."
                                                 },
-                                                "orders_count": {
+                                                "has_orders": {
                                                     "type": [
-                                                        "string",
+                                                        "boolean",
                                                         "null"
                                                     ]
                                                 },
@@ -17078,8 +17078,8 @@
                                                 "max_outlets",
                                                 "locations_count",
                                                 "users_count",
-                                                "products_count",
-                                                "orders_count",
+                                                "has_products",
+                                                "has_orders",
                                                 "trial_ends_at",
                                                 "subscription_ends_at",
                                                 "deleted_at",
@@ -17224,16 +17224,16 @@
                                                         "null"
                                                     ]
                                                 },
-                                                "products_count": {
+                                                "has_products": {
                                                     "type": [
-                                                        "string",
+                                                        "boolean",
                                                         "null"
                                                     ],
-                                                    "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. The website\nreads these to tell an engaged trial from an idle one."
+                                                    "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. Booleans\nrather than counts: the website only asks \"has any\", and answering\nit with EXISTS keeps the tenant list fast. Null when not loaded, so\na caller that did not ask is not told a confident \"no\"."
                                                 },
-                                                "orders_count": {
+                                                "has_orders": {
                                                     "type": [
-                                                        "string",
+                                                        "boolean",
                                                         "null"
                                                     ]
                                                 },
@@ -17263,8 +17263,8 @@
                                                 "max_outlets",
                                                 "locations_count",
                                                 "users_count",
-                                                "products_count",
-                                                "orders_count",
+                                                "has_products",
+                                                "has_orders",
                                                 "trial_ends_at",
                                                 "subscription_ends_at",
                                                 "deleted_at",
@@ -17379,16 +17379,16 @@
                                                         "null"
                                                     ]
                                                 },
-                                                "products_count": {
+                                                "has_products": {
                                                     "type": [
-                                                        "string",
+                                                        "boolean",
                                                         "null"
                                                     ],
-                                                    "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. The website\nreads these to tell an engaged trial from an idle one."
+                                                    "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. Booleans\nrather than counts: the website only asks \"has any\", and answering\nit with EXISTS keeps the tenant list fast. Null when not loaded, so\na caller that did not ask is not told a confident \"no\"."
                                                 },
-                                                "orders_count": {
+                                                "has_orders": {
                                                     "type": [
-                                                        "string",
+                                                        "boolean",
                                                         "null"
                                                     ]
                                                 },
@@ -17418,8 +17418,8 @@
                                                 "max_outlets",
                                                 "locations_count",
                                                 "users_count",
-                                                "products_count",
-                                                "orders_count",
+                                                "has_products",
+                                                "has_orders",
                                                 "trial_ends_at",
                                                 "subscription_ends_at",
                                                 "deleted_at",
@@ -17523,16 +17523,16 @@
                                                         "null"
                                                     ]
                                                 },
-                                                "products_count": {
+                                                "has_products": {
                                                     "type": [
-                                                        "string",
+                                                        "boolean",
                                                         "null"
                                                     ],
-                                                    "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. The website\nreads these to tell an engaged trial from an idle one."
+                                                    "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. Booleans\nrather than counts: the website only asks \"has any\", and answering\nit with EXISTS keeps the tenant list fast. Null when not loaded, so\na caller that did not ask is not told a confident \"no\"."
                                                 },
-                                                "orders_count": {
+                                                "has_orders": {
                                                     "type": [
-                                                        "string",
+                                                        "boolean",
                                                         "null"
                                                     ]
                                                 },
@@ -17562,8 +17562,8 @@
                                                 "max_outlets",
                                                 "locations_count",
                                                 "users_count",
-                                                "products_count",
-                                                "orders_count",
+                                                "has_products",
+                                                "has_orders",
                                                 "trial_ends_at",
                                                 "subscription_ends_at",
                                                 "deleted_at",
@@ -17690,16 +17690,16 @@
                                                         "null"
                                                     ]
                                                 },
-                                                "products_count": {
+                                                "has_products": {
                                                     "type": [
-                                                        "string",
+                                                        "boolean",
                                                         "null"
                                                     ],
-                                                    "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. The website\nreads these to tell an engaged trial from an idle one."
+                                                    "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. Booleans\nrather than counts: the website only asks \"has any\", and answering\nit with EXISTS keeps the tenant list fast. Null when not loaded, so\na caller that did not ask is not told a confident \"no\"."
                                                 },
-                                                "orders_count": {
+                                                "has_orders": {
                                                     "type": [
-                                                        "string",
+                                                        "boolean",
                                                         "null"
                                                     ]
                                                 },
@@ -17729,8 +17729,8 @@
                                                 "max_outlets",
                                                 "locations_count",
                                                 "users_count",
-                                                "products_count",
-                                                "orders_count",
+                                                "has_products",
+                                                "has_orders",
                                                 "trial_ends_at",
                                                 "subscription_ends_at",
                                                 "deleted_at",
