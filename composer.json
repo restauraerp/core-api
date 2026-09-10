@@ -12,6 +12,7 @@
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
         "mongodb/laravel-mongodb": "^5.8",
+        "sentry/sentry-laravel": "^4.27",
         "spatie/laravel-permission": "^8.3"
     },
     "require-dev": {
