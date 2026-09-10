@@ -65,6 +65,16 @@ class Tenant extends Model
         return $this->hasMany(Location::class);
     }
 
+    public function products()
+    {
+        return $this->hasMany(Product::class);
+    }
+
+    public function orders()
+    {
+        return $this->hasMany(Order::class);
+    }
+
     /**
      * Whether this tenant may serve API traffic at all. Suspended, cancelled
      * and lapsed tenants are rejected by ResolveTenant before any controller
