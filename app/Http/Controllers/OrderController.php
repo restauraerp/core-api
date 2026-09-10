@@ -48,9 +48,14 @@ class OrderController extends Controller
             $query->whereIn('status', is_array($request->statuses) ? $request->statuses : explode(',', $request->statuses));
         }
 
-        // Live floor view: everything still needing attention.
+        // Live floor view: everything still needing attention. Partner orders
+        // are kept out of it - they belong to an aggregator, not the floor, and
+        // the admin's order page gathers them under their own "3rd Party" tab
+        // (partner_only) rather than mixing them into Dine In / Takeaway /
+        // Delivery. The kitchen kiosk still sees them: it queries by `statuses`,
+        // not `active_only`, because a Foodpanda order still has to be cooked.
         if ($request->has('active_only')) {
-            $query->active();
+            $query->active()->whereNull('partner_id');
         }
 
         // What the kitchen has to start now: orders due inside the lead window
