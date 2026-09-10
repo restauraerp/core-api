@@ -73,6 +73,27 @@ class WalkthroughProgressRelayTest extends TestCase
         });
     }
 
+    public function test_engagement_fields_are_carried_through_to_the_website(): void
+    {
+        // Screen time, the sitting id and the device ride along the same relay as
+        // the percentage - the website turns them into engagement metrics.
+        $this->report([
+            'ref' => 'opaque-token',
+            'seconds' => 120,
+            'session_id' => 'sit-1',
+            'device' => 'phone',
+        ])->assertOk();
+
+        Http::assertSent(fn ($request) => $request['seconds'] === 120
+            && $request['session_id'] === 'sit-1'
+            && $request['device'] === 'phone');
+    }
+
+    public function test_an_unknown_device_bucket_is_rejected(): void
+    {
+        $this->report(['device' => 'smartwatch'])->assertStatus(422);
+    }
+
     public function test_a_signed_in_trial_user_is_attributed_to_their_restaurant(): void
     {
         // The case that was broken in three places at once, and invisibly: this

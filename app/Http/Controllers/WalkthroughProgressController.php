@@ -39,6 +39,10 @@ class WalkthroughProgressController extends Controller
             // cookies for a demo lead.
             'ref' => ['nullable', 'string', 'max:2000'],
             'seconds' => ['nullable', 'integer', 'min:0', 'max:86400'],
+            // Carried through the same as seconds: one opening of the walkthrough,
+            // so the website can count sittings, and the device it runs on.
+            'session_id' => ['nullable', 'string', 'max:64'],
+            'device' => ['nullable', 'in:phone,tablet,desktop'],
         ]);
 
         $tenantCode = $this->tenantCode();

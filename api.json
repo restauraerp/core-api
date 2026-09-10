@@ -18922,6 +18922,25 @@
                                         ],
                                         "minimum": 0,
                                         "maximum": 86400
+                                    },
+                                    "session_id": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "Carried through the same as seconds: one opening of the walkthrough,\nso the website can count sittings, and the device it runs on.",
+                                        "maxLength": 64
+                                    },
+                                    "device": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "enum": [
+                                            "phone",
+                                            "tablet",
+                                            "desktop"
+                                        ]
                                     }
                                 },
                                 "required": [
