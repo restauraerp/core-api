@@ -63,7 +63,14 @@ class TenantController extends Controller
         // in and every count comes back zero. This endpoint is legitimately
         // cross-tenant; the helper restores the previous scoping state after.
         $paginator = $this->context->runWithoutScoping(function () use ($status, $search, $perPage) {
-            $query = Tenant::query()->withCount(['users', 'locations', 'products', 'orders']);
+            // withExists, not withCount, for products and orders: the website
+            // only needs "has any" to tell an engaged trial from an idle one, and
+            // EXISTS stops at the first row where COUNT scans them all - the
+            // difference between 100ms and over a second once the orders table
+            // has tens of thousands of rows.
+            $query = Tenant::query()
+                ->withCount(['users', 'locations'])
+                ->withExists(['products', 'orders']);
 
             if ($status === 'trashed') {
                 $query->onlyTrashed();
@@ -248,7 +255,8 @@ class TenantController extends Controller
     public function show(string $slug): JsonResponse
     {
         $tenant = $this->context->runWithoutScoping(fn () => Tenant::withTrashed()
-            ->withCount(['users', 'locations', 'products', 'orders'])
+            ->withCount(['users', 'locations'])
+            ->withExists(['products', 'orders'])
             ->where('slug', $slug)
             ->firstOrFail());
 
@@ -541,10 +549,12 @@ class TenantController extends Controller
             'users_count' => $tenant->users_count ?? null,
             // What the trial walkthrough leaves behind is nothing - it runs on a
             // shared demo restaurant, not here - so any product or order on a
-            // trial tenant is the owner using the software for real. The website
-            // reads these to tell an engaged trial from an idle one.
-            'products_count' => $tenant->products_count ?? null,
-            'orders_count' => $tenant->orders_count ?? null,
+            // trial tenant is the owner using the software for real. Booleans
+            // rather than counts: the website only asks "has any", and answering
+            // it with EXISTS keeps the tenant list fast. Null when not loaded, so
+            // a caller that did not ask is not told a confident "no".
+            'has_products' => isset($tenant->products_exists) ? (bool) $tenant->products_exists : null,
+            'has_orders' => isset($tenant->orders_exists) ? (bool) $tenant->orders_exists : null,
             'trial_ends_at' => $tenant->trial_ends_at?->toIso8601String(),
             'subscription_ends_at' => $tenant->subscription_ends_at?->toIso8601String(),
             'deleted_at' => $tenant->deleted_at?->toIso8601String(),
