@@ -44,6 +44,15 @@ class OrderController extends Controller
             $query->where('location_id', $request->location_id);
         }
 
+        // Filter by order type (dine_in / takeaway / delivery / catering).
+        // Lets a type-specific screen - the delivery board, say - ask the
+        // server for just its own orders instead of pulling the whole table
+        // and filtering in the browser, which does not scale past a small
+        // tenant.
+        if ($request->filled('order_type')) {
+            $query->where('order_type', $request->input('order_type'));
+        }
+
         if ($request->has('statuses')) {
             $query->whereIn('status', is_array($request->statuses) ? $request->statuses : explode(',', $request->statuses));
         }

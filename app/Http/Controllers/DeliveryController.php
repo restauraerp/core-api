@@ -9,7 +9,12 @@ class DeliveryController extends Controller
 {
     public function index()
     {
-        return response()->json(Delivery::all());
+        // Eager-load each delivery's order (and its payments, so the order's
+        // amount accessors don't fire a query per row) so the delivery board
+        // can tell which branch a delivery belongs to from d.order.location_id.
+        // It used to learn that by scanning the full orders list the page had
+        // fetched, which stopped working once that list became paginated.
+        return response()->json(Delivery::with('order.payments')->get());
     }
 
     public function store(Request $request)
