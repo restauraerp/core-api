@@ -14,6 +14,7 @@ use App\Models\Discount;
 use App\Support\Sales\DiscountCalculator;
 use App\Support\Sales\PartnerCommission;
 use App\Support\Sales\TaxCalculator;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +23,17 @@ use Illuminate\Validation\ValidationException;
 
 class OrderController extends Controller
 {
+    /**
+     * Most rows a `nopaginate` request may return before it is refused.
+     *
+     * A nopaginate response serializes every matched order with its full
+     * relation graph, and past a few thousand deeply-nested rows that alone
+     * exceeds the 30s max_execution_time the app runs under via `php artisan
+     * serve` (RESTAURAERP-CORE-API-2 / -3). Refusing is better than timing
+     * out: the caller either paginates or narrows the query.
+     */
+    private const MAX_UNPAGINATED = 2000;
+
     public function __construct(
         private readonly SellableInventory $sellable,
         private readonly OrderFlow $flow,
@@ -31,7 +43,15 @@ class OrderController extends Controller
 
     public function index(Request $request)
     {
-        $query = Order::with(['items.product.images', 'items.product.comboItems', 'payments', 'customer', 'table', 'partner']);
+        // The order list carries a deep relation graph - items, products, their
+        // images and combo parts, payments, customer, table, partner. A caller
+        // that only needs headline figures (the dashboard summing totals) asks
+        // for `summary` and skips all of it, keeping only payments so the
+        // amount_paid / amount_outstanding accessors stay a loaded-relation sum
+        // rather than a query per row.
+        $query = $request->boolean('summary')
+            ? Order::with(['payments'])
+            : Order::with(['items.product.images', 'items.product.comboItems', 'payments', 'customer', 'table', 'partner']);
 
         if ($request->has('from')) {
             $query->where('created_at', '>=', $request->from);
@@ -130,17 +150,37 @@ class OrderController extends Controller
             )->orderByDesc('created_at');
 
             if ($request->has('nopaginate')) {
-                return response()->json($query->get());
+                return $this->unpaginated($query);
             }
 
             return response()->json($query->paginate(config('pagination.limit')));
         }
 
         if ($request->has('nopaginate')) {
-            return response()->json($query->orderBy('created_at', 'desc')->get());
+            return $this->unpaginated($query->orderBy('created_at', 'desc'));
         }
 
         return response()->json($query->orderBy('created_at', 'desc')->paginate(config('pagination.limit')));
+    }
+
+    /**
+     * Returns a full (unpaginated) list, but refuses the query when it matches
+     * more than MAX_UNPAGINATED rows.
+     *
+     * The count is a cheap COUNT(*); only when it passes do we hydrate and
+     * serialize the graph. This turns what used to be a 30s fatal timeout on a
+     * large tenant into an immediate, explicit error the caller can act on.
+     */
+    private function unpaginated($query): JsonResponse
+    {
+        if ((clone $query)->count() > self::MAX_UNPAGINATED) {
+            abort(
+                422,
+                'This query matches too many orders to return at once. Use pagination (drop nopaginate) or narrow the filters.',
+            );
+        }
+
+        return response()->json($query->get());
     }
 
     public function store(Request $request)
