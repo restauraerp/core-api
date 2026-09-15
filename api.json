@@ -2924,7 +2924,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "",
+                        "description": "Eager-load each delivery's order (and its payments, so the order's\namount accessors don't fire a query per row) so the delivery board\ncan tell which branch a delivery belongs to from d.order.location_id.\nIt used to learn that by scanning the full orders list the page had\nfetched, which stopped working once that list became paginated.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -7089,6 +7089,13 @@
                 ],
                 "parameters": [
                     {
+                        "name": "order_type",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
                         "name": "due_within",
                         "in": "query",
                         "schema": {
@@ -7228,10 +7235,7 @@
                                             ]
                                         },
                                         {
-                                            "type": "array",
-                                            "items": {
-                                                "$ref": "#/components/schemas/Order"
-                                            }
+                                            "type": "string"
                                         }
                                     ]
                                 }
