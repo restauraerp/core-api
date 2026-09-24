@@ -95,6 +95,14 @@ class AuthController extends Controller
         $user->tenant = $tenant->get();
         $user->is_platform_admin = $user->isPlatformAdmin();
 
+        // The public demo restaurant is shared and reset on a schedule, so its
+        // users must not be able to change the password out from under everyone
+        // else. Any other account - every real restaurant - can. Gated on the
+        // deployment flag as well as the slug so a tenant that merely happens to
+        // be named `bangla-bistro` on a normal install is never treated as demo.
+        $user->is_demo = config('app.demo_mode')
+            && $tenant->get()?->slug === config('app.demo_tenant_slug');
+
         // Billing state, so the admin can show a read-only banner on load
         // rather than waiting for the user to lose work on a refused save.
         $user->subscription = $tenant->get() !== null
