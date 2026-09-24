@@ -171,6 +171,13 @@ class Order extends Model
         return $this->hasMany(Payment::class);
     }
 
+    /** Rider assignments for this order, newest first - the delivery slip reads
+     *  the latest to print who is carrying it. */
+    public function deliveries()
+    {
+        return $this->hasMany(Delivery::class)->latest();
+    }
+
     public function table()
     {
         return $this->belongsTo(Table::class);

@@ -339,7 +339,7 @@ class OrderController extends Controller
 
     public function show(Order $order)
     {
-        return response()->json($order->load(['items.product.comboItems', 'payments', 'table', 'customer']));
+        return response()->json($order->load(['items.product.comboItems', 'payments', 'table', 'customer', 'deliveries.rider']));
     }
 
     public function update(Request $request, Order $order)
