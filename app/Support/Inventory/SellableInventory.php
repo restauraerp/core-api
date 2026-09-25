@@ -64,11 +64,26 @@ class SellableInventory
     /**
      * Take what a finished sale sold off the shelf it was sold from.
      *
-     * Only lines whose product mirrors a stock item move anything - a cooked
-     * dish is made of ingredients this cannot know about, and is left to
-     * recipes.
+     * Two kinds of line move stock: one whose product mirrors a stock item
+     * (sold as bought), and a cooked dish, which consumes the ingredients in
+     * its recipe. Both are handled here so every caller - create, edit, cancel -
+     * stays consistent.
      */
     public function deductForOrder(Order $order): void
+    {
+        $this->applyStockItems($order, -1);
+        $this->applyRecipes($order, -1);
+    }
+
+    /** Put back what an order that is being cancelled or deleted took. */
+    public function restoreForOrder(Order $order): void
+    {
+        $this->applyStockItems($order, 1);
+        $this->applyRecipes($order, 1);
+    }
+
+    /** Move stock for lines whose product is itself an inventory item. */
+    private function applyStockItems(Order $order, float $sign): void
     {
         $lines = $order->items()->with('product')->get()
             ->filter(fn ($line) => $line->product?->isStockItem())
@@ -82,25 +97,45 @@ class SellableInventory
                 continue;
             }
 
-            $this->levels->adjust($item, (int) $order->location_id, -1 * (float) $group->sum('quantity'));
+            $this->levels->adjust($item, (int) $order->location_id, $sign * (float) $group->sum('quantity'));
         }
     }
 
-    /** Put back what an order that is being cancelled or deleted took. */
-    public function restoreForOrder(Order $order): void
+    /**
+     * Move stock for the ingredients a cooked line consumes.
+     *
+     * A recipe's `quantity_required` is stated in the item's usage unit (the
+     * unit the kitchen cooks in), while stock is counted in the purchase unit,
+     * so the amount is converted with toPurchaseUnits() before it moves. An item
+     * with no separate usage unit converts one-to-one. Ingredients shared across
+     * lines are summed so the same item moves once.
+     */
+    private function applyRecipes(Order $order, float $sign): void
     {
-        $lines = $order->items()->with('product')->get()
-            ->filter(fn ($line) => $line->product?->isStockItem())
-            ->groupBy(fn ($line) => $line->product->inventory_item_id);
+        $lines = $order->items()->with('product.recipes.inventoryItem')->get()
+            ->filter(fn ($line) => $line->product && $line->product->recipes->isNotEmpty());
 
-        foreach ($lines as $inventoryItemId => $group) {
-            $item = InventoryItem::find($inventoryItemId);
+        /** @var array<int, array{item: InventoryItem, qty: float}> $deltas */
+        $deltas = [];
 
-            if ($item === null) {
-                continue;
+        foreach ($lines as $line) {
+            foreach ($line->product->recipes as $recipe) {
+                $item = $recipe->inventoryItem;
+
+                if ($item === null) {
+                    continue;
+                }
+
+                $usageQty = (float) $recipe->quantity_required * (float) $line->quantity;
+                $stockQty = $item->toPurchaseUnits($usageQty, 'sale');
+
+                $deltas[$item->getKey()] ??= ['item' => $item, 'qty' => 0.0];
+                $deltas[$item->getKey()]['qty'] += $stockQty;
             }
+        }
 
-            $this->levels->adjust($item, (int) $order->location_id, (float) $group->sum('quantity'));
+        foreach ($deltas as $delta) {
+            $this->levels->adjust($delta['item'], (int) $order->location_id, $sign * $delta['qty']);
         }
     }
 

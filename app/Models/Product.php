@@ -48,6 +48,15 @@ class Product extends Model
         return $this->inventory_item_id !== null;
     }
 
+    /**
+     * The inventory this product consumes when cooked, with the quantity of
+     * each ingredient. Selling the product deducts these via SellableInventory.
+     */
+    public function recipes()
+    {
+        return $this->hasMany(Recipe::class, 'product_id');
+    }
+
     public function images()
     {
         return $this->morphMany(Image::class, 'imageable');
