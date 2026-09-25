@@ -29,7 +29,7 @@ class RoleDefinitions
     public static function permissions(): array
     {
         return [
-            'view_dashboard',
+            'view_dashboard', 'view_dashboard_stats',
 
             'view_pos', 'create_pos_order',
 
@@ -76,7 +76,7 @@ class RoleDefinitions
             self::RESTAURANT_ADMIN => null,
 
             'branch_manager' => [
-                'view_dashboard',
+                'view_dashboard', 'view_dashboard_stats',
                 'view_pos', 'create_pos_order',
                 'view_orders', 'update_order_status',
                 'view_inventory', 'update_inventory_item',
@@ -99,7 +99,7 @@ class RoleDefinitions
             ],
 
             'accountant' => [
-                'view_dashboard',
+                'view_dashboard', 'view_dashboard_stats',
                 'view_accounting', 'manage_ledgers', 'manage_expenses', 'manage_incomes',
                 'view_reporting',
             ],
