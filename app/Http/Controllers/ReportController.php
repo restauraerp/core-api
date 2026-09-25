@@ -12,6 +12,7 @@ use App\Models\PartnerPayout;
 use App\Models\PurchaseOrder;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
+use App\Support\Time\BusinessTime;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -103,6 +104,25 @@ class ReportController extends Controller
     }
 
     /**
+     * A `created_at` SQL expression shifted back to the tenant's business day.
+     *
+     * Day and month buckets should break where the restaurant's day breaks, not
+     * at calendar midnight - a sale rung up at 01:00 under an 04:00 day-start
+     * belongs to the previous day's column. The window (from/to) already arrives
+     * in the tenant's terms from the frontend; this only aligns the intra-window
+     * grouping. Hour buckets are left on the real clock, since an hourly view is
+     * about actual times of day.
+     */
+    private function bucketedCreatedAt(): string
+    {
+        $offset = app(BusinessTime::class)->dayStartOffsetMinutes();
+
+        return $offset > 0
+            ? "(created_at - INTERVAL {$offset} MINUTE)"
+            : 'created_at';
+    }
+
+    /**
      * Headline totals plus a time series, in a single response so the two can
      * never disagree with each other.
      *
@@ -125,10 +145,11 @@ class ReportController extends Controller
             ->first();
 
         $bucket = $this->bucket($request);
+        $day = $this->bucketedCreatedAt();
         $expression = match ($bucket) {
             'hour' => "DATE_FORMAT(created_at, '%Y-%m-%d %H:00')",
-            'month' => "DATE_FORMAT(created_at, '%Y-%m')",
-            default => "DATE(created_at)",
+            'month' => "DATE_FORMAT({$day}, '%Y-%m')",
+            default => "DATE({$day})",
         };
 
         $series = (clone $this->scope($request))

@@ -3,6 +3,7 @@
 namespace App\Support\Orders;
 
 use App\Support\Tenancy\TenantContext;
+use App\Support\Time\BusinessTime;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -40,7 +41,10 @@ class TokenNumber
      */
     public const DAY_STARTS_AT = '00:15';
 
-    public function __construct(private TenantContext $tenants) {}
+    public function __construct(
+        private TenantContext $tenants,
+        private BusinessTime $businessTime,
+    ) {}
 
     /**
      * The boundary as whole minutes past midnight, for the SQL below.
@@ -115,16 +119,15 @@ class TokenNumber
     /**
      * The business day a moment belongs to, as Y-m-d.
      *
-     * Shifting back by the boundary rather than comparing against it keeps the
-     * arithmetic to one step: 00:10 on the 27th lands at 23:55 on the 26th, and
-     * the date falls out. Anything from 00:15 onwards stays on its own date.
+     * Delegated to BusinessTime so the boundary and timezone are the tenant's
+     * own configured values rather than the hardcoded constant above. The
+     * constant and self::offsetMinutes() remain for the static bulk paths
+     * (numberExistingOrders / the migration), which run tenant-blind across
+     * whole tables and cannot read a per-tenant setting.
      */
     public function businessDate(?Carbon $at = null): string
     {
-        return ($at ?? Carbon::now())
-            ->copy()
-            ->subMinutes(self::offsetMinutes())
-            ->toDateString();
+        return $this->businessTime->businessDate($at);
     }
 
     /**
