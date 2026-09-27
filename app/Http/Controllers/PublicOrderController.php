@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Customer;
 use App\Models\Location;
+use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Tenant;
@@ -140,7 +141,7 @@ class PublicOrderController extends Controller
 
             $order = app(OrderController::class)->store($internal)->getData(true);
 
-            $model = \App\Models\Order::findOrFail($order['id']);
+            $model = Order::findOrFail($order['id']);
             $model->forceFill([
                 'source' => 'online',
                 'customer_note' => $validated['note'] ?? null,
@@ -165,10 +166,15 @@ class PublicOrderController extends Controller
             ?? abort(404, 'We could not find that restaurant. Check the link and try again.');
     }
 
-    /** A restaurant whose subscription has lapsed to read-only cannot take new orders. */
+    /**
+     * Only a restaurant that could ring the order up itself may take one.
+     *
+     * An allow-list, not "not read-only": a cancelled account is BLOCKED, not
+     * READ_ONLY, and must not keep collecting orders nobody will cook.
+     */
     private function acceptingOrders(Tenant $tenant): bool
     {
-        return $tenant->subscription()['state'] !== Subscription::READ_ONLY;
+        return in_array($tenant->subscription()['state'], [Subscription::FULL, Subscription::GRACE], true);
     }
 
     /** The chosen branch, or the only/first active one when none was chosen. */

@@ -106,8 +106,12 @@ Route::prefix('v1')->group(function () {
     Route::apiResource('product-categories', ProductCategoryController::class)->only(['index', 'show']);
     Route::apiResource('products', ProductController::class)->only(['index', 'show']);
 
-    // Public Order API
-    Route::post('storefront/orders', [OrderController::class, 'store']);
+    // There is deliberately no public route onto OrderController::store. It
+    // trusts the price, discount, delivery charge and payment method it is
+    // posted, which is right for staff at the till and wrong for anybody on
+    // the internet: `storefront/orders` let an anonymous caller order at any
+    // price and mark it paid. Customers order through `order/{slug}`
+    // (PublicOrderController), which prices everything itself.
 
     // One order's invoice, to whoever holds the signed link the restaurant
     // shared with them.
