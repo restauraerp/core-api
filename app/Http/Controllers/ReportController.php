@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AccountingHeader;
 use App\Models\ConsumptionLog;
 use App\Models\DeliveryPayout;
 use App\Models\Expense;
@@ -632,6 +633,111 @@ class ReportController extends Controller
                 // above 100%.
                 'margin_pct' => $totalIncome > 0 ? round($profit / $totalIncome * 100, 1) : 0.0,
             ],
+        ]);
+    }
+
+    /**
+     * Income and expenses broken down by accounting header - where the money
+     * comes from and where it goes.
+     *
+     * Logged incomes and expenses always carry a header, but the largest flows
+     * do not: sales and delivery charges arrive through orders, and inventory
+     * is bought through purchase orders. Leaving those out would make this
+     * report disagree with the Profit report over the same period, so they are
+     * listed as their own lines, marked with the source they come from. With
+     * them in, total income and total expenses here equal the Profit report's.
+     *
+     * Paid orders only, as in the Profit report. Each side is sorted largest
+     * first, with each line's share of that side.
+     *
+     * GET /reports/accounting-by-header?from=&to=&location_id=
+     */
+    public function accountingByHeader(Request $request)
+    {
+        if (! $request->user()->can('view_accounting')) {
+            abort(403);
+        }
+
+        [$from, $to] = $this->window($request);
+        $locationId = $request->input('location_id');
+        $byLocation = $locationId !== null && $locationId !== '' && $locationId !== 'all';
+
+        $windowed = function ($query) use ($from, $to, $byLocation, $locationId) {
+            if ($from) $query->where('created_at', '>=', $from);
+            if ($to)   $query->where('created_at', '<', $to);
+            if ($byLocation) $query->where('location_id', $locationId);
+
+            return $query;
+        };
+
+        $headers = AccountingHeader::query()->get(['id', 'name', 'type'])->keyBy('id');
+
+        $headerLines = function ($query, string $source) use ($windowed, $headers) {
+            return $windowed($query)
+                ->selectRaw('header_id, COUNT(*) as entries, COALESCE(SUM(amount), 0) as total')
+                ->groupBy('header_id')
+                ->get()
+                ->map(fn ($row) => [
+                    'header_id' => $row->header_id,
+                    'name' => $headers->get($row->header_id)?->name ?? 'Uncategorised',
+                    'source' => $source,
+                    'entries' => (int) $row->entries,
+                    'total' => round((float) $row->total, 2),
+                ])
+                // A header whose entries add up to nothing (e.g. a row logged
+                // without an amount) tells the reader nothing.
+                ->filter(fn ($line) => $line['total'] != 0.0)
+                ->values()
+                ->all();
+        };
+
+        // Orders: sales and delivery charges, paid only.
+        $paid = (clone $this->scope($request))
+            ->where('payment_status', 'paid')
+            ->selectRaw('COUNT(*) as orders, COALESCE(SUM(total), 0) as total, COALESCE(SUM(COALESCE(delivery_charge, 0)), 0) as delivery')
+            ->first();
+        $delivery = round((float) $paid->delivery, 2);
+        $sales = round((float) $paid->total - $delivery, 2);
+
+        $income = $headerLines(Income::query(), 'income');
+        if ($sales != 0.0) {
+            $income[] = ['header_id' => null, 'name' => 'Sales', 'source' => 'orders', 'entries' => (int) $paid->orders, 'total' => $sales];
+        }
+        if ($delivery != 0.0) {
+            $income[] = ['header_id' => null, 'name' => 'Delivery charges', 'source' => 'orders', 'entries' => (int) $paid->orders, 'total' => $delivery];
+        }
+
+        // Purchases: inventory bought through purchase orders.
+        $purchases = $windowed(PurchaseOrder::query()->where('status', '!=', PurchaseOrder::CANCELLED))
+            ->selectRaw('COUNT(*) as entries, COALESCE(SUM(total_amount), 0) as total')
+            ->first();
+
+        $expenses = $headerLines(Expense::query(), 'expense');
+        if ((float) $purchases->total != 0.0) {
+            $expenses[] = ['header_id' => null, 'name' => 'Inventory purchases', 'source' => 'purchase_orders', 'entries' => (int) $purchases->entries, 'total' => round((float) $purchases->total, 2)];
+        }
+
+        $finish = function (array $lines): array {
+            $sum = array_sum(array_column($lines, 'total'));
+            usort($lines, fn ($a, $b) => $b['total'] <=> $a['total']);
+
+            return [
+                round($sum, 2),
+                array_map(fn ($line) => $line + ['share' => $sum > 0 ? round($line['total'] / $sum, 4) : 0.0], $lines),
+            ];
+        };
+
+        [$totalIncome, $income] = $finish($income);
+        [$totalExpenses, $expenses] = $finish($expenses);
+
+        return response()->json([
+            'summary' => [
+                'total_income' => $totalIncome,
+                'total_expenses' => $totalExpenses,
+                'net' => round($totalIncome - $totalExpenses, 2),
+            ],
+            'income' => $income,
+            'expenses' => $expenses,
         ]);
     }
 

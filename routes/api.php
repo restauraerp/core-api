@@ -355,6 +355,7 @@ Route::prefix('v1')->group(function () {
             Route::get('consumable-expenses', [ReportController::class, 'consumableExpenses']);
             Route::get('all-inventory-expenses', [ReportController::class, 'allInventoryExpenses']);
             Route::get('profit', [ReportController::class, 'profit']);
+            Route::get('accounting-by-header', [ReportController::class, 'accountingByHeader']);
         });
 
         // Support & System API
