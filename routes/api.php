@@ -42,6 +42,7 @@ use App\Http\Controllers\Platform\TenantController as PlatformTenantController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductMediaController;
+use App\Http\Controllers\PublicOrderController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseOrderItemController;
 use App\Http\Controllers\PurchaseReturnController;
@@ -120,6 +121,16 @@ Route::prefix('v1')->group(function () {
     Route::get('orders/{order}/invoice', [InvoiceController::class, 'show'])
         ->name('orders.invoice')
         ->middleware(['signed:relative', 'throttle:60,1'])
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+
+    // The restaurant's online order link. Public: the tenant comes from the
+    // restaurant code in the URL, not a header or token. Prices, tax and
+    // payment are decided server-side - see PublicOrderController.
+    Route::get('order/{slug}', [PublicOrderController::class, 'menu'])
+        ->middleware('throttle:60,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+    Route::post('order/{slug}', [PublicOrderController::class, 'store'])
+        ->middleware('throttle:10,1')
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
 
     // Demo credentials, for clients that were asked for a demo (the front's
