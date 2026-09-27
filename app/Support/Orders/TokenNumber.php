@@ -15,9 +15,11 @@ use Illuminate\Support\Facades\DB;
  *   - **Where the day breaks.** Not midnight. A kitchen closing at 1am is still
  *     working the evening that started the night before, and an order rung up
  *     at ten past twelve belongs on that shift's run of tokens rather than
- *     opening a new one. The boundary is 00:15 local time - see
- *     [self::DAY_STARTS_AT] - and `orders.business_date` is stamped with the
- *     answer at insert so nothing has to recompute it later.
+ *     opening a new one. The boundary is the restaurant's own
+ *     `business_day_start_time` setting (BusinessTime; midnight when unset),
+ *     and `orders.business_date` is stamped with the answer at insert so
+ *     nothing has to recompute it later. [self::DAY_STARTS_AT] is only the
+ *     boundary for the tenant-blind bulk backfill below.
  *
  *   - **Who gets which number.** Per branch, per day. Two outlets both handing
  *     out token 7 on the same afternoon is correct: the number is shouted

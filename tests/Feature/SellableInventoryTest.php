@@ -9,7 +9,10 @@ use App\Models\Product;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Inventory\StockLevels;
+use App\Support\Tenancy\RoleDefinitions;
 use App\Support\Tenancy\TenantContext;
+use App\Support\Tenancy\TenantProvisioner;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -254,6 +257,16 @@ class SellableInventoryTest extends TestCase
             'discount_amount' => 0,
             'items' => [['product_id' => $product->id, 'qty' => 1, 'price' => 25]],
         ])->json('id');
+
+        // Cancelling an order is gated on edit_order; the owner has it.
+        $this->seed(RolePermissionSeeder::class);
+        Sanctum::actingAs(app(TenantContext::class)->runFor($this->tenant, function () {
+            app(TenantProvisioner::class)->createRoles($this->tenant);
+            $owner = User::factory()->forTenant($this->tenant)->create();
+            $owner->assignRole(RoleDefinitions::RESTAURANT_ADMIN);
+
+            return $owner;
+        }));
 
         $this->deleteJson("/api/v1/orders/{$orderId}")->assertNoContent();
 
