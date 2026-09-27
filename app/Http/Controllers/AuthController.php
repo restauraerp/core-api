@@ -112,6 +112,13 @@ class AuthController extends Controller
         $user->tenant = $tenant->get();
         $user->is_platform_admin = $user->isPlatformAdmin();
 
+        // The restaurant's public online order link, for staff to share. Built
+        // here because the apps only know the API's address, not the web app's.
+        $appUrl = rtrim((string) config('platform.app_url'), '/');
+        $user->online_order_url = $appUrl !== '' && $tenant->get() !== null
+            ? $appUrl.'/order/'.$tenant->get()->slug
+            : null;
+
         // The public demo restaurant is shared and reset on a schedule, so its
         // users must not be able to change the password out from under everyone
         // else. Any other account - every real restaurant - can. Gated on the
