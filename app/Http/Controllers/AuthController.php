@@ -71,6 +71,14 @@ class AuthController extends Controller
             ]);
         }
 
+        // Checked only after the password matches, so this does not tell a
+        // stranger which addresses belong to a no-login account.
+        if (! $user->canLogIn()) {
+            throw ValidationException::withMessages([
+                'email' => ['This account is not allowed to sign in. Ask your restaurant admin if you need access.'],
+            ]);
+        }
+
         return response()->json([
             'user' => $user,
             'tenant' => $tenant->get(),
@@ -87,6 +95,15 @@ class AuthController extends Controller
 
     public function me(Request $request, TenantContext $tenant)
     {
+        // A session started before the account was switched to no-login ends
+        // here: the app calls /auth/me on every load, so revoking the token and
+        // answering 401 sends the browser back to the login screen.
+        if (! $request->user()->canLogIn()) {
+            $request->user()->currentAccessToken()?->delete();
+
+            return response()->json(['message' => 'This account is not allowed to sign in.'], 401);
+        }
+
         $user = $request->user()->load('location');
         $user->all_permissions = $user->getAllPermissions()->pluck('name');
 

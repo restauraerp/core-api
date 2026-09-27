@@ -74,6 +74,13 @@ class OneTimeLoginController extends Controller
             ], 422);
         }
 
+        if (! $user->canLogIn()) {
+            return response()->json([
+                'message' => 'This account is not allowed to sign in. Ask your restaurant admin if you need access.',
+                'error' => 'login_not_allowed',
+            ], 403);
+        }
+
         return response()->json([
             'user' => $user,
             'tenant' => $tenant,

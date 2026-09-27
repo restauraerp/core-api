@@ -16,7 +16,7 @@ use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\NormalisesPhone;
 use App\Models\Concerns\TracksUploadedAssets;
 
-#[Fillable(['name', 'email', 'password', 'location_id', 'phone', 'image_url'])]
+#[Fillable(['name', 'email', 'password', 'location_id', 'phone', 'image_url', 'can_login'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -42,7 +42,19 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_platform_admin' => 'boolean',
+            'can_login' => 'boolean',
         ];
+    }
+
+    /**
+     * Whether this account may sign in. A user created only to be assigned
+     * work (a rider, a waiter credited with sales) exists without ever
+     * opening the app. Null reads as allowed, so a row written before the
+     * column existed keeps working.
+     */
+    public function canLogIn(): bool
+    {
+        return $this->can_login !== false;
     }
 
     /**
