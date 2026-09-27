@@ -333,6 +333,10 @@ Route::prefix('v1')->group(function () {
         // Delivery API
         Route::middleware('module:delivery')->group(function () {
             Route::apiResource('deliveries', DeliveryController::class);
+            // Delivery charges reported apart from sales revenue. Lives with the
+            // delivery module rather than general reporting: a tenant without
+            // delivery has no delivery charges to disburse.
+            Route::get('reports/delivery-charges', [ReportController::class, 'deliveryCharges']);
         });
 
         // Reporting API (aggregated server-side; see ReportController)

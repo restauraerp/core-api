@@ -122,6 +122,18 @@ class ReportController extends Controller
             : 'created_at';
     }
 
+    /** The SQL expression that groups orders into one bucket of a time series. */
+    private function bucketExpression(string $bucket): string
+    {
+        $day = $this->bucketedCreatedAt();
+
+        return match ($bucket) {
+            'hour' => "DATE_FORMAT(created_at, '%Y-%m-%d %H:00')",
+            'month' => "DATE_FORMAT({$day}, '%Y-%m')",
+            default => "DATE({$day})",
+        };
+    }
+
     /**
      * Headline totals plus a time series, in a single response so the two can
      * never disagree with each other.
@@ -145,18 +157,14 @@ class ReportController extends Controller
             ->first();
 
         $bucket = $this->bucket($request);
-        $day = $this->bucketedCreatedAt();
-        $expression = match ($bucket) {
-            'hour' => "DATE_FORMAT(created_at, '%Y-%m-%d %H:00')",
-            'month' => "DATE_FORMAT({$day}, '%Y-%m')",
-            default => "DATE({$day})",
-        };
+        $expression = $this->bucketExpression($bucket);
 
         $series = (clone $this->scope($request))
             ->selectRaw("
                 $expression                                     as bucket,
                 COUNT(*)                                        as orders,
                 COALESCE(SUM(total), 0)                         as revenue,
+                COALESCE(SUM(COALESCE(delivery_charge, 0)), 0)  as delivery,
                 COALESCE(SUM(subtotal), 0)                      as item_revenue,
                 COALESCE(SUM(CASE WHEN payment_status = \"paid\" THEN total ELSE 0 END), 0) as collected
             ")
@@ -165,25 +173,36 @@ class ReportController extends Controller
             ->get();
 
         $ordersCount = (int) $summary->orders_count;
+        $grossRevenue = (float) $summary->gross_revenue;
+        $deliveryTotal = (float) $summary->delivery_total;
 
         return response()->json([
             'bucket' => $bucket,
             'summary' => [
                 'orders_count' => $ordersCount,
-                'gross_revenue' => (float) $summary->gross_revenue,
+                // Everything the orders came to, delivery included. Kept as-is
+                // for the Compare tab and anything else already reading it.
+                'gross_revenue' => $grossRevenue,
+                // What the restaurant earned from selling food: the order total
+                // with delivery charges taken back out. Delivery is money the
+                // restaurant usually passes on to a rider or courier, so mixing
+                // it into sales overstated what the kitchen actually brought in.
+                'sales_revenue' => round($grossRevenue - $deliveryTotal, 2),
                 'item_revenue' => (float) $summary->item_revenue,
                 'tax_total' => (float) $summary->tax_total,
                 'discount_total' => (float) $summary->discount_total,
-                'delivery_total' => (float) $summary->delivery_total,
+                'delivery_total' => $deliveryTotal,
                 'collected_revenue' => (float) $summary->collected_revenue,
                 'outstanding_revenue' => (float) $summary->outstanding_revenue,
                 'unpaid_orders' => (int) $summary->unpaid_orders,
-                'avg_order_value' => $ordersCount > 0 ? (float) $summary->gross_revenue / $ordersCount : 0.0,
+                'avg_order_value' => $ordersCount > 0 ? $grossRevenue / $ordersCount : 0.0,
             ],
             'series' => $series->map(fn ($row) => [
                 'bucket' => $row->bucket,
                 'orders' => (int) $row->orders,
                 'revenue' => (float) $row->revenue,
+                'sales_revenue' => round((float) $row->revenue - (float) $row->delivery, 2),
+                'delivery' => (float) $row->delivery,
                 'item_revenue' => (float) $row->item_revenue,
                 'collected' => (float) $row->collected,
             ]),
@@ -547,9 +566,19 @@ class ReportController extends Controller
         [$from, $to] = $this->window($request);
         $locationId = $request->input('location_id');
 
-        $revenue = (float) (clone $this->scope($request))
+        // Paid orders, with delivery charges pulled out of the sales figure.
+        // Delivery is money that usually goes straight back out to a rider or
+        // courier, so the restaurant needs to see it apart from what the food
+        // earned - it can then be disbursed as an expense against it. It is still
+        // income today, so total income and net profit are unchanged; only the
+        // split is new.
+        $paid = (clone $this->scope($request))
             ->where('payment_status', 'paid')
-            ->sum('total');
+            ->selectRaw('COALESCE(SUM(total), 0) as total, COALESCE(SUM(COALESCE(delivery_charge, 0)), 0) as delivery')
+            ->first();
+
+        $deliveryCharges = round((float) $paid->delivery, 2);
+        $revenue = round((float) $paid->total - $deliveryCharges, 2);
 
         // Money in that no order accounts for - hall rental, scrap sales. Kept
         // separate from `revenue` rather than folded into it: the revenue tile
@@ -581,12 +610,16 @@ class ReportController extends Controller
         $purchaseExpenses = (float) $purchaseQuery->sum('total_amount');
 
         $totalExpenses = $operationalExpenses + $purchaseExpenses;
-        $totalIncome = $revenue + $otherIncome;
+        $totalIncome = $revenue + $deliveryCharges + $otherIncome;
         $profit = $totalIncome - $totalExpenses;
 
         return response()->json([
             'summary' => [
+                // Sales revenue from paid orders, delivery charges excluded.
                 'revenue' => $revenue,
+                'sales_revenue' => $revenue,
+                // Delivery charges collected on paid orders, shown on their own.
+                'delivery_charges' => $deliveryCharges,
                 'other_income' => $otherIncome,
                 'total_income' => $totalIncome,
                 'operational_expenses' => $operationalExpenses,
@@ -598,6 +631,71 @@ class ReportController extends Controller
                 // above 100%.
                 'margin_pct' => $totalIncome > 0 ? round($profit / $totalIncome * 100, 1) : 0.0,
             ],
+        ]);
+    }
+
+    /**
+     * Delivery charges on their own - the delivery module's report.
+     *
+     * Delivery is money the restaurant collects on the customer's behalf and
+     * usually passes on to a rider or courier, so it has to be visible apart
+     * from sales revenue before it can be disbursed as an expense. Only orders
+     * that actually carried a delivery charge are counted. Collected vs
+     * outstanding follows the order's payment status, the same way the sales
+     * report splits it.
+     *
+     * Registered under the `module:delivery` route group, and gated on
+     * view_delivery here, so it belongs to the delivery module rather than to
+     * general reporting.
+     *
+     * GET /reports/delivery-charges?from=&to=&location_id=&bucket=hour|day|month
+     */
+    public function deliveryCharges(Request $request)
+    {
+        if (! $request->user()->can('view_delivery')) {
+            abort(403);
+        }
+
+        $base = (clone $this->scope($request))->where('delivery_charge', '>', 0);
+
+        $summary = (clone $base)
+            ->selectRaw('
+                COUNT(*)                                                                   as orders_count,
+                COALESCE(SUM(delivery_charge), 0)                                          as total,
+                COALESCE(SUM(CASE WHEN payment_status = "paid" THEN delivery_charge ELSE 0 END), 0) as collected,
+                COALESCE(SUM(CASE WHEN payment_status <> "paid" OR payment_status IS NULL THEN delivery_charge ELSE 0 END), 0) as outstanding
+            ')
+            ->first();
+
+        $bucket = $this->bucket($request);
+        $expression = $this->bucketExpression($bucket);
+
+        $series = (clone $base)
+            ->selectRaw("
+                $expression                          as bucket,
+                COUNT(*)                             as orders,
+                COALESCE(SUM(delivery_charge), 0)    as total
+            ")
+            ->groupBy(DB::raw($expression))
+            ->orderBy(DB::raw('bucket'))
+            ->get();
+
+        $count = (int) $summary->orders_count;
+
+        return response()->json([
+            'bucket' => $bucket,
+            'summary' => [
+                'orders_count' => $count,
+                'total' => round((float) $summary->total, 2),
+                'collected' => round((float) $summary->collected, 2),
+                'outstanding' => round((float) $summary->outstanding, 2),
+                'avg_charge' => $count > 0 ? round((float) $summary->total / $count, 2) : 0.0,
+            ],
+            'series' => $series->map(fn ($row) => [
+                'bucket' => $row->bucket,
+                'orders' => (int) $row->orders,
+                'total' => (float) $row->total,
+            ]),
         ]);
     }
 
