@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\DB;
  *     working the evening that started the night before, and an order rung up
  *     at ten past twelve belongs on that shift's run of tokens rather than
  *     opening a new one. The boundary is the restaurant's own
- *     `business_day_start_time` setting (BusinessTime; midnight when unset),
+ *     `business_day_start_time` setting (BusinessTime; 00:15 when unset),
  *     and `orders.business_date` is stamped with the answer at insert so
  *     nothing has to recompute it later. [self::DAY_STARTS_AT] is only the
  *     boundary for the tenant-blind bulk backfill below.

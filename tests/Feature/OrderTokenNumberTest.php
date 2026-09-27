@@ -25,7 +25,7 @@ use Tests\TestCase;
  * same number.
  *
  * The cutoff is the restaurant's `business_day_start_time` setting (see
- * BusinessTime), midnight when unset. The late-service tests set it to 00:15.
+ * BusinessTime), 00:15 when unset.
  */
 class OrderTokenNumberTest extends TestCase
 {
@@ -85,8 +85,10 @@ class OrderTokenNumberTest extends TestCase
         ]));
     }
 
-    public function test_a_restaurant_with_no_cutoff_set_starts_its_day_at_midnight(): void
+    public function test_a_restaurant_can_move_its_day_start_to_midnight(): void
     {
+        $this->startDayAt('00:00');
+
         Carbon::setTestNow(Carbon::parse('2026-03-01 23:50:00'));
         $this->assertSame(1, $this->placeOrder());
 
@@ -130,8 +132,6 @@ class OrderTokenNumberTest extends TestCase
      */
     public function test_the_day_breaks_at_quarter_past_midnight_not_midnight(): void
     {
-        $this->startDayAt('00:15');
-
         Carbon::setTestNow(Carbon::parse('2026-03-01 23:50:00'));
         $this->assertSame(1, $this->placeOrder());
 
@@ -149,8 +149,6 @@ class OrderTokenNumberTest extends TestCase
 
     public function test_an_after_midnight_order_is_filed_under_the_day_that_is_closing(): void
     {
-        $this->startDayAt('00:15');
-
         Carbon::setTestNow(Carbon::parse('2026-03-02 00:10:00'));
         $this->placeOrder();
 

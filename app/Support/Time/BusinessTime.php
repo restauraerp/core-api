@@ -3,6 +3,7 @@
 namespace App\Support\Time;
 
 use App\Models\WebsiteSetting;
+use App\Support\Orders\TokenNumber;
 use Illuminate\Support\Carbon;
 
 /**
@@ -34,8 +35,14 @@ class BusinessTime
     public const DAY_START_SETTING = 'business_day_start_time';
     public const WEEK_START_SETTING = 'week_start_day';
 
-    /** Midnight, unless the restaurant says otherwise. */
-    public const DEFAULT_DAY_START = '00:00';
+    /**
+     * Quarter past midnight, unless the restaurant says otherwise - the
+     * boundary tokens have always used (TokenNumber::DAY_STARTS_AT), so an
+     * order rung up just after twelve stays on the evening's run instead of
+     * restarting the count mid-service. Mirrored by DEFAULT_DAY_START in the
+     * front's lib/reportRange.ts; change both together.
+     */
+    public const DEFAULT_DAY_START = TokenNumber::DAY_STARTS_AT;
 
     /** 0 = Sunday .. 6 = Saturday. */
     public const DEFAULT_WEEK_START = 0;
