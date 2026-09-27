@@ -38,6 +38,9 @@ class PublicOrderController extends Controller
     /** Order types a customer can choose online. Dine-in needs a table; catering needs a conversation. */
     private const ORDER_TYPES = [OrderFlow::TAKEAWAY, OrderFlow::DELIVERY];
 
+    /** How many past orders one browser can look up at once. */
+    private const MAX_TRACKED = 20;
+
     public function __construct(private TenantContext $context) {}
 
     /** GET /order/{slug} - the restaurant, its branches and its menu. */
@@ -149,6 +152,7 @@ class PublicOrderController extends Controller
 
             return response()->json([
                 'order_id' => $model->id,
+                'tracking_key' => $this->trackingKey($model),
                 'token_number' => $model->token_number,
                 'order_type' => $model->order_type,
                 'location' => $location->only(['id', 'name', 'address', 'phone']),
@@ -158,6 +162,99 @@ class PublicOrderController extends Controller
                 'currency' => RestaurantBranding::current()['currency'] ?? '৳',
             ], 201);
         });
+    }
+
+    /**
+     * POST /order/{slug}/my-orders - the customer's own orders, by key.
+     *
+     * The browser keeps each order it placed as an id and the tracking key it
+     * was given (a cookie on the ordering page), and sends them back here. No
+     * key, no order: the id alone is a sequential number anyone could walk.
+     * POST rather than GET so the keys stay out of URLs and access logs.
+     */
+    public function mine(Request $request, string $slug): JsonResponse
+    {
+        $tenant = $this->tenantFor($slug);
+
+        $validated = $request->validate([
+            'orders' => ['present', 'array', 'max:'.self::MAX_TRACKED],
+            'orders.*.id' => ['required', 'integer'],
+            'orders.*.key' => ['required', 'string', 'max:64'],
+        ]);
+
+        return $this->context->runFor($tenant, function () use ($validated) {
+            $keys = collect($validated['orders'])->pluck('key', 'id');
+
+            $orders = Order::withTrashed()
+                ->with(['items.product:id,name', 'location:id,name,phone'])
+                ->whereIn('id', $keys->keys())
+                ->where('source', 'online')
+                ->latest('id')
+                ->get()
+                ->filter(fn (Order $order) => hash_equals($this->trackingKey($order), (string) $keys->get($order->id)));
+
+            return response()->json([
+                'currency' => RestaurantBranding::current()['currency'] ?? '৳',
+                'orders' => $orders->map(fn (Order $order) => $this->forCustomer($order))->values(),
+            ]);
+        });
+    }
+
+    /**
+     * Proof that a browser placed this order: a keyed hash of the tenant and
+     * order id, so there is nothing to store and nothing to leak but the key
+     * itself. Rotating APP_KEY retires every outstanding link, which is fine
+     * for something a customer only needs until their food arrives.
+     */
+    private function trackingKey(Order $order): string
+    {
+        return substr(hash_hmac('sha256', 'online-order:'.$order->tenant_id.':'.$order->id, (string) config('app.key')), 0, 40);
+    }
+
+    /** What the customer sees of an order: progress and the bill, nothing internal. */
+    private function forCustomer(Order $order): array
+    {
+        $flow = app(OrderFlow::class);
+        $status = $order->trashed() ? OrderFlow::CANCELLED : $flow->normalise($order->status);
+
+        return [
+            'id' => $order->id,
+            'token_number' => $order->token_number,
+            'order_type' => $order->order_type,
+            'status' => $status,
+            'status_label' => $this->customerStatus($status, $order->order_type),
+            'finished' => $status === OrderFlow::CANCELLED || $flow->isTerminal((string) $order->order_type, $status),
+            'paid' => $order->payment_status === 'paid',
+            'placed_at' => $order->created_at?->toIso8601String(),
+            'location' => $order->location?->only(['name', 'phone']),
+            'items' => $order->items->map(fn ($item) => [
+                'name' => $item->product?->name ?? 'Item',
+                'qty' => (int) $item->quantity,
+                'total' => (float) $item->price * (int) $item->quantity,
+            ])->values(),
+            'subtotal' => (float) $order->subtotal,
+            'tax_amount' => (float) $order->tax_amount,
+            'delivery_charge' => (float) $order->delivery_charge,
+            'total' => (float) $order->total,
+        ];
+    }
+
+    /** Status in the customer's words rather than the kitchen's. */
+    private function customerStatus(?string $status, ?string $orderType): string
+    {
+        $delivery = $orderType !== OrderFlow::TAKEAWAY;
+
+        return match ($status) {
+            OrderFlow::PENDING => 'Received',
+            OrderFlow::COOKING => 'Being prepared',
+            OrderFlow::READY_TO_SERVE => $delivery ? 'Ready' : 'Ready for pickup',
+            OrderFlow::PACKED => $delivery ? 'Packed, waiting for the rider' : 'Ready for pickup',
+            OrderFlow::PICKED_UP => 'On the way',
+            OrderFlow::DELIVERED => 'Delivered',
+            OrderFlow::SERVED => 'Served',
+            OrderFlow::CANCELLED => 'Cancelled',
+            default => 'Received',
+        };
     }
 
     private function tenantFor(string $slug): Tenant

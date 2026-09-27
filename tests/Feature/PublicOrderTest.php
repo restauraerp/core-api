@@ -147,4 +147,63 @@ class PublicOrderTest extends TestCase
         $this->postJson('/api/v1/order/online-test', $this->orderPayload())->assertStatus(423);
         $this->assertCount(0, $this->orders());
     }
+
+    private function placeOnline(): array
+    {
+        return $this->postJson('/api/v1/order/online-test', $this->orderPayload())
+            ->assertCreated()
+            ->json();
+    }
+
+    public function test_a_customer_can_look_up_their_order_with_its_key(): void
+    {
+        $placed = $this->placeOnline();
+
+        $this->postJson('/api/v1/order/online-test/my-orders', [
+            'orders' => [['id' => $placed['order_id'], 'key' => $placed['tracking_key']]],
+        ])
+            ->assertOk()
+            ->assertJsonCount(1, 'orders')
+            ->assertJsonPath('orders.0.id', $placed['order_id'])
+            ->assertJsonPath('orders.0.total', 1000)
+            ->assertJsonPath('orders.0.items.0.name', 'Biryani')
+            ->assertJsonPath('orders.0.items.0.qty', 2);
+    }
+
+    public function test_an_order_id_without_its_key_shows_nothing(): void
+    {
+        $placed = $this->placeOnline();
+
+        $this->postJson('/api/v1/order/online-test/my-orders', [
+            'orders' => [['id' => $placed['order_id'], 'key' => str_repeat('0', 40)]],
+        ])
+            ->assertOk()
+            ->assertJsonCount(0, 'orders');
+    }
+
+    public function test_a_key_only_works_at_its_own_restaurant(): void
+    {
+        $placed = $this->placeOnline();
+        Tenant::factory()->create(['slug' => 'elsewhere', 'plan' => 'enterprise']);
+
+        $this->postJson('/api/v1/order/elsewhere/my-orders', [
+            'orders' => [['id' => $placed['order_id'], 'key' => $placed['tracking_key']]],
+        ])
+            ->assertOk()
+            ->assertJsonCount(0, 'orders');
+    }
+
+    public function test_a_cancelled_order_shows_as_cancelled(): void
+    {
+        $placed = $this->placeOnline();
+        app(TenantContext::class)->runFor($this->tenant, fn () => Order::find($placed['order_id'])->delete());
+
+        $this->postJson('/api/v1/order/online-test/my-orders', [
+            'orders' => [['id' => $placed['order_id'], 'key' => $placed['tracking_key']]],
+        ])
+            ->assertOk()
+            ->assertJsonPath('orders.0.status', 'cancelled')
+            ->assertJsonPath('orders.0.status_label', 'Cancelled')
+            ->assertJsonPath('orders.0.finished', true);
+    }
 }

@@ -136,6 +136,11 @@ Route::prefix('v1')->group(function () {
     Route::post('order/{slug}', [PublicOrderController::class, 'store'])
         ->middleware('throttle:10,1')
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+    // A customer's own orders, looked up by the tracking keys their browser
+    // was handed when it placed them.
+    Route::post('order/{slug}/my-orders', [PublicOrderController::class, 'mine'])
+        ->middleware('throttle:30,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
 
     // Demo credentials, for clients that were asked for a demo (the front's
     // /login?demo=true). 404s unless DEMO_MODE is on.
