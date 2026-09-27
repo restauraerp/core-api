@@ -9,6 +9,7 @@ use App\Http\Controllers\ChatMessageController;
 use App\Http\Controllers\ConsumptionLogController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DeliveryController;
+use App\Http\Controllers\DeliveryPayoutController;
 use App\Http\Controllers\DemoController;
 use App\Http\Controllers\DemoLeadController;
 use App\Http\Controllers\DiscountController;
@@ -337,6 +338,8 @@ Route::prefix('v1')->group(function () {
             // delivery module rather than general reporting: a tenant without
             // delivery has no delivery charges to disburse.
             Route::get('reports/delivery-charges', [ReportController::class, 'deliveryCharges']);
+            // Delivery charges paid back out to riders/couriers (booked as expenses).
+            Route::apiResource('delivery-payouts', DeliveryPayoutController::class)->only(['index', 'store', 'destroy']);
         });
 
         // Reporting API (aggregated server-side; see ReportController)

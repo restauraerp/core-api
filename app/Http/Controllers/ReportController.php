@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ConsumptionLog;
+use App\Models\DeliveryPayout;
 use App\Models\Expense;
 use App\Models\Income;
 use App\Models\InventoryItem;
@@ -681,15 +682,32 @@ class ReportController extends Controller
             ->get();
 
         $count = (int) $summary->orders_count;
+        $collected = round((float) $summary->collected, 2);
+
+        // What has already been paid out to riders/couriers in the same window,
+        // so the page can show what is still owed to them.
+        [$from, $to] = $this->window($request);
+        $payouts = DeliveryPayout::query();
+        if ($from) $payouts->where('paid_on', '>=', substr($from, 0, 10));
+        if ($to)   $payouts->where('paid_on', '<', substr($to, 0, 10));
+        $locationId = $request->input('location_id');
+        if ($locationId !== null && $locationId !== '' && $locationId !== 'all') {
+            $payouts->where('location_id', $locationId);
+        }
+        $paidOut = round((float) $payouts->sum('amount'), 2);
 
         return response()->json([
             'bucket' => $bucket,
             'summary' => [
                 'orders_count' => $count,
                 'total' => round((float) $summary->total, 2),
-                'collected' => round((float) $summary->collected, 2),
+                'collected' => $collected,
                 'outstanding' => round((float) $summary->outstanding, 2),
                 'avg_charge' => $count > 0 ? round((float) $summary->total / $count, 2) : 0.0,
+                'paid_out' => $paidOut,
+                // Collected but not yet paid out. Can go negative if a payout
+                // covers charges collected in an earlier period.
+                'balance' => round($collected - $paidOut, 2),
             ],
             'series' => $series->map(fn ($row) => [
                 'bucket' => $row->bucket,
