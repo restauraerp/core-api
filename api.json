@@ -3144,6 +3144,286 @@
                 }
             }
         },
+        "/v1/delivery-payouts": {
+            "get": {
+                "operationId": "delivery-payouts.index",
+                "tags": [
+                    "DeliveryPayout"
+                ],
+                "parameters": [
+                    {
+                        "name": "location_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "anyOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "current_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/DeliveryPayout"
+                                                    }
+                                                },
+                                                "first_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "from": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "minimum": 1
+                                                },
+                                                "last_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "last_page": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                },
+                                                "links": {
+                                                    "type": "array",
+                                                    "description": "Generated paginator links.",
+                                                    "items": {
+                                                        "type": "object",
+                                                        "properties": {
+                                                            "url": {
+                                                                "type": [
+                                                                    "string",
+                                                                    "null"
+                                                                ]
+                                                            },
+                                                            "label": {
+                                                                "type": "string"
+                                                            },
+                                                            "active": {
+                                                                "type": "boolean"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "url",
+                                                            "label",
+                                                            "active"
+                                                        ]
+                                                    }
+                                                },
+                                                "next_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "path": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Base path for paginator generated URLs."
+                                                },
+                                                "per_page": {
+                                                    "type": "integer",
+                                                    "description": "Number of items shown per page.",
+                                                    "minimum": 0
+                                                },
+                                                "prev_page_url": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "to": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "Number of the last item in the slice.",
+                                                    "minimum": 1
+                                                },
+                                                "total": {
+                                                    "type": "integer",
+                                                    "description": "Total number of items being paginated.",
+                                                    "minimum": 0
+                                                }
+                                            },
+                                            "required": [
+                                                "current_page",
+                                                "data",
+                                                "first_page_url",
+                                                "from",
+                                                "last_page_url",
+                                                "last_page",
+                                                "links",
+                                                "next_page_url",
+                                                "path",
+                                                "per_page",
+                                                "prev_page_url",
+                                                "to",
+                                                "total"
+                                            ]
+                                        },
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/DeliveryPayout"
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "An error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Error overview.",
+                                            "example": ""
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "delivery-payouts.store",
+                "tags": [
+                    "DeliveryPayout"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "amount": {
+                                        "type": "number",
+                                        "minimum": 0.01
+                                    },
+                                    "paid_on": {
+                                        "type": "string",
+                                        "format": "date-time"
+                                    },
+                                    "rider_id": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    },
+                                    "location_id": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    },
+                                    "reference": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 255
+                                    },
+                                    "note": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 2000
+                                    }
+                                },
+                                "required": [
+                                    "amount",
+                                    "paid_on"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DeliveryPayout"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/delivery-payouts/{deliveryPayout}": {
+            "delete": {
+                "operationId": "delivery-payouts.destroy",
+                "summary": "Removes a payout and the expense it booked, so the books stay in step",
+                "tags": [
+                    "DeliveryPayout"
+                ],
+                "parameters": [
+                    {
+                        "name": "deliveryPayout",
+                        "in": "path",
+                        "required": true,
+                        "description": "The delivery payout ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/demo-config": {
             "get": {
                 "operationId": "demo.show",
@@ -6780,6 +7060,30 @@
                             }
                         }
                     },
+                    "403": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "const": "This account is not allowed to sign in. Ask your restaurant admin if you need access."
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "const": "login_not_allowed"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    },
                     "422": {
                         "$ref": "#/components/responses/ValidationException"
                     }
@@ -6847,238 +7151,6 @@
                         "$ref": "#/components/responses/AuthenticationException"
                     }
                 }
-            }
-        },
-        "/v1/storefront/orders": {
-            "post": {
-                "operationId": "order.store_0",
-                "tags": [
-                    "Order"
-                ],
-                "requestBody": {
-                    "required": true,
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "properties": {
-                                    "location_id": {
-                                        "type": "integer"
-                                    },
-                                    "order_type": {
-                                        "type": "string",
-                                        "enum": [
-                                            "dine_in",
-                                            "takeaway",
-                                            "delivery",
-                                            "catering"
-                                        ]
-                                    },
-                                    "status": {
-                                        "type": "string",
-                                        "description": "Accepted for backwards compatibility and then ignored, like the\nmoney below: where an order starts depends on what is on it and\nwhen it is due, which is not the till's call to make."
-                                    },
-                                    "payment_status": {
-                                        "type": "string"
-                                    },
-                                    "subtotal": {
-                                        "type": "number"
-                                    },
-                                    "tax_amount": {
-                                        "type": "number",
-                                        "description": "Accepted for backwards compatibility and then ignored - both are\nrecomputed below from the tenant's tax rules. A till that posts\nits own tax is posting a number it chose."
-                                    },
-                                    "discount_amount": {
-                                        "type": "number"
-                                    },
-                                    "delivery_charge": {
-                                        "type": [
-                                            "number",
-                                            "null"
-                                        ]
-                                    },
-                                    "total": {
-                                        "type": "number"
-                                    },
-                                    "table_id": {
-                                        "type": [
-                                            "integer",
-                                            "null"
-                                        ]
-                                    },
-                                    "hall_id": {
-                                        "type": [
-                                            "integer",
-                                            "null"
-                                        ]
-                                    },
-                                    "customer_id": {
-                                        "type": [
-                                            "integer",
-                                            "null"
-                                        ]
-                                    },
-                                    "discount_id": {
-                                        "type": [
-                                            "integer",
-                                            "null"
-                                        ]
-                                    },
-                                    "served_by_user_id": {
-                                        "type": [
-                                            "integer",
-                                            "null"
-                                        ],
-                                        "description": "Who to credit for the sale, which is not necessarily who rang\nit up - tills are often shared logins. user_id keeps recording\nthe account that created the order; this records the employee."
-                                    },
-                                    "partner_id": {
-                                        "type": [
-                                            "integer",
-                                            "null"
-                                        ],
-                                        "description": "The third party that sent this order in, if any. Its commission\nis worked out server-side from the partner's own rate."
-                                    },
-                                    "payment_method": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ]
-                                    },
-                                    "payment_note": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ],
-                                        "description": "Why this payment looks the way it does - a bKash transaction id,\na card's last four, which guest paid for a shared table.",
-                                        "maxLength": 500
-                                    },
-                                    "delivery_time": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ],
-                                        "format": "date-time"
-                                    },
-                                    "delivery_address": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ]
-                                    },
-                                    "latitude": {
-                                        "type": [
-                                            "number",
-                                            "null"
-                                        ]
-                                    },
-                                    "longitude": {
-                                        "type": [
-                                            "number",
-                                            "null"
-                                        ]
-                                    },
-                                    "discount_type": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ],
-                                        "description": "And one on the whole bill, on top of any coupon.",
-                                        "enum": [
-                                            "flat",
-                                            "percent"
-                                        ]
-                                    },
-                                    "discount_value": {
-                                        "type": [
-                                            "number",
-                                            "null"
-                                        ],
-                                        "minimum": 0
-                                    },
-                                    "discount_reason": {
-                                        "type": [
-                                            "string",
-                                            "null"
-                                        ],
-                                        "maxLength": 255
-                                    },
-                                    "items": {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "object",
-                                            "properties": {
-                                                "product_id": {
-                                                    "type": "integer"
-                                                },
-                                                "qty": {
-                                                    "type": "integer",
-                                                    "minimum": 1
-                                                },
-                                                "price": {
-                                                    "type": "number"
-                                                },
-                                                "notes": {
-                                                    "type": [
-                                                        "string",
-                                                        "null"
-                                                    ],
-                                                    "maxLength": 500
-                                                },
-                                                "discount_type": {
-                                                    "type": [
-                                                        "string",
-                                                        "null"
-                                                    ],
-                                                    "description": "Per-item reductions - \"the steak came out cold, take 200 off it\".",
-                                                    "enum": [
-                                                        "flat",
-                                                        "percent"
-                                                    ]
-                                                },
-                                                "discount_value": {
-                                                    "type": [
-                                                        "number",
-                                                        "null"
-                                                    ],
-                                                    "minimum": 0
-                                                }
-                                            },
-                                            "required": [
-                                                "product_id",
-                                                "qty",
-                                                "price"
-                                            ]
-                                        },
-                                        "minItems": 1
-                                    }
-                                },
-                                "required": [
-                                    "location_id",
-                                    "order_type",
-                                    "subtotal",
-                                    "discount_amount",
-                                    "items"
-                                ]
-                            }
-                        }
-                    }
-                },
-                "responses": {
-                    "201": {
-                        "description": "",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "$ref": "#/components/schemas/Order"
-                                }
-                            }
-                        }
-                    },
-                    "422": {
-                        "$ref": "#/components/responses/ValidationException"
-                    }
-                },
-                "security": []
             }
         },
         "/v1/orders": {
@@ -8362,6 +8434,544 @@
                         "$ref": "#/components/responses/AuthenticationException"
                     }
                 }
+            }
+        },
+        "/v1/platform/packages": {
+            "get": {
+                "operationId": "packages.index",
+                "tags": [
+                    "Package"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "modules": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "key": {
+                                                        "type": "string"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "core": {
+                                                        "type": "boolean"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "key",
+                                                    "name",
+                                                    "core"
+                                                ]
+                                            }
+                                        },
+                                        "defaults": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "tier": {
+                                                        "type": "string"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "description": {},
+                                                    "modules": {
+                                                        "type": "array",
+                                                        "items": {}
+                                                    },
+                                                    "outlets": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "tier",
+                                                    "name",
+                                                    "description",
+                                                    "modules",
+                                                    "outlets"
+                                                ]
+                                            }
+                                        },
+                                        "packages": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {},
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "description": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "based_on": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "modules": {
+                                                        "type": "array",
+                                                        "items": {}
+                                                    },
+                                                    "outlets": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "tenants": {
+                                                        "anyOf": [
+                                                            {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "object",
+                                                                    "properties": {
+                                                                        "name": {
+                                                                            "type": "string"
+                                                                        },
+                                                                        "restaurant_code": {
+                                                                            "type": "string"
+                                                                        }
+                                                                    },
+                                                                    "required": [
+                                                                        "name",
+                                                                        "restaurant_code"
+                                                                    ]
+                                                                }
+                                                            },
+                                                            {
+                                                                "type": "array",
+                                                                "items": {
+                                                                    "type": "string"
+                                                                },
+                                                                "minItems": 0,
+                                                                "maxItems": 0,
+                                                                "additionalItems": false
+                                                            }
+                                                        ]
+                                                    },
+                                                    "updated_at": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "name",
+                                                    "description",
+                                                    "based_on",
+                                                    "modules",
+                                                    "outlets",
+                                                    "tenants",
+                                                    "updated_at"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "modules",
+                                        "defaults",
+                                        "packages"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            },
+            "post": {
+                "operationId": "packages.store",
+                "tags": [
+                    "Package"
+                ],
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "package": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {},
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "description": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "based_on": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "modules": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                },
+                                                "outlets": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "tenants": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "restaurant_code": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "name",
+                                                                    "restaurant_code"
+                                                                ]
+                                                            }
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            },
+                                                            "minItems": 0,
+                                                            "maxItems": 0,
+                                                            "additionalItems": false
+                                                        }
+                                                    ]
+                                                },
+                                                "updated_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "description",
+                                                "based_on",
+                                                "modules",
+                                                "outlets",
+                                                "tenants",
+                                                "updated_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "package"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/platform/packages/{package}": {
+            "get": {
+                "operationId": "packages.show",
+                "tags": [
+                    "Package"
+                ],
+                "parameters": [
+                    {
+                        "name": "package",
+                        "in": "path",
+                        "required": true,
+                        "description": "The package ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "package": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {},
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "description": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "based_on": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "modules": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                },
+                                                "outlets": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "tenants": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "restaurant_code": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "name",
+                                                                    "restaurant_code"
+                                                                ]
+                                                            }
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            },
+                                                            "minItems": 0,
+                                                            "maxItems": 0,
+                                                            "additionalItems": false
+                                                        }
+                                                    ]
+                                                },
+                                                "updated_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "description",
+                                                "based_on",
+                                                "modules",
+                                                "outlets",
+                                                "tenants",
+                                                "updated_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "package"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    }
+                },
+                "security": []
+            },
+            "put": {
+                "operationId": "packages.update",
+                "summary": "Changing a package changes what every restaurant on it can use, so their\nroles are re-synced here rather than waiting for somebody to notice",
+                "tags": [
+                    "Package"
+                ],
+                "parameters": [
+                    {
+                        "name": "package",
+                        "in": "path",
+                        "required": true,
+                        "description": "The package ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "package": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {},
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "description": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "based_on": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "modules": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                },
+                                                "outlets": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "tenants": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "restaurant_code": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "name",
+                                                                    "restaurant_code"
+                                                                ]
+                                                            }
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "items": {
+                                                                "type": "string"
+                                                            },
+                                                            "minItems": 0,
+                                                            "maxItems": 0,
+                                                            "additionalItems": false
+                                                        }
+                                                    ]
+                                                },
+                                                "updated_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "description",
+                                                "based_on",
+                                                "modules",
+                                                "outlets",
+                                                "tenants",
+                                                "updated_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "package"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    }
+                },
+                "security": []
+            },
+            "delete": {
+                "operationId": "packages.destroy",
+                "summary": "Refused while any restaurant is on it - move them off first",
+                "tags": [
+                    "Package"
+                ],
+                "parameters": [
+                    {
+                        "name": "package",
+                        "in": "path",
+                        "required": true,
+                        "description": "The package ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "409": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "error": {
+                                            "type": "string",
+                                            "const": "package_in_use"
+                                        }
+                                    },
+                                    "required": [
+                                        "message",
+                                        "error"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    }
+                },
+                "security": []
             }
         },
         "/v1/pages": {
@@ -11413,6 +12023,172 @@
                 }
             }
         },
+        "/v1/order/{slug}": {
+            "get": {
+                "operationId": "publicOrder.menu",
+                "summary": "GET /order/{slug} - the restaurant, its branches and its menu",
+                "tags": [
+                    "PublicOrder"
+                ],
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            },
+            "post": {
+                "operationId": "publicOrder.store",
+                "summary": "POST /order/{slug} - place an order",
+                "tags": [
+                    "PublicOrder"
+                ],
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "location_id": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    },
+                                    "order_type": {
+                                        "type": "string"
+                                    },
+                                    "name": {
+                                        "type": "string",
+                                        "maxLength": 100
+                                    },
+                                    "phone": {
+                                        "type": "string",
+                                        "maxLength": 20
+                                    },
+                                    "delivery_address": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 500
+                                    },
+                                    "note": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "maxLength": 500
+                                    },
+                                    "items": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "product_id": {
+                                                    "type": "integer"
+                                                },
+                                                "qty": {
+                                                    "type": "integer",
+                                                    "minimum": 1,
+                                                    "maximum": 99
+                                                },
+                                                "notes": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "maxLength": 200
+                                                }
+                                            },
+                                            "required": [
+                                                "product_id",
+                                                "qty"
+                                            ]
+                                        },
+                                        "minItems": 1,
+                                        "maxItems": 50
+                                    }
+                                },
+                                "required": [
+                                    "order_type",
+                                    "name",
+                                    "phone",
+                                    "items"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/order/{slug}/my-orders": {
+            "post": {
+                "operationId": "publicOrder.mine",
+                "description": "The browser keeps each order it placed as an id and the tracking key it\nwas given (a cookie on the ordering page), and sends them back here. No\nkey, no order: the id alone is a sequential number anyone could walk.\nPOST rather than GET so the keys stay out of URLs and access logs.\u26a0\ufe0f Cannot generate request documentation: Cannot evaluate validation rules (1 evaluators failed):\n  [NodeRulesEvaluator] Cannot access private constant App\\Http\\Controllers\\PublicOrderController::MAX_TRACKED (at /var/www/html/vendor/dedoc/scramble/src/Support/OperationExtensions/RulesEvaluator/ConstFetchEvaluator.php:42)",
+                "summary": "POST /order/{slug}/my-orders - the customer's own orders, by key",
+                "tags": [
+                    "PublicOrder"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                },
+                "security": []
+            }
+        },
         "/v1/purchase-orders": {
             "get": {
                 "operationId": "purchase-orders.index",
@@ -12899,6 +13675,109 @@
                 }
             }
         },
+        "/v1/reports/delivery-charges": {
+            "get": {
+                "operationId": "report.deliveryCharges",
+                "description": "Delivery is money the restaurant collects on the customer's behalf and\nusually passes on to a rider or courier, so it has to be visible apart\nfrom sales revenue before it can be disbursed as an expense. Only orders\nthat actually carried a delivery charge are counted. Collected vs\noutstanding follows the order's payment status, the same way the sales\nreport splits it.\n\nRegistered under the `module:delivery` route group, and gated on\nview_delivery here, so it belongs to the delivery module rather than to\ngeneral reporting.\n\nGET /reports/delivery-charges?from=&to=&location_id=&bucket=hour|day|month",
+                "summary": "Delivery charges on their own - the delivery module's report",
+                "tags": [
+                    "Report"
+                ],
+                "parameters": [
+                    {
+                        "name": "location_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "bucket": {
+                                            "type": "string"
+                                        },
+                                        "summary": {
+                                            "type": "object",
+                                            "properties": {
+                                                "orders_count": {
+                                                    "type": "integer"
+                                                },
+                                                "total": {
+                                                    "type": "number"
+                                                },
+                                                "collected": {
+                                                    "type": "number"
+                                                },
+                                                "outstanding": {
+                                                    "type": "number"
+                                                },
+                                                "avg_charge": {
+                                                    "type": "number"
+                                                },
+                                                "paid_out": {
+                                                    "type": "number"
+                                                },
+                                                "balance": {
+                                                    "type": "number",
+                                                    "description": "Collected but not yet paid out. Can go negative if a payout\ncovers charges collected in an earlier period."
+                                                }
+                                            },
+                                            "required": [
+                                                "orders_count",
+                                                "total",
+                                                "collected",
+                                                "outstanding",
+                                                "avg_charge",
+                                                "paid_out",
+                                                "balance"
+                                            ]
+                                        },
+                                        "series": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "bucket",
+                                        "summary",
+                                        "series"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "An error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Error overview.",
+                                            "example": ""
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
         "/v1/reports/sales": {
             "get": {
                 "operationId": "report.sales",
@@ -12925,7 +13804,12 @@
                                                     "type": "integer"
                                                 },
                                                 "gross_revenue": {
-                                                    "type": "number"
+                                                    "type": "number",
+                                                    "description": "Everything the orders came to, delivery included. Kept as-is\nfor the Compare tab and anything else already reading it."
+                                                },
+                                                "sales_revenue": {
+                                                    "type": "number",
+                                                    "description": "What the restaurant earned from selling food: the order total\nwith delivery charges taken back out. Delivery is money the\nrestaurant usually passes on to a rider or courier, so mixing\nit into sales overstated what the kitchen actually brought in."
                                                 },
                                                 "item_revenue": {
                                                     "type": "number"
@@ -12962,6 +13846,7 @@
                                             "required": [
                                                 "orders_count",
                                                 "gross_revenue",
+                                                "sales_revenue",
                                                 "item_revenue",
                                                 "tax_total",
                                                 "discount_total",
@@ -13684,7 +14569,15 @@
                                             "type": "object",
                                             "properties": {
                                                 "revenue": {
+                                                    "type": "number",
+                                                    "description": "Sales revenue from paid orders, delivery charges excluded."
+                                                },
+                                                "sales_revenue": {
                                                     "type": "number"
+                                                },
+                                                "delivery_charges": {
+                                                    "type": "number",
+                                                    "description": "Delivery charges collected on paid orders, shown on their own."
                                                 },
                                                 "other_income": {
                                                     "type": "number"
@@ -13711,6 +14604,8 @@
                                             },
                                             "required": [
                                                 "revenue",
+                                                "sales_revenue",
+                                                "delivery_charges",
                                                 "other_income",
                                                 "total_income",
                                                 "operational_expenses",
@@ -13723,6 +14618,94 @@
                                     },
                                     "required": [
                                         "summary"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/reports/accounting-by-header": {
+            "get": {
+                "operationId": "report.accountingByHeader",
+                "description": "Logged incomes and expenses always carry a header, but the largest flows\ndo not: sales and delivery charges arrive through orders, and inventory\nis bought through purchase orders. Leaving those out would make this\nreport disagree with the Profit report over the same period, so they are\nlisted as their own lines, marked with the source they come from. With\nthem in, total income and total expenses here equal the Profit report's.\n\nPaid orders only, as in the Profit report. Each side is sorted largest\nfirst, with each line's share of that side.\n\nGET /reports/accounting-by-header?from=&to=&location_id=",
+                "summary": "Income and expenses broken down by accounting header - where the money\ncomes from and where it goes",
+                "tags": [
+                    "Report"
+                ],
+                "parameters": [
+                    {
+                        "name": "location_id",
+                        "in": "query",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "summary": {
+                                            "type": "object",
+                                            "properties": {
+                                                "total_income": {
+                                                    "type": "number"
+                                                },
+                                                "total_expenses": {
+                                                    "type": "number"
+                                                },
+                                                "net": {
+                                                    "type": "number"
+                                                }
+                                            },
+                                            "required": [
+                                                "total_income",
+                                                "total_expenses",
+                                                "net"
+                                            ]
+                                        },
+                                        "income": {
+                                            "type": "array",
+                                            "items": {}
+                                        },
+                                        "expenses": {
+                                            "type": "array",
+                                            "items": {}
+                                        }
+                                    },
+                                    "required": [
+                                        "summary",
+                                        "income",
+                                        "expenses"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "An error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "description": "Error overview.",
+                                            "example": ""
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
                                     ]
                                 }
                             }
@@ -16146,6 +17129,680 @@
                 }
             }
         },
+        "/v1/integrations/telegram": {
+            "get": {
+                "operationId": "telegramIntegration.show",
+                "tags": [
+                    "TelegramIntegration"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "bot": {
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ],
+                                            "properties": {
+                                                "username": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "link": {
+                                                    "type": "string"
+                                                },
+                                                "last_error": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "connected_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "username",
+                                                "name",
+                                                "link",
+                                                "last_error",
+                                                "connected_at"
+                                            ]
+                                        },
+                                        "limits": {
+                                            "type": "object",
+                                            "properties": {
+                                                "per_second": {
+                                                    "type": "integer"
+                                                },
+                                                "per_minute": {
+                                                    "type": "integer"
+                                                }
+                                            },
+                                            "required": [
+                                                "per_second",
+                                                "per_minute"
+                                            ]
+                                        },
+                                        "riders": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "phone": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "location": {
+                                                        "type": "string"
+                                                    },
+                                                    "linked": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "telegram_username": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    },
+                                                    "linked_at": {
+                                                        "type": "string"
+                                                    },
+                                                    "link_expires_at": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
+                                                    }
+                                                },
+                                                "required": [
+                                                    "id",
+                                                    "name",
+                                                    "phone",
+                                                    "location",
+                                                    "linked",
+                                                    "telegram_username",
+                                                    "linked_at",
+                                                    "link_expires_at"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "bot",
+                                        "limits",
+                                        "riders"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "telegramIntegration.update",
+                "description": "The token is checked with Telegram before anything is saved, and the\nwebhook is registered with a fresh secret. Moving to a different bot\nclears every rider's link: they started the old bot, and the new one\ncannot message them until they start it too.",
+                "summary": "Connects a bot, or replaces the connected one",
+                "tags": [
+                    "TelegramIntegration"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "token": {
+                                        "type": "string",
+                                        "pattern": "^\\d{5,}:[A-Za-z0-9_-]{30,}$",
+                                        "maxLength": 100
+                                    }
+                                },
+                                "required": [
+                                    "token"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "bot": {
+                                            "type": "object",
+                                            "properties": {
+                                                "username": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "link": {
+                                                    "type": "string"
+                                                },
+                                                "last_error": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "connected_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "username",
+                                                "name",
+                                                "link",
+                                                "last_error",
+                                                "connected_at"
+                                            ]
+                                        },
+                                        "webhook_error": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "bot",
+                                        "webhook_error"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "telegramIntegration.destroy",
+                "summary": "Disconnects the bot and forgets every rider's link",
+                "tags": [
+                    "TelegramIntegration"
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/integrations/telegram/riders/{user}/link": {
+            "post": {
+                "operationId": "telegramIntegration.link",
+                "summary": "A fresh single-use onboarding link for one rider, to copy and send them",
+                "tags": [
+                    "TelegramIntegration"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "description": "The user ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "link": {
+                                            "type": "string"
+                                        },
+                                        "expires_at": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "link",
+                                        "expires_at"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "telegramIntegration.unlink",
+                "summary": "Stops notifying a rider, and voids any link not yet used",
+                "tags": [
+                    "TelegramIntegration"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "description": "The user ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/integrations/telegram/riders/{user}/test": {
+            "post": {
+                "operationId": "telegramIntegration.test",
+                "summary": "Sends a linked rider a test message, to confirm it arrives",
+                "tags": [
+                    "TelegramIntegration"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "description": "The user ID",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "queued": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "queued"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/ModelNotFoundException"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/AuthenticationException"
+                    }
+                }
+            }
+        },
+        "/v1/telegram/webhook/{bot}": {
+            "post": {
+                "operationId": "telegramWebhook.handle",
+                "tags": [
+                    "TelegramWebhook"
+                ],
+                "parameters": [
+                    {
+                        "name": "bot",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "ok"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "ok": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "ok"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                "security": []
+            }
+        },
+        "/v1/platform/tenants/{slug}/package": {
+            "put": {
+                "operationId": "tenant.assignPackage",
+                "summary": "Gives a restaurant a custom package, or takes it away (package_id null),\nand re-syncs its roles to the modules that now apply",
+                "tags": [
+                    "Tenant"
+                ],
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "package_id": {
+                                        "type": [
+                                            "integer",
+                                            "null"
+                                        ]
+                                    }
+                                },
+                                "required": [
+                                    "package_id"
+                                ]
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "tenant": {
+                                            "type": "object",
+                                            "properties": {
+                                                "id": {},
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "restaurant_code": {
+                                                    "type": "string"
+                                                },
+                                                "plan": {
+                                                    "type": "string"
+                                                },
+                                                "package": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "description": "A custom package replaces the tier's modules and outlet cap; the\neffective values are given too so the panel never re-derives them.",
+                                                    "properties": {
+                                                        "id": {},
+                                                        "name": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "modules": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "array",
+                                                            "items": {}
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "prefixItems": [
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "pos"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "orders"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "catalog"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "inventory"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "accounting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "reporting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "crm"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "hr"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "delivery"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "kitchen_kiosk"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "locations"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "website"
+                                                                }
+                                                            ],
+                                                            "minItems": 12,
+                                                            "maxItems": 12,
+                                                            "additionalItems": false
+                                                        }
+                                                    ]
+                                                },
+                                                "outlet_limit": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "billing_cycle": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_name": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_email": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "contact_phone": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "max_outlets": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "locations_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "Only present when the caller asked for them - index() and show()\ndo. Deliberately not counted here as a fallback: users and\nlocations are tenant-scoped, so a count taken outside a tenant\ncontext returns a confident, wrong zero rather than nothing."
+                                                },
+                                                "users_count": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "has_products": {
+                                                    "type": [
+                                                        "boolean",
+                                                        "null"
+                                                    ],
+                                                    "description": "What the trial walkthrough leaves behind is nothing - it runs on a\nshared demo restaurant, not here - so any product or order on a\ntrial tenant is the owner using the software for real. Booleans\nrather than counts: the website only asks \"has any\", and answering\nit with EXISTS keeps the tenant list fast. Null when not loaded, so\na caller that did not ask is not told a confident \"no\"."
+                                                },
+                                                "has_orders": {
+                                                    "type": [
+                                                        "boolean",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "trial_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "subscription_ends_at": {
+                                                    "type": "string"
+                                                },
+                                                "deleted_at": {
+                                                    "type": "string"
+                                                },
+                                                "created_at": {
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "name",
+                                                "restaurant_code",
+                                                "plan",
+                                                "package",
+                                                "modules",
+                                                "outlet_limit",
+                                                "status",
+                                                "billing_cycle",
+                                                "contact_name",
+                                                "contact_email",
+                                                "contact_phone",
+                                                "max_outlets",
+                                                "locations_count",
+                                                "users_count",
+                                                "has_products",
+                                                "has_orders",
+                                                "trial_ends_at",
+                                                "subscription_ends_at",
+                                                "deleted_at",
+                                                "created_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "tenant"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationException"
+                    }
+                },
+                "security": []
+            }
+        },
         "/v1/platform/tenants": {
             "post": {
                 "operationId": "tenant.store",
@@ -16227,6 +17884,93 @@
                                                 "plan": {
                                                     "type": "string"
                                                 },
+                                                "package": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "description": "A custom package replaces the tier's modules and outlet cap; the\neffective values are given too so the panel never re-derives them.",
+                                                    "properties": {
+                                                        "id": {},
+                                                        "name": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "modules": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "array",
+                                                            "items": {}
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "prefixItems": [
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "pos"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "orders"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "catalog"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "inventory"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "accounting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "reporting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "crm"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "hr"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "delivery"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "kitchen_kiosk"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "locations"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "website"
+                                                                }
+                                                            ],
+                                                            "minItems": 12,
+                                                            "maxItems": 12,
+                                                            "additionalItems": false
+                                                        }
+                                                    ]
+                                                },
+                                                "outlet_limit": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "status": {
                                                     "type": "string"
                                                 },
@@ -16304,6 +18048,9 @@
                                                 "name",
                                                 "restaurant_code",
                                                 "plan",
+                                                "package",
+                                                "modules",
+                                                "outlet_limit",
                                                 "status",
                                                 "billing_cycle",
                                                 "contact_name",
@@ -16392,6 +18139,93 @@
                                                 "plan": {
                                                     "type": "string"
                                                 },
+                                                "package": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "description": "A custom package replaces the tier's modules and outlet cap; the\neffective values are given too so the panel never re-derives them.",
+                                                    "properties": {
+                                                        "id": {},
+                                                        "name": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "modules": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "array",
+                                                            "items": {}
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "prefixItems": [
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "pos"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "orders"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "catalog"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "inventory"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "accounting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "reporting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "crm"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "hr"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "delivery"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "kitchen_kiosk"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "locations"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "website"
+                                                                }
+                                                            ],
+                                                            "minItems": 12,
+                                                            "maxItems": 12,
+                                                            "additionalItems": false
+                                                        }
+                                                    ]
+                                                },
+                                                "outlet_limit": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "status": {
                                                     "type": "string"
                                                 },
@@ -16469,6 +18303,9 @@
                                                 "name",
                                                 "restaurant_code",
                                                 "plan",
+                                                "package",
+                                                "modules",
+                                                "outlet_limit",
                                                 "status",
                                                 "billing_cycle",
                                                 "contact_name",
@@ -16570,6 +18407,93 @@
                                                     "plan": {
                                                         "type": "string"
                                                     },
+                                                    "package": {
+                                                        "type": [
+                                                            "object",
+                                                            "null"
+                                                        ],
+                                                        "description": "A custom package replaces the tier's modules and outlet cap; the\neffective values are given too so the panel never re-derives them.",
+                                                        "properties": {
+                                                            "id": {},
+                                                            "name": {
+                                                                "type": "string"
+                                                            }
+                                                        },
+                                                        "required": [
+                                                            "id",
+                                                            "name"
+                                                        ]
+                                                    },
+                                                    "modules": {
+                                                        "anyOf": [
+                                                            {
+                                                                "type": "array",
+                                                                "items": {}
+                                                            },
+                                                            {
+                                                                "type": "array",
+                                                                "prefixItems": [
+                                                                    {
+                                                                        "type": "string",
+                                                                        "const": "pos"
+                                                                    },
+                                                                    {
+                                                                        "type": "string",
+                                                                        "const": "orders"
+                                                                    },
+                                                                    {
+                                                                        "type": "string",
+                                                                        "const": "catalog"
+                                                                    },
+                                                                    {
+                                                                        "type": "string",
+                                                                        "const": "inventory"
+                                                                    },
+                                                                    {
+                                                                        "type": "string",
+                                                                        "const": "accounting"
+                                                                    },
+                                                                    {
+                                                                        "type": "string",
+                                                                        "const": "reporting"
+                                                                    },
+                                                                    {
+                                                                        "type": "string",
+                                                                        "const": "crm"
+                                                                    },
+                                                                    {
+                                                                        "type": "string",
+                                                                        "const": "hr"
+                                                                    },
+                                                                    {
+                                                                        "type": "string",
+                                                                        "const": "delivery"
+                                                                    },
+                                                                    {
+                                                                        "type": "string",
+                                                                        "const": "kitchen_kiosk"
+                                                                    },
+                                                                    {
+                                                                        "type": "string",
+                                                                        "const": "locations"
+                                                                    },
+                                                                    {
+                                                                        "type": "string",
+                                                                        "const": "website"
+                                                                    }
+                                                                ],
+                                                                "minItems": 12,
+                                                                "maxItems": 12,
+                                                                "additionalItems": false
+                                                            }
+                                                        ]
+                                                    },
+                                                    "outlet_limit": {
+                                                        "type": [
+                                                            "integer",
+                                                            "null"
+                                                        ]
+                                                    },
                                                     "status": {
                                                         "type": "string"
                                                     },
@@ -16647,6 +18571,9 @@
                                                     "name",
                                                     "restaurant_code",
                                                     "plan",
+                                                    "package",
+                                                    "modules",
+                                                    "outlet_limit",
                                                     "status",
                                                     "billing_cycle",
                                                     "contact_name",
@@ -16740,6 +18667,93 @@
                                                 "plan": {
                                                     "type": "string"
                                                 },
+                                                "package": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "description": "A custom package replaces the tier's modules and outlet cap; the\neffective values are given too so the panel never re-derives them.",
+                                                    "properties": {
+                                                        "id": {},
+                                                        "name": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "modules": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "array",
+                                                            "items": {}
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "prefixItems": [
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "pos"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "orders"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "catalog"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "inventory"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "accounting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "reporting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "crm"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "hr"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "delivery"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "kitchen_kiosk"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "locations"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "website"
+                                                                }
+                                                            ],
+                                                            "minItems": 12,
+                                                            "maxItems": 12,
+                                                            "additionalItems": false
+                                                        }
+                                                    ]
+                                                },
+                                                "outlet_limit": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "status": {
                                                     "type": "string"
                                                 },
@@ -16817,6 +18831,9 @@
                                                 "name",
                                                 "restaurant_code",
                                                 "plan",
+                                                "package",
+                                                "modules",
+                                                "outlet_limit",
                                                 "status",
                                                 "billing_cycle",
                                                 "contact_name",
@@ -16881,6 +18898,93 @@
                                                 "plan": {
                                                     "type": "string"
                                                 },
+                                                "package": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "description": "A custom package replaces the tier's modules and outlet cap; the\neffective values are given too so the panel never re-derives them.",
+                                                    "properties": {
+                                                        "id": {},
+                                                        "name": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "modules": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "array",
+                                                            "items": {}
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "prefixItems": [
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "pos"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "orders"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "catalog"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "inventory"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "accounting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "reporting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "crm"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "hr"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "delivery"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "kitchen_kiosk"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "locations"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "website"
+                                                                }
+                                                            ],
+                                                            "minItems": 12,
+                                                            "maxItems": 12,
+                                                            "additionalItems": false
+                                                        }
+                                                    ]
+                                                },
+                                                "outlet_limit": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "status": {
                                                     "type": "string"
                                                 },
@@ -16958,6 +19062,9 @@
                                                 "name",
                                                 "restaurant_code",
                                                 "plan",
+                                                "package",
+                                                "modules",
+                                                "outlet_limit",
                                                 "status",
                                                 "billing_cycle",
                                                 "contact_name",
@@ -17066,6 +19173,93 @@
                                                 "plan": {
                                                     "type": "string"
                                                 },
+                                                "package": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "description": "A custom package replaces the tier's modules and outlet cap; the\neffective values are given too so the panel never re-derives them.",
+                                                    "properties": {
+                                                        "id": {},
+                                                        "name": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "modules": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "array",
+                                                            "items": {}
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "prefixItems": [
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "pos"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "orders"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "catalog"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "inventory"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "accounting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "reporting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "crm"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "hr"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "delivery"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "kitchen_kiosk"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "locations"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "website"
+                                                                }
+                                                            ],
+                                                            "minItems": 12,
+                                                            "maxItems": 12,
+                                                            "additionalItems": false
+                                                        }
+                                                    ]
+                                                },
+                                                "outlet_limit": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "status": {
                                                     "type": "string"
                                                 },
@@ -17143,6 +19337,9 @@
                                                 "name",
                                                 "restaurant_code",
                                                 "plan",
+                                                "package",
+                                                "modules",
+                                                "outlet_limit",
                                                 "status",
                                                 "billing_cycle",
                                                 "contact_name",
@@ -17221,6 +19418,93 @@
                                                 "plan": {
                                                     "type": "string"
                                                 },
+                                                "package": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "description": "A custom package replaces the tier's modules and outlet cap; the\neffective values are given too so the panel never re-derives them.",
+                                                    "properties": {
+                                                        "id": {},
+                                                        "name": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "modules": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "array",
+                                                            "items": {}
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "prefixItems": [
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "pos"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "orders"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "catalog"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "inventory"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "accounting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "reporting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "crm"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "hr"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "delivery"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "kitchen_kiosk"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "locations"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "website"
+                                                                }
+                                                            ],
+                                                            "minItems": 12,
+                                                            "maxItems": 12,
+                                                            "additionalItems": false
+                                                        }
+                                                    ]
+                                                },
+                                                "outlet_limit": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "status": {
                                                     "type": "string"
                                                 },
@@ -17298,6 +19582,9 @@
                                                 "name",
                                                 "restaurant_code",
                                                 "plan",
+                                                "package",
+                                                "modules",
+                                                "outlet_limit",
                                                 "status",
                                                 "billing_cycle",
                                                 "contact_name",
@@ -17365,6 +19652,93 @@
                                                 "plan": {
                                                     "type": "string"
                                                 },
+                                                "package": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "description": "A custom package replaces the tier's modules and outlet cap; the\neffective values are given too so the panel never re-derives them.",
+                                                    "properties": {
+                                                        "id": {},
+                                                        "name": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "modules": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "array",
+                                                            "items": {}
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "prefixItems": [
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "pos"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "orders"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "catalog"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "inventory"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "accounting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "reporting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "crm"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "hr"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "delivery"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "kitchen_kiosk"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "locations"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "website"
+                                                                }
+                                                            ],
+                                                            "minItems": 12,
+                                                            "maxItems": 12,
+                                                            "additionalItems": false
+                                                        }
+                                                    ]
+                                                },
+                                                "outlet_limit": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "status": {
                                                     "type": "string"
                                                 },
@@ -17442,6 +19816,9 @@
                                                 "name",
                                                 "restaurant_code",
                                                 "plan",
+                                                "package",
+                                                "modules",
+                                                "outlet_limit",
                                                 "status",
                                                 "billing_cycle",
                                                 "contact_name",
@@ -17532,6 +19909,93 @@
                                                 "plan": {
                                                     "type": "string"
                                                 },
+                                                "package": {
+                                                    "type": [
+                                                        "object",
+                                                        "null"
+                                                    ],
+                                                    "description": "A custom package replaces the tier's modules and outlet cap; the\neffective values are given too so the panel never re-derives them.",
+                                                    "properties": {
+                                                        "id": {},
+                                                        "name": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "id",
+                                                        "name"
+                                                    ]
+                                                },
+                                                "modules": {
+                                                    "anyOf": [
+                                                        {
+                                                            "type": "array",
+                                                            "items": {}
+                                                        },
+                                                        {
+                                                            "type": "array",
+                                                            "prefixItems": [
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "pos"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "orders"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "catalog"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "inventory"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "accounting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "reporting"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "crm"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "hr"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "delivery"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "kitchen_kiosk"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "locations"
+                                                                },
+                                                                {
+                                                                    "type": "string",
+                                                                    "const": "website"
+                                                                }
+                                                            ],
+                                                            "minItems": 12,
+                                                            "maxItems": 12,
+                                                            "additionalItems": false
+                                                        }
+                                                    ]
+                                                },
+                                                "outlet_limit": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
                                                 "status": {
                                                     "type": "string"
                                                 },
@@ -17609,6 +20073,9 @@
                                                 "name",
                                                 "restaurant_code",
                                                 "plan",
+                                                "package",
+                                                "modules",
+                                                "outlet_limit",
                                                 "status",
                                                 "billing_cycle",
                                                 "contact_name",
@@ -18471,7 +20938,10 @@
                                         "maxLength": 255
                                     },
                                     "password": {
-                                        "type": "string",
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
                                         "minLength": 8
                                     },
                                     "location_id": {
@@ -18505,8 +20975,7 @@
                                 },
                                 "required": [
                                     "name",
-                                    "email",
-                                    "password"
+                                    "email"
                                 ]
                             }
                         }
@@ -18633,6 +21102,10 @@
                                         "format": "binary",
                                         "contentMediaType": "application/octet-stream",
                                         "maxLength": 5120
+                                    },
+                                    "can_login": {
+                                        "type": "boolean",
+                                        "default": false
                                     }
                                 }
                             }
@@ -18728,6 +21201,25 @@
                                     "required": [
                                         "one_time_login_url",
                                         "expires_in_hours"
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "const": "This user is not allowed to sign in, so a login link cannot be made for them."
+                                        }
+                                    },
+                                    "required": [
+                                        "message"
                                     ]
                                 }
                             }
@@ -19998,6 +22490,26 @@
                     },
                     "tenant_id": {
                         "type": "integer"
+                    },
+                    "telegram_message_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "telegram_sent_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "telegram_redacted_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
                     }
                 },
                 "required": [
@@ -20009,9 +22521,88 @@
                     "status",
                     "created_at",
                     "updated_at",
-                    "tenant_id"
+                    "tenant_id",
+                    "telegram_message_id",
+                    "telegram_sent_at",
+                    "telegram_redacted_at"
                 ],
                 "title": "Delivery"
+            },
+            "DeliveryPayout": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "tenant_id": {
+                        "type": "integer"
+                    },
+                    "location_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "rider_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "expense_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "amount": {
+                        "type": "string"
+                    },
+                    "paid_on": {
+                        "type": "string",
+                        "format": "date"
+                    },
+                    "reference": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "note": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    },
+                    "updated_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
+                    }
+                },
+                "required": [
+                    "id",
+                    "tenant_id",
+                    "location_id",
+                    "rider_id",
+                    "expense_id",
+                    "amount",
+                    "paid_on",
+                    "reference",
+                    "note",
+                    "created_at",
+                    "updated_at"
+                ],
+                "title": "DeliveryPayout"
             },
             "Discount": {
                 "type": "object",
@@ -20995,6 +23586,12 @@
                             "null"
                         ]
                     },
+                    "source": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
                     "status": {
                         "type": [
                             "string",
@@ -21088,6 +23685,12 @@
                             "null"
                         ]
                     },
+                    "customer_note": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
                     "latitude": {
                         "type": [
                             "string",
@@ -21144,6 +23747,7 @@
                     "hall_id",
                     "discount_id",
                     "order_type",
+                    "source",
                     "status",
                     "needs_cooking",
                     "payment_status",
@@ -21160,6 +23764,7 @@
                     "updated_at",
                     "delivery_time",
                     "delivery_address",
+                    "customer_note",
                     "latitude",
                     "longitude",
                     "tenant_id",
@@ -22734,6 +25339,12 @@
                     "plan": {
                         "type": "string"
                     },
+                    "package_id": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
                     "billing_cycle": {
                         "type": [
                             "string",
@@ -22809,6 +25420,7 @@
                     "slug",
                     "domain",
                     "plan",
+                    "package_id",
                     "billing_cycle",
                     "status",
                     "max_outlets",
@@ -22933,6 +25545,9 @@
                     "must_set_password": {
                         "type": "integer"
                     },
+                    "can_login": {
+                        "type": "boolean"
+                    },
                     "created_at": {
                         "type": [
                             "string",
@@ -22949,6 +25564,19 @@
                     },
                     "tenant_id": {
                         "type": "integer"
+                    },
+                    "telegram_username": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "telegram_linked_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time"
                     }
                 },
                 "required": [
@@ -22961,9 +25589,12 @@
                     "email_verified_at",
                     "is_platform_admin",
                     "must_set_password",
+                    "can_login",
                     "created_at",
                     "updated_at",
-                    "tenant_id"
+                    "tenant_id",
+                    "telegram_username",
+                    "telegram_linked_at"
                 ],
                 "title": "User"
             },
