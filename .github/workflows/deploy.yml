@@ -167,8 +167,10 @@ jobs:
           # The queue worker is long-lived and keeps the code and config it
           # booted with; this tells it to exit after its current job, and
           # systemd starts it again on the new release. Harmless on a box with
-          # no worker (infra/install-core-api-queue-worker.sh).
-          php artisan queue:restart
+          # no worker (infra/install-core-api-queue-worker.sh). Non-fatal: it
+          # runs after cutover, and a cache hiccup here must not turn a
+          # release that is already live red and skip the health check.
+          php artisan queue:restart || echo "::warning::queue:restart failed - restart restoraerp-core-api-queue by hand"
 
           # Verify the new release is serving (port 8000 based on core_api_port).
           sleep 2
