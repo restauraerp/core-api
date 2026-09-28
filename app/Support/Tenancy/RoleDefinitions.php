@@ -62,6 +62,22 @@ class RoleDefinitions
     }
 
     /**
+     * Predefined roles whose members do not sign in to the panel.
+     *
+     * Stored per role as roles.requires_login, which the restaurant can change;
+     * this is only where it starts. A role's setting is the default for new
+     * users given it - each user can still be switched either way.
+     *
+     * @var list<string>
+     */
+    public const WITHOUT_LOGIN = ['waiter'];
+
+    public static function requiresLogin(string $roleName): bool
+    {
+        return ! in_array($roleName, self::WITHOUT_LOGIN, true);
+    }
+
+    /**
      * Roles created inside every new tenant.
      *
      * `null` means "every permission" - used for the restaurant owner, who
@@ -96,6 +112,14 @@ class RoleDefinitions
 
             'rider' => [
                 'view_delivery', 'update_delivery_status',
+            ],
+
+            // Exists to be credited with sales ("served by") and paid, not to
+            // sign in - see WITHOUT_LOGIN. The POS permissions are for the day
+            // a restaurant gives one waiter a login of their own.
+            'waiter' => [
+                'view_pos', 'create_pos_order',
+                'view_orders',
             ],
 
             'accountant' => [
