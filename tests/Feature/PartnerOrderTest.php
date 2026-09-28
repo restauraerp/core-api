@@ -9,8 +9,10 @@ use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\Tenancy\RoleDefinitions;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantProvisioner;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\Test;
@@ -33,6 +35,9 @@ class PartnerOrderTest extends TestCase
     {
         parent::setUp();
 
+        // The permission catalogue, so the owner role has something to hold.
+        $this->seed(RolePermissionSeeder::class);
+
         $this->tenant = app(TenantProvisioner::class)->create([
             'name' => 'Partner Restaurant',
             'slug' => 'partner-restaurant',
@@ -40,9 +45,14 @@ class PartnerOrderTest extends TestCase
             'status' => 'active',
         ]);
 
-        Sanctum::actingAs($this->inTenant(
-            fn () => User::factory()->create(['tenant_id' => $this->tenant->getKey()]),
-        ));
+        // The owner: managing partners and cancelling orders are permission
+        // gated, and these tests are about the money, not the gate.
+        Sanctum::actingAs($this->inTenant(function () {
+            $user = User::factory()->create(['tenant_id' => $this->tenant->getKey()]);
+            $user->assignRole(RoleDefinitions::RESTAURANT_ADMIN);
+
+            return $user;
+        }));
     }
 
     private function inTenant(callable $work): mixed

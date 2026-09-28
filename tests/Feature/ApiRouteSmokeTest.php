@@ -46,6 +46,7 @@ class ApiRouteSmokeTest extends TestCase
     private const NOT_A_TENANT_QUESTION = [
         // Platform administration, gated on is_platform_admin - a restaurant
         // owner is not one and 403 here is the whole point.
+        'api/v1/platform/packages',
         'api/v1/platform/plans',
         'api/v1/platform/stats',
         'api/v1/platform/tenants',

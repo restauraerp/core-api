@@ -21,7 +21,7 @@ use Symfony\Component\HttpFoundation\Response;
  *      on the platform.
  *
  *   2. X-Tenant-ID header -> only for unauthenticated traffic (the public
- *      storefront: menu, categories, booking, POST storefront/orders), which
+ *      storefront: menu, categories, booking), which
  *      carries no token to derive a tenant from.
  *
  *   3. Host -> matched against tenants.domain. Nothing populates that column

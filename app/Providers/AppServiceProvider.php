@@ -4,7 +4,9 @@ namespace App\Providers;
 
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -36,5 +38,14 @@ class AppServiceProvider extends ServiceProvider
         Gate::before(function (User $user, string $ability) {
             return $user->is_platform_admin ? true : null;
         });
+
+        // Rider notifications: each restaurant's bot sends at most
+        // config('telegram.per_second') a second and per_minute a minute.
+        // Distinct keys per window - two limits sharing a key would count
+        // against each other.
+        RateLimiter::for('telegram', fn (object $job) => [
+            Limit::perSecond(max(1, (int) config('telegram.per_second', 1)))->by('telegram-s:'.$job->tenantId),
+            Limit::perMinute(max(1, (int) config('telegram.per_minute', 30)))->by('telegram-m:'.$job->tenantId),
+        ]);
     }
 }

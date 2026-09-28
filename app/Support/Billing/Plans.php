@@ -83,11 +83,22 @@ class Plans
      */
     public static function permissions(string $tier): array
     {
+        return self::permissionsForModules(self::modules($tier));
+    }
+
+    /**
+     * The same, for any module list - a custom package's as well as a tier's.
+     *
+     * @param  list<string>  $modules
+     * @return list<string>
+     */
+    public static function permissionsForModules(array $modules): array
+    {
         $byModule = Modules::permissions();
 
         $granted = Modules::alwaysGranted();
 
-        foreach (self::modules($tier) as $module) {
+        foreach ($modules as $module) {
             $granted = array_merge($granted, $byModule[$module] ?? []);
         }
 

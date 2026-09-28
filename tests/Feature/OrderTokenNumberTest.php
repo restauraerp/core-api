@@ -6,8 +6,10 @@ use App\Models\Location;
 use App\Models\Product;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\WebsiteSetting;
 use App\Support\Orders\TokenNumber;
 use App\Support\Tenancy\TenantContext;
+use App\Support\Time\BusinessTime;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -18,8 +20,12 @@ use Tests\TestCase;
  * The number the counter calls out.
  *
  * Two things are easy to get wrong here and expensive to notice late: the day
- * breaking at midnight instead of 00:15 (which splits one evening's service
- * across two runs of tokens), and two tills being handed the same number.
+ * breaking somewhere other than the restaurant's own cutoff (which splits one
+ * evening's service across two runs of tokens), and two tills being handed the
+ * same number.
+ *
+ * The cutoff is the restaurant's `business_day_start_time` setting (see
+ * BusinessTime), 00:15 when unset.
  */
 class OrderTokenNumberTest extends TestCase
 {
@@ -68,6 +74,26 @@ class OrderTokenNumberTest extends TestCase
         ])->assertCreated();
 
         return (int) $response->json('token_number');
+    }
+
+    /** The restaurant's configured day start - Settings, "Business day starts at". */
+    private function startDayAt(string $time): void
+    {
+        app(TenantContext::class)->runFor($this->tenant, fn () => WebsiteSetting::create([
+            'key' => BusinessTime::DAY_START_SETTING,
+            'value' => $time,
+        ]));
+    }
+
+    public function test_a_restaurant_can_move_its_day_start_to_midnight(): void
+    {
+        $this->startDayAt('00:00');
+
+        Carbon::setTestNow(Carbon::parse('2026-03-01 23:50:00'));
+        $this->assertSame(1, $this->placeOrder());
+
+        Carbon::setTestNow(Carbon::parse('2026-03-02 00:00:00'));
+        $this->assertSame(1, $this->placeOrder());
     }
 
     public function test_tokens_start_at_one_and_count_up(): void

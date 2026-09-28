@@ -118,8 +118,11 @@ class TenantProvisioner
         // An unknown tier still falls back to the full set - that is a
         // misconfiguration, not an entitlement decision, and locking a paying
         // customer out of their own account over it would be worse.
-        $entitled = Plans::exists((string) $tenant->plan)
-            ? Plans::permissions((string) $tenant->plan)
+        //
+        // A custom package, when the restaurant has one, replaces the tier's
+        // module list - Tenant::entitledPermissions() answers for both.
+        $entitled = Plans::exists((string) $tenant->plan) || $tenant->package_id !== null
+            ? $tenant->entitledPermissions()
             : RoleDefinitions::permissions();
 
         $allPermissions = Permission::whereIn('name', $entitled)->get();

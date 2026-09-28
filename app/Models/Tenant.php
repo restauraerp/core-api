@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Billing\Modules;
 use App\Support\Billing\Plans;
 use App\Support\Billing\Subscription;
 use Carbon\CarbonInterface;
@@ -24,6 +25,7 @@ class Tenant extends Model
         'slug',
         'domain',
         'plan',
+        'package_id',
         'billing_cycle',
         'status',
         'max_outlets',
@@ -53,6 +55,15 @@ class Tenant extends Model
             'trial_ends_at' => 'datetime',
             'subscription_ends_at' => 'datetime',
         ];
+    }
+
+    /**
+     * A custom package, when this restaurant has one. It replaces the tier's
+     * modules and outlet cap; the tier still decides price and billing.
+     */
+    public function package()
+    {
+        return $this->belongsTo(Package::class);
     }
 
     public function users()
@@ -152,6 +163,12 @@ class Tenant extends Model
      */
     public function outletLimit(): ?int
     {
+        // A custom package is the per-restaurant exception, and says so
+        // itself - including "unlimited", which max_outlets cannot express.
+        if ($this->package_id !== null && $this->package !== null) {
+            return $this->package->outlets;
+        }
+
         if ($this->max_outlets !== null) {
             return (int) $this->max_outlets;
         }
@@ -173,17 +190,43 @@ class Tenant extends Model
     }
 
     /**
-     * Whether this tenant's tier includes a module. Unknown tiers are treated
+     * Whether this restaurant has a module - through its custom package if it
+     * has one, otherwise its tier. Unknown tiers are treated
      * as entitled to everything: a plan value the config does not know about is
      * a deployment mistake, and locking a paying restaurant out of its own data
      * is the worse failure.
      */
     public function hasModule(string $module): bool
     {
-        if (! Plans::exists((string) $this->plan)) {
-            return true;
+        return in_array($module, $this->modules(), true);
+    }
+
+    /**
+     * The modules this restaurant has: its custom package's if it has one,
+     * otherwise its tier's. An unknown tier gets everything, for the reason
+     * hasModule() gives.
+     *
+     * @return list<string>
+     */
+    public function modules(): array
+    {
+        if ($this->package_id !== null && $this->package !== null) {
+            return $this->package->moduleList();
         }
 
-        return Plans::includesModule((string) $this->plan, $module);
+        return Plans::exists((string) $this->plan)
+            ? Plans::modules((string) $this->plan)
+            : Modules::ALL;
+    }
+
+    /**
+     * Every permission this restaurant's roles may hold - what createRoles()
+     * caps them to.
+     *
+     * @return list<string>
+     */
+    public function entitledPermissions(): array
+    {
+        return Plans::permissionsForModules($this->modules());
     }
 }

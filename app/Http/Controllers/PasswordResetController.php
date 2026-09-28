@@ -76,7 +76,9 @@ class PasswordResetController extends Controller
      */
     private function resolveUser(string $email, ?string $restaurantCode): ?User
     {
-        $query = User::withoutGlobalScopes()->where('email', $email);
+        // A no-login account has no password worth resetting - sending it a
+        // link would only invite a sign-in that is then refused.
+        $query = User::withoutGlobalScopes()->where('email', $email)->where('can_login', true);
 
         if ($restaurantCode !== null && $restaurantCode !== '') {
             $tenantId = Tenant::withoutGlobalScopes()

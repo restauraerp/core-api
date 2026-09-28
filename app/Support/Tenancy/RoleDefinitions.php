@@ -45,7 +45,7 @@ class RoleDefinitions
 
             'view_hr', 'manage_employees', 'manage_attendance', 'manage_leaves', 'manage_payroll', 'manage_roles_permissions',
 
-            'view_delivery', 'update_delivery_status',
+            'view_delivery', 'update_delivery_status', 'manage_integrations',
 
             'view_crm', 'manage_customers', 'manage_loyalty_settings',
 

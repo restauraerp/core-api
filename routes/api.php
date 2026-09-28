@@ -9,6 +9,7 @@ use App\Http\Controllers\ChatMessageController;
 use App\Http\Controllers\ConsumptionLogController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DeliveryController;
+use App\Http\Controllers\DeliveryPayoutController;
 use App\Http\Controllers\DemoController;
 use App\Http\Controllers\DemoLeadController;
 use App\Http\Controllers\DiscountController;
@@ -36,11 +37,15 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\Platform\PlanController as PlatformPlanController;
+use App\Http\Controllers\Platform\PackageController as PlatformPackageController;
+use App\Http\Controllers\TelegramIntegrationController;
+use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\Platform\StatsController as PlatformStatsController;
 use App\Http\Controllers\Platform\TenantController as PlatformTenantController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductMediaController;
+use App\Http\Controllers\PublicOrderController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseOrderItemController;
 use App\Http\Controllers\PurchaseReturnController;
@@ -104,8 +109,12 @@ Route::prefix('v1')->group(function () {
     Route::apiResource('product-categories', ProductCategoryController::class)->only(['index', 'show']);
     Route::apiResource('products', ProductController::class)->only(['index', 'show']);
 
-    // Public Order API
-    Route::post('storefront/orders', [OrderController::class, 'store']);
+    // There is deliberately no public route onto OrderController::store. It
+    // trusts the price, discount, delivery charge and payment method it is
+    // posted, which is right for staff at the till and wrong for anybody on
+    // the internet: `storefront/orders` let an anonymous caller order at any
+    // price and mark it paid. Customers order through `order/{slug}`
+    // (PublicOrderController), which prices everything itself.
 
     // One order's invoice, to whoever holds the signed link the restaurant
     // shared with them.
@@ -119,6 +128,29 @@ Route::prefix('v1')->group(function () {
     Route::get('orders/{order}/invoice', [InvoiceController::class, 'show'])
         ->name('orders.invoice')
         ->middleware(['signed:relative', 'throttle:60,1'])
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+
+    // The restaurant's online order link. Public: the tenant comes from the
+    // restaurant code in the URL, not a header or token. Prices, tax and
+    // payment are decided server-side - see PublicOrderController.
+    Route::get('order/{slug}', [PublicOrderController::class, 'menu'])
+        ->middleware('throttle:60,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+    Route::post('order/{slug}', [PublicOrderController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+    // Updates from a restaurant's Telegram bot. Telegram is the caller; it
+    // proves itself with the bot's webhook secret, and the bot says which
+    // restaurant this is.
+    Route::post('telegram/webhook/{bot}', [TelegramWebhookController::class, 'handle'])
+        ->whereNumber('bot')
+        ->middleware('throttle:120,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+
+    // A customer's own orders, looked up by the tracking keys their browser
+    // was handed when it placed them.
+    Route::post('order/{slug}/my-orders', [PublicOrderController::class, 'mine'])
+        ->middleware('throttle:30,1')
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
 
     // Demo credentials, for clients that were asked for a demo (the front's
@@ -179,6 +211,11 @@ Route::prefix('v1')->group(function () {
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class])
         ->group(function () {
             Route::get('plans', [PlatformPlanController::class, 'index']);
+
+            // Custom packages - a module list and outlet cap for particular
+            // restaurants, beside the four default tiers.
+            Route::apiResource('packages', PlatformPackageController::class);
+            Route::put('tenants/{slug}/package', [PlatformTenantController::class, 'assignPackage']);
 
             // Billing state, counted, for the marketing site's daily report.
             Route::get('stats', [PlatformStatsController::class, 'index']);
@@ -333,6 +370,21 @@ Route::prefix('v1')->group(function () {
         // Delivery API
         Route::middleware('module:delivery')->group(function () {
             Route::apiResource('deliveries', DeliveryController::class);
+            // Delivery charges reported apart from sales revenue. Lives with the
+            // delivery module rather than general reporting: a tenant without
+            // delivery has no delivery charges to disburse.
+            Route::get('reports/delivery-charges', [ReportController::class, 'deliveryCharges']);
+            // Delivery charges paid back out to riders/couriers (booked as expenses).
+            Route::apiResource('delivery-payouts', DeliveryPayoutController::class)->only(['index', 'store', 'destroy']);
+
+            // Integration > Telegram: the restaurant's bot and its riders'
+            // links. Owner only (manage_integrations).
+            Route::get('integrations/telegram', [TelegramIntegrationController::class, 'show']);
+            Route::put('integrations/telegram', [TelegramIntegrationController::class, 'update']);
+            Route::delete('integrations/telegram', [TelegramIntegrationController::class, 'destroy']);
+            Route::post('integrations/telegram/riders/{user}/link', [TelegramIntegrationController::class, 'link']);
+            Route::delete('integrations/telegram/riders/{user}/link', [TelegramIntegrationController::class, 'unlink']);
+            Route::post('integrations/telegram/riders/{user}/test', [TelegramIntegrationController::class, 'test']);
         });
 
         // Reporting API (aggregated server-side; see ReportController)
@@ -348,6 +400,7 @@ Route::prefix('v1')->group(function () {
             Route::get('consumable-expenses', [ReportController::class, 'consumableExpenses']);
             Route::get('all-inventory-expenses', [ReportController::class, 'allInventoryExpenses']);
             Route::get('profit', [ReportController::class, 'profit']);
+            Route::get('accounting-by-header', [ReportController::class, 'accountingByHeader']);
         });
 
         // Support & System API

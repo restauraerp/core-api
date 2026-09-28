@@ -71,6 +71,14 @@ class AuthController extends Controller
             ]);
         }
 
+        // Checked only after the password matches, so this does not tell a
+        // stranger which addresses belong to a no-login account.
+        if (! $user->canLogIn()) {
+            throw ValidationException::withMessages([
+                'email' => ['This account is not allowed to sign in. Ask your restaurant admin if you need access.'],
+            ]);
+        }
+
         return response()->json([
             'user' => $user,
             'tenant' => $tenant->get(),
@@ -87,6 +95,15 @@ class AuthController extends Controller
 
     public function me(Request $request, TenantContext $tenant)
     {
+        // A session started before the account was switched to no-login ends
+        // here: the app calls /auth/me on every load, so revoking the token and
+        // answering 401 sends the browser back to the login screen.
+        if (! $request->user()->canLogIn()) {
+            $request->user()->currentAccessToken()?->delete();
+
+            return response()->json(['message' => 'This account is not allowed to sign in.'], 401);
+        }
+
         $user = $request->user()->load('location');
         $user->all_permissions = $user->getAllPermissions()->pluck('name');
 
@@ -94,6 +111,18 @@ class AuthController extends Controller
         // to keep sending the right X-Tenant-ID after a reload.
         $user->tenant = $tenant->get();
         $user->is_platform_admin = $user->isPlatformAdmin();
+
+        // The modules this restaurant has - its custom package's or its
+        // tier's. Screens that are not permission-gated (the POS order types)
+        // read this to offer only what the restaurant can use.
+        $user->modules = $tenant->get()?->modules() ?? [];
+
+        // The restaurant's public online order link, for staff to share. Built
+        // here because the apps only know the API's address, not the web app's.
+        $appUrl = rtrim((string) config('platform.app_url'), '/');
+        $user->online_order_url = $appUrl !== '' && $tenant->get() !== null
+            ? $appUrl.'/order/'.$tenant->get()->slug
+            : null;
 
         // The public demo restaurant is shared and reset on a schedule, so its
         // users must not be able to change the password out from under everyone
