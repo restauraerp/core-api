@@ -127,7 +127,8 @@ class Modules
             self::REPORTING => ['view_reporting'],
             self::CRM => ['view_crm', 'manage_customers', 'manage_loyalty_settings'],
             self::HR => ['view_hr', 'manage_employees', 'manage_attendance', 'manage_leaves', 'manage_payroll'],
-            self::DELIVERY => ['view_delivery', 'update_delivery_status'],
+            // manage_integrations: the Telegram bot riders are notified through.
+            self::DELIVERY => ['view_delivery', 'update_delivery_status', 'manage_integrations'],
             self::KITCHEN_KIOSK => ['view_kitchen_kiosk', 'update_kiosk_status'],
             self::LOCATIONS => ['view_locations', 'create_location', 'update_location', 'delete_location'],
             self::WEBSITE => ['view_website', 'manage_website_content'],

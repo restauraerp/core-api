@@ -164,6 +164,12 @@ jobs:
           # sudo already granted to publicdeploy for this one command.
           sudo systemctl restart restoraerp-core-api
 
+          # The queue worker is long-lived and keeps the code and config it
+          # booted with; this tells it to exit after its current job, and
+          # systemd starts it again on the new release. Harmless on a box with
+          # no worker (infra/install-core-api-queue-worker.sh).
+          php artisan queue:restart
+
           # Verify the new release is serving (port 8000 based on core_api_port).
           sleep 2
           curl -fsS http://127.0.0.1:8000/up >/dev/null && echo "health check OK"

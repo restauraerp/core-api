@@ -38,6 +38,8 @@ use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\Platform\PlanController as PlatformPlanController;
 use App\Http\Controllers\Platform\PackageController as PlatformPackageController;
+use App\Http\Controllers\TelegramIntegrationController;
+use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\Platform\StatsController as PlatformStatsController;
 use App\Http\Controllers\Platform\TenantController as PlatformTenantController;
 use App\Http\Controllers\ProductCategoryController;
@@ -137,6 +139,14 @@ Route::prefix('v1')->group(function () {
     Route::post('order/{slug}', [PublicOrderController::class, 'store'])
         ->middleware('throttle:10,1')
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+    // Updates from a restaurant's Telegram bot. Telegram is the caller; it
+    // proves itself with the bot's webhook secret, and the bot says which
+    // restaurant this is.
+    Route::post('telegram/webhook/{bot}', [TelegramWebhookController::class, 'handle'])
+        ->whereNumber('bot')
+        ->middleware('throttle:120,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+
     // A customer's own orders, looked up by the tracking keys their browser
     // was handed when it placed them.
     Route::post('order/{slug}/my-orders', [PublicOrderController::class, 'mine'])
@@ -366,6 +376,15 @@ Route::prefix('v1')->group(function () {
             Route::get('reports/delivery-charges', [ReportController::class, 'deliveryCharges']);
             // Delivery charges paid back out to riders/couriers (booked as expenses).
             Route::apiResource('delivery-payouts', DeliveryPayoutController::class)->only(['index', 'store', 'destroy']);
+
+            // Integration > Telegram: the restaurant's bot and its riders'
+            // links. Owner only (manage_integrations).
+            Route::get('integrations/telegram', [TelegramIntegrationController::class, 'show']);
+            Route::put('integrations/telegram', [TelegramIntegrationController::class, 'update']);
+            Route::delete('integrations/telegram', [TelegramIntegrationController::class, 'destroy']);
+            Route::post('integrations/telegram/riders/{user}/link', [TelegramIntegrationController::class, 'link']);
+            Route::delete('integrations/telegram/riders/{user}/link', [TelegramIntegrationController::class, 'unlink']);
+            Route::post('integrations/telegram/riders/{user}/test', [TelegramIntegrationController::class, 'test']);
         });
 
         // Reporting API (aggregated server-side; see ReportController)

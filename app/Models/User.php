@@ -17,7 +17,8 @@ use App\Models\Concerns\NormalisesPhone;
 use App\Models\Concerns\TracksUploadedAssets;
 
 #[Fillable(['name', 'email', 'password', 'location_id', 'phone', 'image_url', 'can_login'])]
-#[Hidden(['password', 'remember_token'])]
+// telegram_chat_id is hidden: it is only ever needed server-side, to send.
+#[Hidden(['password', 'remember_token', 'telegram_chat_id'])]
 class User extends Authenticatable
 {
     use BelongsToTenant, NormalisesPhone;
@@ -29,6 +30,22 @@ class User extends Authenticatable
     public function location()
     {
         return $this->belongsTo(Location::class);
+    }
+
+    /** Whether this user has linked the restaurant's Telegram bot. */
+    public function hasTelegram(): bool
+    {
+        return $this->telegram_chat_id !== null && $this->telegram_chat_id !== '';
+    }
+
+    /** Forget the Telegram link - the rider blocked the bot, or was unlinked. */
+    public function unlinkTelegram(): void
+    {
+        $this->forceFill([
+            'telegram_chat_id' => null,
+            'telegram_username' => null,
+            'telegram_linked_at' => null,
+        ])->save();
     }
 
     /**
@@ -43,6 +60,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_platform_admin' => 'boolean',
             'can_login' => 'boolean',
+            'telegram_linked_at' => 'datetime',
         ];
     }
 
