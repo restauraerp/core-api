@@ -112,6 +112,11 @@ class AuthController extends Controller
         $user->tenant = $tenant->get();
         $user->is_platform_admin = $user->isPlatformAdmin();
 
+        // The modules this restaurant has - its custom package's or its
+        // tier's. Screens that are not permission-gated (the POS order types)
+        // read this to offer only what the restaurant can use.
+        $user->modules = $tenant->get()?->modules() ?? [];
+
         // The restaurant's public online order link, for staff to share. Built
         // here because the apps only know the API's address, not the web app's.
         $appUrl = rtrim((string) config('platform.app_url'), '/');

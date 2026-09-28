@@ -69,6 +69,7 @@ class TenantController extends Controller
             // difference between 100ms and over a second once the orders table
             // has tens of thousands of rows.
             $query = Tenant::query()
+                ->with('package')
                 ->withCount(['users', 'locations'])
                 ->withExists(['products', 'orders']);
 
@@ -255,6 +256,7 @@ class TenantController extends Controller
     public function show(string $slug): JsonResponse
     {
         $tenant = $this->context->runWithoutScoping(fn () => Tenant::withTrashed()
+            ->with('package')
             ->withCount(['users', 'locations'])
             ->withExists(['products', 'orders'])
             ->where('slug', $slug)
@@ -305,7 +307,9 @@ class TenantController extends Controller
             $tenant->max_outlets = Plans::outletLimit($validated['plan']);
             // Role permissions are capped by the tier, so a plan change has to
             // resync them or the customer pays for modules they cannot see.
-            $this->provisioner->createRoles($tenant);
+            // Inside the tenant's context: createRoles() refuses to run
+            // without one, which made every plan change here throw.
+            $this->context->runFor($tenant, fn () => $this->provisioner->createRoles($tenant));
         }
 
         // A back-dated period that has already run out must not switch the
@@ -528,6 +532,29 @@ class TenantController extends Controller
         ]);
     }
 
+    /**
+     * Gives a restaurant a custom package, or takes it away (package_id null),
+     * and re-syncs its roles to the modules that now apply.
+     */
+    public function assignPackage(Request $request, string $slug): JsonResponse
+    {
+        $validated = $request->validate([
+            'package_id' => ['present', 'nullable', 'integer', Rule::exists('packages', 'id')],
+        ]);
+
+        $tenant = Tenant::where('slug', $slug)->firstOrFail();
+
+        $tenant->package_id = $validated['package_id'];
+        $tenant->save();
+        $tenant->unsetRelation('package');
+
+        $this->context->runFor($tenant, fn () => $this->provisioner->createRoles($tenant));
+
+        Subscription::forget($tenant);
+
+        return response()->json(['tenant' => $this->present($tenant->fresh('package'))]);
+    }
+
     private function present(Tenant $tenant): array
     {
         return [
@@ -535,6 +562,14 @@ class TenantController extends Controller
             'name' => $tenant->name,
             'restaurant_code' => $tenant->slug,
             'plan' => $tenant->plan,
+            // A custom package replaces the tier's modules and outlet cap; the
+            // effective values are given too so the panel never re-derives them.
+            'package' => $tenant->package === null ? null : [
+                'id' => $tenant->package->getKey(),
+                'name' => $tenant->package->name,
+            ],
+            'modules' => $tenant->modules(),
+            'outlet_limit' => $tenant->outletLimit(),
             'status' => $tenant->status,
             'billing_cycle' => $tenant->billing_cycle,
             'contact_name' => $tenant->contact_name,

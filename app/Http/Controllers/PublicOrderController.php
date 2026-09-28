@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\Tenant;
 use App\Rules\PhoneNumber;
+use App\Support\Billing\Modules;
 use App\Support\Billing\Subscription;
 use App\Support\Branding\RestaurantBranding;
 use App\Support\Orders\OrderFlow;
@@ -72,7 +73,7 @@ class PublicOrderController extends Controller
                     'currency' => $branding['currency'] ?? '৳',
                 ],
                 'accepting_orders' => $this->acceptingOrders($tenant),
-                'order_types' => self::ORDER_TYPES,
+                'order_types' => $this->orderTypes($tenant),
                 'locations' => $locations,
                 'categories' => ProductCategory::whereIn('id', $categoryIds)
                     ->where('is_active', true)
@@ -107,7 +108,7 @@ class PublicOrderController extends Controller
 
             $validated = $request->validate([
                 'location_id' => ['nullable', 'integer'],
-                'order_type' => ['required', Rule::in(self::ORDER_TYPES)],
+                'order_type' => ['required', Rule::in($this->orderTypes($tenant))],
                 'name' => ['required', 'string', 'max:100'],
                 'phone' => ['required', 'string', 'max:20', PhoneNumber::mobile()],
                 'delivery_address' => ['nullable', 'required_if:order_type,'.OrderFlow::DELIVERY, 'string', 'max:500'],
@@ -255,6 +256,20 @@ class PublicOrderController extends Controller
             OrderFlow::CANCELLED => 'Cancelled',
             default => 'Received',
         };
+    }
+
+    /**
+     * What this restaurant can take online. Delivery needs the Delivery
+     * module - without it there are no riders to send the order out with.
+     *
+     * @return list<string>
+     */
+    private function orderTypes(Tenant $tenant): array
+    {
+        return array_values(array_filter(
+            self::ORDER_TYPES,
+            fn (string $type) => $type !== OrderFlow::DELIVERY || $tenant->hasModule(Modules::DELIVERY),
+        ));
     }
 
     private function tenantFor(string $slug): Tenant

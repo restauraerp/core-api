@@ -37,6 +37,7 @@ use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\Platform\PlanController as PlatformPlanController;
+use App\Http\Controllers\Platform\PackageController as PlatformPackageController;
 use App\Http\Controllers\Platform\StatsController as PlatformStatsController;
 use App\Http\Controllers\Platform\TenantController as PlatformTenantController;
 use App\Http\Controllers\ProductCategoryController;
@@ -200,6 +201,11 @@ Route::prefix('v1')->group(function () {
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class])
         ->group(function () {
             Route::get('plans', [PlatformPlanController::class, 'index']);
+
+            // Custom packages - a module list and outlet cap for particular
+            // restaurants, beside the four default tiers.
+            Route::apiResource('packages', PlatformPackageController::class);
+            Route::put('tenants/{slug}/package', [PlatformTenantController::class, 'assignPackage']);
 
             // Billing state, counted, for the marketing site's daily report.
             Route::get('stats', [PlatformStatsController::class, 'index']);

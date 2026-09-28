@@ -86,6 +86,28 @@ class Modules
     ];
 
     /**
+     * What each module is called on the pricing page and in the admin panel.
+     */
+    public static function label(string $module): string
+    {
+        return match ($module) {
+            self::POS => 'POS',
+            self::ORDERS => 'Orders',
+            self::CATALOG => 'Catalog',
+            self::INVENTORY => 'Inventory',
+            self::ACCOUNTING => 'Accounting',
+            self::REPORTING => 'Reporting',
+            self::CRM => 'CRM',
+            self::HR => 'HR',
+            self::DELIVERY => 'Delivery',
+            self::KITCHEN_KIOSK => 'Kitchen Kiosk',
+            self::LOCATIONS => 'Locations',
+            self::WEBSITE => 'Website',
+            default => ucfirst(str_replace('_', ' ', $module)),
+        };
+    }
+
+    /**
      * Permissions belonging to each module.
      *
      * Deliberately not exhaustive of RoleDefinitions::permissions(): dashboard

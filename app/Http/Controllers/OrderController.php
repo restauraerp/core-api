@@ -6,6 +6,7 @@ use App\Models\AccountingLedger;
 use App\Models\Order;
 use App\Models\Partner;
 use App\Models\Payment;
+use App\Support\Billing\Modules;
 use App\Support\Inventory\SellableInventory;
 use App\Support\Orders\KitchenLead;
 use App\Support\Orders\OrderFlow;
@@ -14,6 +15,7 @@ use App\Models\Discount;
 use App\Support\Sales\DiscountCalculator;
 use App\Support\Sales\PartnerCommission;
 use App\Support\Sales\TaxCalculator;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -234,6 +236,8 @@ class OrderController extends Controller
             'discount_reason' => 'nullable|string|max:255',
         ]);
 
+        $this->guardOrderType($validated['order_type']);
+
         // Tax comes from the restaurant's own rules, not from the request. With
         // no active rule the sale carries no tax at all, which is the seeded
         // default until an owner sets a rate that is right for them.
@@ -354,6 +358,22 @@ class OrderController extends Controller
         return $this->partialUpdate($request, $order);
     }
 
+    /**
+     * Delivery orders need the Delivery module - riders, charges and the
+     * dispatch board all live there. Without it there is nobody to assign
+     * the order to, so the till must not offer it and the API refuses it.
+     */
+    private function guardOrderType(string $orderType): void
+    {
+        $tenant = app(TenantContext::class)->get();
+
+        if ($orderType === OrderFlow::DELIVERY && $tenant !== null && ! $tenant->hasModule(Modules::DELIVERY)) {
+            throw ValidationException::withMessages([
+                'order_type' => ['Delivery orders need the Delivery module, which this restaurant\'s package does not include.'],
+            ]);
+        }
+    }
+
     private function fullEdit(Request $request, Order $order)
     {
         if ($order->payment_status === 'paid') {
@@ -387,6 +407,12 @@ class OrderController extends Controller
             'discount_value' => 'nullable|numeric|min:0',
             'discount_reason' => 'nullable|string|max:255',
         ]);
+
+        // Only a change *to* delivery is refused: an order already out for
+        // delivery can still be corrected after the module is switched off.
+        if (isset($validated['order_type']) && $validated['order_type'] !== $order->order_type) {
+            $this->guardOrderType($validated['order_type']);
+        }
 
         return DB::transaction(function () use ($validated, $order) {
             $this->sellable->restoreForOrder($order);
