@@ -77,7 +77,7 @@ class PublicOrderController extends Controller
                 'locations' => $locations,
                 'categories' => ProductCategory::whereIn('id', $categoryIds)
                     ->where('is_active', true)
-                    ->orderBy('name')
+                    ->ordered()
                     ->get(['id', 'name']),
                 'products' => $products->map(fn (Product $product) => [
                     'id' => $product->id,
