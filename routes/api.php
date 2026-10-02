@@ -42,6 +42,7 @@ use App\Http\Controllers\PublicSiteController;
 use App\Http\Controllers\SiteBuilderController;
 use App\Http\Controllers\GoogleBusinessController;
 use App\Http\Controllers\MetaPagesController;
+use App\Http\Controllers\SiteAccessTokenController;
 use App\Http\Controllers\SiteDomainController;
 use App\Http\Controllers\SiteIntegrationController;
 use App\Http\Controllers\TelegramIntegrationController;
@@ -368,6 +369,9 @@ Route::prefix('v1')->group(function () {
             Route::post('site-builder/domain/verify', [SiteDomainController::class, 'verify'])->middleware('throttle:10,1');
             Route::post('site-builder/images', [SiteBuilderController::class, 'uploadImage']);
             Route::post('site-builder/standard-pages', [SiteBuilderController::class, 'standardPages']);
+            Route::get('site-builder/access-tokens', [SiteAccessTokenController::class, 'index']);
+            Route::post('site-builder/access-tokens', [SiteAccessTokenController::class, 'store'])->middleware('throttle:10,1');
+            Route::delete('site-builder/access-tokens/{id}', [SiteAccessTokenController::class, 'destroy'])->whereNumber('id');
             Route::get('site-builder/integrations', [SiteIntegrationController::class, 'show']);
             Route::get('site-builder/meta', [MetaPagesController::class, 'show']);
             Route::post('site-builder/meta/connect', [MetaPagesController::class, 'connect']);
