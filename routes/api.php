@@ -143,6 +143,9 @@ Route::prefix('v1')->group(function () {
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
     // A restaurant's public website, as data: published pages and the
     // starter home. The tenant comes from the restaurant code in the URL.
+    Route::post('site/{code}/reservations', [PublicSiteController::class, 'reserve'])
+        ->middleware('throttle:10,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
     Route::get('site/{code}/{slug?}', [PublicSiteController::class, 'show'])
         ->where('slug', '[a-z0-9-]+')
         ->middleware('throttle:120,1')
@@ -299,6 +302,7 @@ Route::prefix('v1')->group(function () {
         // published versions. Website module, manage_website_content.
         Route::middleware('module:website')->group(function () {
             Route::get('site-builder/components', [SiteBuilderController::class, 'components']);
+            Route::put('site-builder/theme', [SiteBuilderController::class, 'updateTheme']);
             Route::post('site-builder/images', [SiteBuilderController::class, 'uploadImage']);
             Route::post('site-pages/{sitePage}/publish', [SiteBuilderController::class, 'publish']);
             Route::post('site-pages/{sitePage}/unpublish', [SiteBuilderController::class, 'unpublish']);

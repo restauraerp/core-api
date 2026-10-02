@@ -13,6 +13,9 @@ class SitePage extends Model
     protected $fillable = [
         'slug',
         'title',
+        'meta_title',
+        'meta_description',
+        'og_image',
         'is_home',
         'sort_order',
         'draft',

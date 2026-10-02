@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\SitePage;
+use App\Models\WebsiteSetting;
 use App\Support\Branding\RestaurantBranding;
 use App\Support\Site\SiteSections;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -28,7 +30,43 @@ class SiteBuilderController extends Controller
     {
         $this->authorizeManage($request);
 
-        return response()->json(['components' => SiteSections::definitions()]);
+        return response()->json([
+            'components' => SiteSections::definitions($this->modules()),
+            'palettes' => SiteSections::PALETTES,
+            'fonts' => SiteSections::FONTS,
+            'theme' => self::theme(),
+        ]);
+    }
+
+    /** PUT /site-builder/theme - the site's colour palette and type style. */
+    public function updateTheme(Request $request): JsonResponse
+    {
+        $this->authorizeManage($request);
+
+        $validated = $request->validate([
+            'palette' => ['required', Rule::in(SiteSections::PALETTES)],
+            'font' => ['required', Rule::in(SiteSections::FONTS)],
+        ]);
+
+        WebsiteSetting::updateOrCreate(['key' => 'site_palette'], ['value' => $validated['palette'], 'type' => 'string']);
+        WebsiteSetting::updateOrCreate(['key' => 'site_font'], ['value' => $validated['font'], 'type' => 'string']);
+
+        return response()->json(['theme' => self::theme()]);
+    }
+
+    /**
+     * The current restaurant's theme, with defaults for one never set.
+     *
+     * @return array{palette: string, font: string}
+     */
+    public static function theme(): array
+    {
+        $settings = WebsiteSetting::whereIn('key', ['site_palette', 'site_font'])->pluck('value', 'key');
+
+        return [
+            'palette' => in_array($settings['site_palette'] ?? null, SiteSections::PALETTES, true) ? $settings['site_palette'] : SiteSections::PALETTES[0],
+            'font' => in_array($settings['site_font'] ?? null, SiteSections::FONTS, true) ? $settings['site_font'] : SiteSections::FONTS[0],
+        ];
     }
 
     /** GET /site-pages - every page, creating the starter home on first use. */
@@ -84,6 +122,10 @@ class SiteBuilderController extends Controller
             'title' => ['sometimes', 'string', 'max:120'],
             'slug' => ['sometimes', 'string', 'max:80', 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/'],
             'sections' => ['sometimes', 'array'],
+            // What search engines and link previews show.
+            'meta_title' => ['sometimes', 'nullable', 'string', 'max:70'],
+            'meta_description' => ['sometimes', 'nullable', 'string', 'max:160'],
+            'og_image' => ['sometimes', 'nullable', 'string', 'max:255', 'regex:#^site/[A-Za-z0-9/_.-]+$#', 'not_regex:#\.\.#'],
         ]);
 
         if (isset($validated['slug']) && $validated['slug'] !== $sitePage->slug) {
@@ -99,7 +141,13 @@ class SiteBuilderController extends Controller
         }
 
         if ($request->has('sections')) {
-            $sitePage->draft = SiteSections::clean($request->input('sections'));
+            $sitePage->draft = SiteSections::clean($request->input('sections'), $this->modules());
+        }
+
+        foreach (['meta_title', 'meta_description', 'og_image'] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $sitePage->{$field} = $validated[$field] === '' ? null : $validated[$field];
+            }
         }
 
         $sitePage->save();
@@ -115,7 +163,7 @@ class SiteBuilderController extends Controller
         $sitePage->forceFill([
             // Re-checked: a draft saved before a component changed must not
             // publish something the builder no longer allows.
-            'published' => SiteSections::clean($sitePage->draft ?? []),
+            'published' => SiteSections::clean($sitePage->draft ?? [], $this->modules()),
             'published_at' => now(),
         ])->save();
 
@@ -170,6 +218,12 @@ class SiteBuilderController extends Controller
         }
     }
 
+    /** @return list<string> */
+    private function modules(): array
+    {
+        return $this->context->get()?->modules() ?? [];
+    }
+
     private function assertSlugFree(string $slug): void
     {
         if (SitePage::where('slug', $slug)->exists()) {
@@ -185,6 +239,9 @@ class SiteBuilderController extends Controller
             'title' => $page->title,
             'slug' => $page->slug,
             'is_home' => $page->is_home,
+            'meta_title' => $page->meta_title,
+            'meta_description' => $page->meta_description,
+            'og_image' => $page->og_image,
             'sections' => $page->draft ?? [],
             'is_published' => $page->published !== null,
             'has_unpublished_changes' => $page->hasUnpublishedChanges(),

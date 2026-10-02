@@ -28,10 +28,33 @@ final class SiteSections
     /** Background choices, shared by every section; colours come from the theme. */
     private const BACKGROUNDS = ['default', 'muted', 'brand', 'dark'];
 
+    /** Site-wide colour palettes. The colours themselves live in the front's theme map. */
+    public const PALETTES = ['emerald', 'saffron', 'crimson', 'ocean', 'charcoal'];
+
+    /** Site-wide type styles. */
+    public const FONTS = ['modern', 'rounded', 'classic', 'bangla'];
+
+    /** Most photos a Gallery may hold. */
+    public const MAX_GALLERY = 12;
+
     /**
-     * @return array<string, array{label: string, kind: string, description: string, fields: array<string, array<string, mixed>>}>
+     * What can be placed. Given the restaurant's modules, components that need
+     * one it does not have (Reservations needs CRM) are left out.
+     *
+     * @param  list<string>|null  $modules
+     * @return array<string, array<string, mixed>>
      */
-    public static function definitions(): array
+    public static function definitions(?array $modules = null): array
+    {
+        $all = self::all();
+
+        return $modules === null
+            ? $all
+            : array_filter($all, fn (array $def) => ! isset($def['requires']) || in_array($def['requires'], $modules, true));
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private static function all(): array
     {
         $background = ['type' => 'enum', 'label' => 'Background', 'options' => self::BACKGROUNDS, 'default' => 'default'];
 
@@ -78,6 +101,48 @@ final class SiteSections
                     'background' => $background,
                 ],
             ],
+            'featured' => [
+                'label' => 'Featured dishes',
+                'kind' => 'live',
+                'description' => 'A few dishes to show off, with photos and prices from your catalog.',
+                'fields' => [
+                    'heading' => ['type' => 'text', 'label' => 'Heading', 'max' => 120, 'default' => 'Chef\'s favourites'],
+                    'products' => ['type' => 'products', 'label' => 'Dishes (none chosen shows dishes with photos)', 'default' => []],
+                    'count' => ['type' => 'enum', 'label' => 'How many', 'options' => ['3', '6', '9'], 'default' => '3'],
+                    'show_prices' => ['type' => 'bool', 'label' => 'Show prices', 'default' => true],
+                    'background' => $background,
+                ],
+            ],
+            'reviews' => [
+                'label' => 'Reviews',
+                'kind' => 'live',
+                'description' => 'Google reviews you chose to show, from Website > Reviews.',
+                'fields' => [
+                    'heading' => ['type' => 'text', 'label' => 'Heading', 'max' => 120, 'default' => 'What our guests say'],
+                    'count' => ['type' => 'enum', 'label' => 'How many', 'options' => ['3', '6'], 'default' => '3'],
+                    'background' => array_merge($background, ['default' => 'muted']),
+                ],
+            ],
+            'reservations' => [
+                'label' => 'Reservations',
+                'kind' => 'live',
+                'requires' => 'crm',
+                'description' => 'A booking form. Requests arrive in CRM > Reservations as pending, for you to confirm.',
+                'fields' => [
+                    'heading' => ['type' => 'text', 'label' => 'Heading', 'max' => 120, 'default' => 'Book a table'],
+                    'intro' => ['type' => 'textarea', 'label' => 'Text above the form', 'max' => 300, 'default' => 'Tell us when you are coming and we will confirm by phone.'],
+                    'background' => $background,
+                ],
+            ],
+            'social' => [
+                'label' => 'Social links',
+                'kind' => 'live',
+                'description' => 'Your social pages, from Website > Social links.',
+                'fields' => [
+                    'heading' => ['type' => 'text', 'label' => 'Heading', 'max' => 120, 'default' => 'Follow us'],
+                    'background' => $background,
+                ],
+            ],
 
             // ---- Content: written by the owner -------------------------------
             'hero' => [
@@ -114,6 +179,43 @@ final class SiteSections
                     'width' => ['type' => 'enum', 'label' => 'Width', 'options' => ['contained', 'full'], 'default' => 'contained'],
                 ],
             ],
+            'image_text' => [
+                'label' => 'Image and text',
+                'kind' => 'content',
+                'description' => 'A photo beside a heading, text and an optional button.',
+                'fields' => [
+                    'image' => ['type' => 'image', 'label' => 'Photo', 'default' => ''],
+                    'image_side' => ['type' => 'enum', 'label' => 'Photo on the', 'options' => ['left', 'right'], 'default' => 'left'],
+                    'heading' => ['type' => 'text', 'label' => 'Heading', 'max' => 120, 'default' => ''],
+                    'body' => ['type' => 'textarea', 'label' => 'Text', 'max' => 2000, 'default' => ''],
+                    'button' => ['type' => 'enum', 'label' => 'Button', 'options' => ['none', 'order', 'menu'], 'default' => 'none'],
+                    'button_label' => ['type' => 'text', 'label' => 'Button text', 'max' => 40, 'default' => 'Order now'],
+                    'background' => $background,
+                ],
+            ],
+            'gallery' => [
+                'label' => 'Gallery',
+                'kind' => 'content',
+                'description' => 'A grid of photos.',
+                'fields' => [
+                    'heading' => ['type' => 'text', 'label' => 'Heading', 'max' => 120, 'default' => ''],
+                    'images' => ['type' => 'images', 'label' => 'Photos', 'max' => self::MAX_GALLERY, 'default' => []],
+                    'columns' => ['type' => 'enum', 'label' => 'Columns', 'options' => ['2', '3', '4'], 'default' => '3'],
+                    'background' => $background,
+                ],
+            ],
+            'button' => [
+                'label' => 'Button',
+                'kind' => 'content',
+                'description' => 'A single button - to ordering, the menu, a phone call or another page.',
+                'fields' => [
+                    'label' => ['type' => 'text', 'label' => 'Button text', 'max' => 40, 'default' => 'Order now'],
+                    'target' => ['type' => 'enum', 'label' => 'Goes to', 'options' => ['order', 'menu', 'call', 'page'], 'default' => 'order'],
+                    'page' => ['type' => 'page', 'label' => 'Page (when it goes to a page)', 'default' => ''],
+                    'align' => ['type' => 'enum', 'label' => 'Alignment', 'options' => ['center', 'left'], 'default' => 'center'],
+                    'background' => $background,
+                ],
+            ],
             'spacer' => [
                 'label' => 'Space',
                 'kind' => 'content',
@@ -130,9 +232,10 @@ final class SiteSections
      * missing ones take their default; an unknown type or a bad value is
      * refused with the section's position in the message.
      *
+     * @param  list<string>|null  $modules  the restaurant's modules; components needing others are refused
      * @return list<array{id: string, type: string, props: array<string, mixed>}>
      */
-    public static function clean(mixed $sections): array
+    public static function clean(mixed $sections, ?array $modules = null): array
     {
         if (! is_array($sections) || ! array_is_list($sections)) {
             throw ValidationException::withMessages(['sections' => ['A page is a list of sections.']]);
@@ -142,7 +245,7 @@ final class SiteSections
             throw ValidationException::withMessages(['sections' => ['A page can hold up to '.self::MAX_SECTIONS.' sections.']]);
         }
 
-        $definitions = self::definitions();
+        $definitions = self::definitions($modules);
         $clean = [];
         $ids = [];
 
@@ -201,9 +304,19 @@ final class SiteSections
                 is_string($value) && preg_match('#^site/[A-Za-z0-9/_.-]{1,200}$#', $value) && ! str_contains($value, '..') => $value,
                 default => $fail('must be a photo uploaded here.'),
             },
-            'categories' => is_array($value) && array_is_list($value) && count($value) <= 100 && array_filter($value, fn ($v) => ! is_int($v)) === []
+            'categories', 'products' => is_array($value) && array_is_list($value) && count($value) <= 100 && array_filter($value, fn ($v) => ! is_int($v)) === []
                 ? array_values(array_unique($value))
-                : $fail('must be a list of categories.'),
+                : $fail('must be a list to choose from.'),
+            'images' => is_array($value) && array_is_list($value) && count($value) <= $field['max']
+                ? array_map(fn ($path) => self::value(['type' => 'image', 'label' => $field['label']], $path, $where), array_values($value))
+                : $fail("can hold up to {$field['max']} photos."),
+            // A page address in this site; a page that is later deleted just
+            // links home, so only the shape is checked.
+            'page' => match (true) {
+                $value === null || $value === '' => '',
+                is_string($value) && strlen($value) <= 80 && preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*$/', $value) => $value,
+                default => $fail('is not a page of this site.'),
+            },
             default => $fail('has an unknown kind of setting.'),
         };
     }

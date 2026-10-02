@@ -22,6 +22,8 @@ class Reservation extends Model
         'reservation_date',
         'guest_count',
         'status',
+        'source',
+        'notes',
     ];
 
     protected function casts(): array
