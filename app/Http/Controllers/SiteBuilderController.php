@@ -46,27 +46,60 @@ class SiteBuilderController extends Controller
         $validated = $request->validate([
             'palette' => ['required', Rule::in(SiteSections::PALETTES)],
             'font' => ['required', Rule::in(SiteSections::FONTS)],
+            // The header and footer every page shares.
+            'header_order_button' => ['sometimes', 'boolean'],
+            'footer_social' => ['sometimes', 'boolean'],
+            'footer_text' => ['sometimes', 'nullable', 'string', 'max:200', 'not_regex:/<[^>]*>/'],
+        ], [
+            'footer_text.not_regex' => 'The footer text cannot contain HTML.',
         ]);
 
-        WebsiteSetting::updateOrCreate(['key' => 'site_palette'], ['value' => $validated['palette'], 'type' => 'string']);
-        WebsiteSetting::updateOrCreate(['key' => 'site_font'], ['value' => $validated['font'], 'type' => 'string']);
+        $store = fn (string $key, string $value) => WebsiteSetting::updateOrCreate(['key' => $key], ['value' => $value, 'type' => 'string']);
+
+        $store('site_palette', $validated['palette']);
+        $store('site_font', $validated['font']);
+        if (array_key_exists('header_order_button', $validated)) {
+            $store('site_header_order', $validated['header_order_button'] ? '1' : '0');
+        }
+        if (array_key_exists('footer_social', $validated)) {
+            $store('site_footer_social', $validated['footer_social'] ? '1' : '0');
+        }
+        if (array_key_exists('footer_text', $validated)) {
+            $store('site_footer_text', trim((string) $validated['footer_text']));
+        }
 
         return response()->json(['theme' => self::theme()]);
     }
 
     /**
-     * The current restaurant's theme, with defaults for one never set.
+     * The current restaurant's site-wide settings - theme, header and footer -
+     * with defaults for any never set.
      *
-     * @return array{palette: string, font: string}
+     * @return array{palette: string, font: string, header_order_button: bool, footer_social: bool, footer_text: string}
      */
     public static function theme(): array
     {
-        $settings = WebsiteSetting::whereIn('key', ['site_palette', 'site_font'])->pluck('value', 'key');
+        $settings = WebsiteSetting::whereIn('key', [
+            'site_palette', 'site_font', 'site_header_order', 'site_footer_social', 'site_footer_text',
+        ])->pluck('value', 'key');
 
         return [
             'palette' => in_array($settings['site_palette'] ?? null, SiteSections::PALETTES, true) ? $settings['site_palette'] : SiteSections::PALETTES[0],
             'font' => in_array($settings['site_font'] ?? null, SiteSections::FONTS, true) ? $settings['site_font'] : SiteSections::FONTS[0],
+            'header_order_button' => ($settings['site_header_order'] ?? '1') !== '0',
+            'footer_social' => ($settings['site_footer_social'] ?? '1') !== '0',
+            'footer_text' => (string) ($settings['site_footer_text'] ?? ''),
         ];
+    }
+
+    /** GET /site-builder/templates - layouts to start a page from. */
+    public function templates(Request $request): JsonResponse
+    {
+        $this->authorizeManage($request);
+
+        $name = RestaurantBranding::current()['name'] ?? $this->context->get()?->name ?? 'Welcome';
+
+        return response()->json(['templates' => SiteSections::templates($name, $this->modules())]);
     }
 
     /** GET /site-pages - every page, creating the starter home on first use. */

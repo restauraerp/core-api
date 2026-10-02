@@ -54,6 +54,7 @@ class Tenant extends Model
         return [
             'trial_ends_at' => 'datetime',
             'subscription_ends_at' => 'datetime',
+            'domain_verified_at' => 'datetime',
         ];
     }
 

@@ -50,6 +50,11 @@ class ApiRouteSmokeTest extends TestCase
         'api/v1/platform/plans',
         'api/v1/platform/stats',
         'api/v1/platform/tenants',
+        // Host lookups for the front's proxy and Caddy's on-demand TLS. They
+        // answer 404 for a host that is not a restaurant site - which, asked
+        // with no host at all, is the right answer. SiteDomainTest covers them.
+        'api/v1/site-domains/allowed',
+        'api/v1/site-domains/resolve',
         // Streams a CSV download, not a JSON collection.
         'api/v1/customers-export',
         // 404s deliberately whenever demo mode is off, which is every

@@ -175,14 +175,14 @@ class SiteBuilderTest extends TestCase
     {
         $this->asRole(RoleDefinitions::RESTAURANT_ADMIN);
 
-        $this->getJson('/api/v1/site/spice')->assertJsonPath('theme', ['palette' => 'emerald', 'font' => 'modern']);
+        $this->getJson('/api/v1/site/spice')->assertJsonPath('theme.palette', 'emerald')->assertJsonPath('theme.font', 'modern');
 
         $this->putJson('/api/v1/site-builder/theme', ['palette' => 'saffron', 'font' => 'bangla'])->assertOk();
         $this->putJson('/api/v1/site-builder/theme', ['palette' => '#ff0000', 'font' => 'comic-sans'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['palette', 'font']);
 
-        $this->getJson('/api/v1/site/spice')->assertJsonPath('theme', ['palette' => 'saffron', 'font' => 'bangla']);
+        $this->getJson('/api/v1/site/spice')->assertJsonPath('theme.palette', 'saffron')->assertJsonPath('theme.font', 'bangla');
     }
 
     #[Test]

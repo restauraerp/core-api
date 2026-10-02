@@ -40,6 +40,7 @@ use App\Http\Controllers\Platform\PlanController as PlatformPlanController;
 use App\Http\Controllers\Platform\PackageController as PlatformPackageController;
 use App\Http\Controllers\PublicSiteController;
 use App\Http\Controllers\SiteBuilderController;
+use App\Http\Controllers\SiteDomainController;
 use App\Http\Controllers\TelegramIntegrationController;
 use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\Platform\StatsController as PlatformStatsController;
@@ -143,6 +144,15 @@ Route::prefix('v1')->group(function () {
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
     // A restaurant's public website, as data: published pages and the
     // starter home. The tenant comes from the restaurant code in the URL.
+    // Which restaurant a custom domain belongs to (asked by the front), and
+    // whether a name may get a certificate (asked by Caddy's on-demand TLS).
+    Route::get('site-domains/resolve', [SiteDomainController::class, 'resolve'])
+        ->middleware('throttle:600,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+    Route::get('site-domains/allowed', [SiteDomainController::class, 'allowed'])
+        ->middleware('throttle:120,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+
     Route::post('site/{code}/reservations', [PublicSiteController::class, 'reserve'])
         ->middleware('throttle:10,1')
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
@@ -303,6 +313,10 @@ Route::prefix('v1')->group(function () {
         Route::middleware('module:website')->group(function () {
             Route::get('site-builder/components', [SiteBuilderController::class, 'components']);
             Route::put('site-builder/theme', [SiteBuilderController::class, 'updateTheme']);
+            Route::get('site-builder/templates', [SiteBuilderController::class, 'templates']);
+            Route::get('site-builder/domain', [SiteDomainController::class, 'show']);
+            Route::put('site-builder/domain', [SiteDomainController::class, 'update']);
+            Route::post('site-builder/domain/verify', [SiteDomainController::class, 'verify'])->middleware('throttle:10,1');
             Route::post('site-builder/images', [SiteBuilderController::class, 'uploadImage']);
             Route::post('site-pages/{sitePage}/publish', [SiteBuilderController::class, 'publish']);
             Route::post('site-pages/{sitePage}/unpublish', [SiteBuilderController::class, 'unpublish']);

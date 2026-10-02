@@ -59,6 +59,7 @@ class PublicSiteController extends Controller
                 fn (array $section) => isset($allowed[$section['type']]),
             ));
             $types = array_column($sections, 'type');
+            $site = SiteBuilderController::theme();
 
             return response()->json([
                 'restaurant' => [
@@ -70,7 +71,7 @@ class PublicSiteController extends Controller
                     'address' => $branding['address'] ?? null,
                     'currency' => $branding['currency'] ?? '৳',
                 ],
-                'theme' => SiteBuilderController::theme(),
+                'theme' => $site,
                 // Navigation: the published pages, home first.
                 'pages' => $published->sortByDesc('is_home')->values()->map(fn (SitePage $p) => [
                     'slug' => $p->is_home ? '' : $p->slug,
@@ -85,7 +86,7 @@ class PublicSiteController extends Controller
                 ],
                 // Only what this page's sections draw on.
                 'reviews' => in_array('reviews', $types, true) ? $this->reviews() : [],
-                'social' => in_array('social', $types, true) ? $this->socialLinks() : [],
+                'social' => in_array('social', $types, true) || $site['footer_social'] ? $this->socialLinks() : [],
             ]);
         });
     }

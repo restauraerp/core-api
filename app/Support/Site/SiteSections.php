@@ -322,6 +322,77 @@ final class SiteSections
     }
 
     /**
+     * Ready-made layouts an owner can start a page from. Every one is built
+     * from components, so it is checked like any page and fills itself from
+     * the restaurant's data; Reservations only appears for restaurants with
+     * CRM.
+     *
+     * @param  list<string>|null  $modules
+     * @return array<string, array{label: string, description: string, sections: list<array<string, mixed>>}>
+     */
+    public static function templates(string $restaurantName, ?array $modules = null): array
+    {
+        $name = mb_substr($restaurantName, 0, 120);
+        $withReservations = $modules === null || in_array('crm', $modules, true);
+
+        $templates = [
+            'classic' => [
+                'label' => 'Classic restaurant',
+                'description' => 'Banner, favourites, the full menu, reviews and your branches.',
+                'sections' => [
+                    ['type' => 'hero', 'props' => ['title' => $name, 'subtitle' => 'Fresh food, made to order.']],
+                    ['type' => 'featured'],
+                    ['type' => 'menu'],
+                    ['type' => 'reviews'],
+                    ['type' => 'branches'],
+                    ['type' => 'contact'],
+                ],
+            ],
+            'cafe' => [
+                'label' => 'Café',
+                'description' => 'A warm welcome, your story with a photo, a light menu list and social links.',
+                'sections' => [
+                    ['type' => 'hero', 'props' => ['title' => $name, 'subtitle' => 'Coffee, cakes and good company.', 'button' => 'menu', 'button_label' => 'See the menu']],
+                    ['type' => 'image_text', 'props' => ['heading' => 'Our café', 'body' => 'Tell your guests what makes your café special.']],
+                    ['type' => 'featured', 'props' => ['count' => '6', 'heading' => 'Guest favourites']],
+                    ['type' => 'menu', 'props' => ['layout' => 'list', 'show_images' => false]],
+                    ['type' => 'social'],
+                    ['type' => 'contact'],
+                ],
+            ],
+            'fast_food' => [
+                'label' => 'Fast food & takeaway',
+                'description' => 'Ordering first: a big order button, best sellers and the menu in a grid.',
+                'sections' => [
+                    ['type' => 'hero', 'props' => ['title' => $name, 'subtitle' => 'Hot, fast and ready when you are.', 'button_label' => 'Order now']],
+                    ['type' => 'order_button', 'props' => ['heading' => 'Order online for pickup or delivery']],
+                    ['type' => 'featured', 'props' => ['count' => '6', 'heading' => 'Best sellers']],
+                    ['type' => 'menu'],
+                    ['type' => 'branches'],
+                ],
+            ],
+            'fine_dining' => [
+                'label' => 'Fine dining',
+                'description' => 'An elegant welcome, your story, signature dishes and table booking.',
+                'sections' => array_values(array_filter([
+                    ['type' => 'hero', 'props' => ['title' => $name, 'subtitle' => 'An evening to remember.', 'align' => 'left', 'button' => 'none']],
+                    ['type' => 'text', 'props' => ['heading' => 'Our story', 'body' => 'Tell your guests about your kitchen, your chef and your ingredients.', 'align' => 'center']],
+                    ['type' => 'featured', 'props' => ['heading' => 'Signature dishes']],
+                    $withReservations ? ['type' => 'reservations'] : null,
+                    ['type' => 'reviews'],
+                    ['type' => 'contact'],
+                ])),
+            ],
+        ];
+
+        foreach ($templates as $key => $template) {
+            $templates[$key]['sections'] = self::clean($template['sections'], $modules);
+        }
+
+        return $templates;
+    }
+
+    /**
      * The page every restaurant starts with, built from what it already has.
      *
      * @return list<array{id: string, type: string, props: array<string, mixed>}>
