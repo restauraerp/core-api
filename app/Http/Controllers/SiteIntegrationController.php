@@ -10,7 +10,10 @@ use Illuminate\Http\Request;
  * The website's measurement tags: GTM, GA4, Meta pixel, Clarity - and the
  * secrets core-api needs to report orders and bookings server-side (Meta
  * Conversions API, GA4 Measurement Protocol). Behind module:website and
- * manage_website_content. Live on save; not part of the site's versions.
+ * manage_website_content.
+ *
+ * The tag ids are a draft, live on the next Publish website like the rest of
+ * the site. The secrets apply on save - they are never published anywhere.
  *
  * Secrets are write-only: the answer says whether one is set, never what it is.
  * Sending an empty string clears one; leaving it out keeps it.
@@ -31,10 +34,10 @@ class SiteIntegrationController extends Controller
         $this->authorizeManage($request);
 
         $validated = $request->validate([
-            'gtm_id' => ['nullable', 'string', 'regex:/^GTM-[A-Z0-9]{4,12}$/'],
-            'ga4_id' => ['nullable', 'string', 'regex:/^G-[A-Z0-9]{4,14}$/'],
-            'meta_pixel_id' => ['nullable', 'string', 'regex:/^\d{10,20}$/'],
-            'clarity_id' => ['nullable', 'string', 'regex:/^[a-z0-9]{6,20}$/'],
+            'gtm_id' => ['nullable', 'string', 'regex:'.SiteIntegration::TAG_FORMATS['gtm_id']],
+            'ga4_id' => ['nullable', 'string', 'regex:'.SiteIntegration::TAG_FORMATS['ga4_id']],
+            'meta_pixel_id' => ['nullable', 'string', 'regex:'.SiteIntegration::TAG_FORMATS['meta_pixel_id']],
+            'clarity_id' => ['nullable', 'string', 'regex:'.SiteIntegration::TAG_FORMATS['clarity_id']],
             'meta_capi_token' => ['sometimes', 'nullable', 'string', 'max:500', 'regex:/^[A-Za-z0-9_-]+$/'],
             'meta_test_event_code' => ['nullable', 'string', 'max:40', 'regex:/^[A-Za-z0-9]+$/'],
             'ga4_api_secret' => ['sometimes', 'nullable', 'string', 'max:100', 'regex:/^[A-Za-z0-9_-]+$/'],
@@ -80,8 +83,10 @@ class SiteIntegrationController extends Controller
             'meta_test_event_code' => $i?->meta_test_event_code,
             'has_meta_capi_token' => (bool) $i?->meta_capi_token,
             'has_ga4_api_secret' => (bool) $i?->ga4_api_secret,
+            // Server-side sending runs against the published ids.
             'sends_meta' => (bool) $i?->sendsMeta(),
             'sends_ga4' => (bool) $i?->sendsGa4(),
+            'live' => SiteIntegration::liveTags(),
         ];
     }
 }

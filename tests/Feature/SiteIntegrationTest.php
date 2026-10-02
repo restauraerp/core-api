@@ -6,6 +6,7 @@ use App\Models\Location;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\SiteIntegration;
+use App\Models\SiteVersion;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Tenancy\RoleDefinitions;
@@ -70,6 +71,14 @@ class SiteIntegrationTest extends TestCase
             'meta_test_event_code' => 'TEST123',
             'ga4_api_secret' => 'ga-secret',
         ])->assertOk();
+
+        $this->publish();
+    }
+
+    private function publish(): void
+    {
+        $this->getJson('/api/v1/site-pages')->assertOk();
+        $this->postJson('/api/v1/site-builder/publish')->assertCreated();
     }
 
     private function placeOrder(): int
@@ -193,6 +202,7 @@ class SiteIntegrationTest extends TestCase
     {
         // Browser tags only - no token, no API secret.
         $this->putJson('/api/v1/site-builder/integrations', ['meta_pixel_id' => '1234567890123456', 'ga4_id' => 'G-XYZ987'])->assertOk();
+        $this->publish();
         $this->placeOrder();
 
         Http::assertNothingSent();
@@ -215,5 +225,40 @@ class SiteIntegrationTest extends TestCase
 
         $this->assertSame(1, $this->inTenant(fn () => Order::count()));
         $this->assertTrue(SiteIntegration::withoutGlobalScopes()->exists());
+    }
+
+    #[Test]
+    public function tag_ids_wait_for_publish_website_and_secrets_do_not(): void
+    {
+        $this->getJson('/api/v1/site-pages')->assertOk();
+        $this->putJson('/api/v1/site-builder/integrations', ['gtm_id' => 'GTM-ABC1234', 'meta_pixel_id' => '1111111111111111', 'meta_capi_token' => 'tok'])->assertOk();
+
+        // Saved, but not live: visitors load no tags, nothing is reported.
+        $this->getJson('/api/v1/site/spice')->assertJsonPath('tracking', null);
+        $this->getJson('/api/v1/order/spice')->assertJsonPath('tracking', null);
+        $this->getJson('/api/v1/site-pages')->assertJsonPath('site.has_unpublished_changes', true);
+        $this->placeOrder();
+        Http::assertNothingSent();
+
+        $this->postJson('/api/v1/site-builder/publish')->assertCreated();
+        $this->getJson('/api/v1/site/spice')->assertJsonPath('tracking.gtm_id', 'GTM-ABC1234');
+
+        // A new pixel in the draft: the site and the server keep reporting to
+        // the published one until the next publish.
+        $this->putJson('/api/v1/site-builder/integrations', ['meta_pixel_id' => '2222222222222222'])
+            ->assertJsonPath('meta_pixel_id', '2222222222222222')
+            ->assertJsonPath('live.meta_pixel_id', '1111111111111111');
+        $this->getJson('/api/v1/site/spice')->assertJsonPath('tracking.meta_pixel_id', '1111111111111111');
+        $this->placeOrder();
+        Http::assertSent(fn (HttpRequest $r) => str_contains($r->url(), '/1111111111111111/events'));
+        Http::assertNotSent(fn (HttpRequest $r) => str_contains($r->url(), '/2222222222222222/'));
+
+        // The token is never part of a version.
+        $this->assertStringNotContainsString('tok', (string) \DB::table('site_versions')->value('snapshot'));
+
+        // Opening the published version puts its tags back in the draft.
+        $version = SiteVersion::withoutGlobalScopes()->value('id');
+        $this->postJson("/api/v1/site-builder/versions/{$version}/edit")->assertOk()->assertJsonPath('site.has_unpublished_changes', false);
+        $this->getJson('/api/v1/site-builder/integrations')->assertJsonPath('meta_pixel_id', '1111111111111111')->assertJsonPath('has_meta_capi_token', true);
     }
 }

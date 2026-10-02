@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SiteIntegration;
 use App\Models\SitePage;
 use App\Models\SiteVersion;
 use App\Models\WebsiteSetting;
@@ -22,7 +23,8 @@ use Illuminate\Validation\ValidationException;
  * The site builder's API. Behind module:website and manage_website_content.
  *
  * Everything here is a draft - the pages, adding and deleting them, the
- * theme, the header and footer. Visitors see none of it until Publish
+ * theme, the header and footer, the tracking tag ids (Integrations). Visitors
+ * see none of it until Publish
  * website, which copies the whole site into a numbered SiteVersion and makes
  * it live. Earlier versions are kept: the site can be put back to one, or one
  * loaded into the editor to work from.
@@ -440,6 +442,10 @@ class SiteBuilderController extends Controller
             }
 
             $this->storeTheme(SiteTheme::from($snapshot['theme'] ?? []));
+
+            // The version's tags back into the draft; the secrets stay as they are.
+            $integration = SiteIntegration::current() ?? new SiteIntegration;
+            $integration->forceFill(SiteIntegration::tagsFrom($snapshot['tracking'] ?? null))->save();
         });
 
         return response()->json($this->workspace() + ['theme' => self::theme()]);
@@ -571,6 +577,8 @@ class SiteBuilderController extends Controller
 
         return [
             'theme' => self::theme(),
+            // Tag ids only; the conversion secrets are never copied into a version.
+            'tracking' => SiteIntegration::draftTags(),
             'pages' => SitePage::orderBy('sort_order')->orderBy('id')->get()->map(fn (SitePage $page) => [
                 'id' => $page->id,
                 'kind' => $page->kind,
@@ -589,6 +597,8 @@ class SiteBuilderController extends Controller
     private static function normalised(array $snapshot): array
     {
         $snapshot['theme'] = SiteTheme::from($snapshot['theme'] ?? []);
+        // Versions from before tags were published had none.
+        $snapshot['tracking'] = SiteIntegration::tagsFrom($snapshot['tracking'] ?? null);
 
         return $snapshot;
     }

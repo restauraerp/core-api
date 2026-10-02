@@ -37,7 +37,7 @@ class SendGa4Conversion extends SiteConversionJob
         Http::timeout(15)
             ->asJson()
             ->post('https://www.google-analytics.com/mp/collect?'.http_build_query([
-                'measurement_id' => $integration->ga4_id,
+                'measurement_id' => $integration->liveGa4Id(),
                 'api_secret' => $integration->ga4_api_secret,
             ]), [
                 // Required; a stable stand-in for a visitor with no _ga cookie.

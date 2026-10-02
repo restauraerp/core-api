@@ -16,6 +16,7 @@ use App\Models\Tenant;
 use App\Rules\PhoneNumber;
 use App\Support\Billing\Modules;
 use App\Support\Branding\RestaurantBranding;
+use App\Support\PhoneNumber as Phone;
 use App\Support\Site\Conversion;
 use App\Support\Site\SiteDraft;
 use App\Support\Site\SiteSections;
@@ -83,7 +84,7 @@ class PublicSiteController extends Controller
                 // The two fonts' categories and weights, to load and fall back.
                 'fonts' => SiteTheme::fontFaces($theme),
                 'version' => $site['version'],
-                'tracking' => SiteIntegration::current()?->publicTags(),
+                'tracking' => SiteIntegration::publicTags(),
                 // Navigation: the published pages, home first.
                 'pages' => $pages->sortByDesc('is_home')->values()->map(fn (array $p) => [
                     'slug' => ! empty($p['is_home']) ? '' : $p['slug'],
@@ -177,7 +178,8 @@ class PublicSiteController extends Controller
                 throw ValidationException::withMessages(['date' => ['Choose a time from now up to 90 days ahead.']]);
             }
 
-            $customer = Customer::firstOrCreate(['phone' => $validated['phone']], ['name' => $validated['name']]);
+            // By the stored (normalised) form - see PublicOrderController::customerFor.
+            $customer = Customer::firstOrCreate(['phone' => Phone::normalise($validated['phone']) ?? $validated['phone']], ['name' => $validated['name']]);
 
             $reservation = Reservation::create([
                 'customer_id' => $customer->id,

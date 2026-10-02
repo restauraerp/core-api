@@ -56,7 +56,7 @@ class SendMetaConversion extends SiteConversionJob
 
         Http::timeout(15)
             ->asJson()
-            ->post("https://graph.facebook.com/{$version}/{$integration->meta_pixel_id}/events", array_filter([
+            ->post("https://graph.facebook.com/{$version}/{$integration->livePixelId()}/events", array_filter([
                 'data' => [$event],
                 'test_event_code' => $integration->meta_test_event_code,
                 'access_token' => $integration->meta_capi_token,
