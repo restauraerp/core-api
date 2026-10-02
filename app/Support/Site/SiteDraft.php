@@ -54,7 +54,7 @@ class SiteDraft
      * Every standard page this restaurant can have.
      *
      * @param  bool  $withPhoto  copy dish photos in for the banner and gallery.
-     *                           Off for the public fallback, which must not write files on a visitor's request.
+     *                           Off where only the pages' shape is needed (the builder's list of pages to add).
      * @return list<array{kind: string, slug: string, title: string, is_home: bool, sections: list<array<string, mixed>>, meta_description: string}>
      */
     public function pages(bool $withPhoto = true): array

@@ -60,14 +60,28 @@ class SiteBuilderTest extends TestCase
     }
 
     #[Test]
-    public function every_restaurant_with_the_website_module_has_a_starter_site(): void
+    public function a_site_never_published_is_coming_soon(): void
     {
         $this->getJson('/api/v1/site/spice')
             ->assertOk()
+            ->assertJsonPath('coming_soon', true)
             ->assertJsonPath('restaurant.code', 'spice')
-            ->assertJsonPath('page.sections.0.type', 'hero')
-            // Drafted from the restaurant's data - see SiteDraftTest.
-            ->assertJsonPath('page.sections.1.type', 'text');
+            ->assertJsonPath('page.sections', [])
+            ->assertJsonPath('pages', [])
+            ->assertJsonPath('tracking', null);
+
+        // Only the home address answers until then.
+        $this->getJson('/api/v1/site/spice/menu')->assertNotFound();
+
+        // Drafts in the editor change nothing for visitors.
+        $this->asRole(RoleDefinitions::RESTAURANT_ADMIN)->getJson('/api/v1/site-pages')->assertOk();
+        $this->getJson('/api/v1/site/spice')->assertJsonPath('coming_soon', true);
+
+        $this->postJson('/api/v1/site-builder/publish')->assertCreated();
+        $this->getJson('/api/v1/site/spice')
+            ->assertJsonPath('coming_soon', false)
+            ->assertJsonPath('page.sections.0.type', 'hero');
+        $this->getJson('/api/v1/site/spice/menu')->assertOk();
     }
 
     #[Test]
@@ -108,7 +122,7 @@ class SiteBuilderTest extends TestCase
             ['type' => 'text', 'props' => ['heading' => 'Our story', 'body' => 'Since 1998.']],
         ]])->assertOk();
 
-        $this->getJson('/api/v1/site/spice')->assertJsonPath('page.sections.0.type', 'hero');
+        $this->getJson('/api/v1/site/spice')->assertJsonPath('coming_soon', true);
 
         $this->postJson('/api/v1/site-builder/publish')->assertCreated()->assertJsonPath('version.number', 1);
 

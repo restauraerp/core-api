@@ -91,7 +91,7 @@ class SiteDraftTest extends TestCase
 
         // Without CRM there is no Book a table page.
         $this->getJson('/api/v1/site-builder/smart-draft?kind=reservations')->assertUnprocessable();
-        $this->assertNotContains('reservations', $this->getJson('/api/v1/site/spice')->json('pages.*.kind'));
+        $this->assertNotContains('reservations', $this->getJson('/api/v1/site-pages')->json('standard_pages.*.kind'));
     }
 
     #[Test]
@@ -139,20 +139,13 @@ class SiteDraftTest extends TestCase
     }
 
     #[Test]
-    public function the_first_builder_visit_and_the_public_site_use_the_draft(): void
+    public function the_first_builder_visit_drafts_the_site(): void
     {
         $this->dishes('Biryani', 3, photos: true);
 
-        // Public, never published: drafted, but no files written on a visitor's request.
-        $public = $this->getJson('/api/v1/site/spice')->assertOk();
-        $this->assertSame('text', $public->json('page.sections.1.type'));
-        $this->assertSame('', $public->json('page.sections.0.props.image'));
-        $this->assertNotNull($public->json('page.meta_description'));
+        // Public, never published: Coming soon, and no files written on a visitor's request.
+        $this->getJson('/api/v1/site/spice')->assertOk()->assertJsonPath('coming_soon', true);
         $this->assertSame([], Storage::disk('public')->files('site/'.$this->tenant->getKey()));
-        // Every standard page is there, but a gallery would be empty without photos.
-        $this->assertSame(['', 'menu', 'order', 'reservations', 'about', 'locations', 'contact'], $public->json('pages.*.slug'));
-        $this->assertSame('order', $public->json('order_page'));
-        $this->getJson('/api/v1/site/spice/menu')->assertOk()->assertJsonPath('page.sections.0.type', 'menu');
 
         // First visit to the builder saves the draft as the home page.
         $this->getJson('/api/v1/site-pages')

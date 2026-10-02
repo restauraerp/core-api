@@ -18,7 +18,6 @@ use App\Support\Billing\Modules;
 use App\Support\Branding\RestaurantBranding;
 use App\Support\PhoneNumber as Phone;
 use App\Support\Site\Conversion;
-use App\Support\Site\SiteDraft;
 use App\Support\Site\SiteSections;
 use App\Support\Site\SiteTheme;
 use App\Support\Tenancy\TenantContext;
@@ -33,9 +32,8 @@ use Illuminate\Validation\ValidationException;
  *
  * Public, tenant from the URL, like the online order link. Only the live
  * published version is served - pages, theme, header and footer together -
- * never the editor's drafts. A restaurant that has never published gets the
- * standard pages drafted from what it already has, so every restaurant with
- * the Website module has a site from day one. Menu, ordering and branches are
+ * never the editor's drafts. A restaurant that has never published shows a
+ * Coming soon page with its name and contact details. Menu, ordering and branches are
  * not included here - the site reads them from order/{code} as it renders.
  */
 class PublicSiteController extends Controller
@@ -49,10 +47,23 @@ class PublicSiteController extends Controller
 
         return $this->context->runFor($tenant, function () use ($tenant, $slug) {
             $branding = RestaurantBranding::current();
-            $site = $this->liveSite($tenant);
+            $isHome = $slug === null || $slug === '' || $slug === 'home';
+            $live = SiteVersion::live();
+
+            // Never published: a Coming soon page, nothing of the drafts.
+            if ($live === null) {
+                abort_unless($isHome, 404, 'Page not found.');
+
+                return response()->json($this->comingSoon($tenant, $branding));
+            }
+
+            $site = [
+                'version' => $live->number,
+                'theme' => SiteBuilderController::themeFrom($live->snapshot['theme'] ?? []),
+                'pages' => array_values($live->snapshot['pages'] ?? []),
+            ];
             $pages = collect($site['pages']);
 
-            $isHome = $slug === null || $slug === '' || $slug === 'home';
             $page = $isHome ? ($pages->firstWhere('is_home', true) ?? $pages->first()) : $pages->firstWhere('slug', $slug);
 
             if ($page === null) {
@@ -71,15 +82,8 @@ class PublicSiteController extends Controller
             $orderPage = $pages->first(fn (array $p) => in_array('online_order', array_column($visible($p['sections'] ?? []), 'type'), true));
 
             return response()->json([
-                'restaurant' => [
-                    'code' => $tenant->slug,
-                    'name' => $branding['name'] ?? $tenant->name,
-                    'logo_url' => $branding['logo_url'] ?? null,
-                    'phone' => $branding['phone'] ?? null,
-                    'email' => $branding['email'] ?? null,
-                    'address' => $branding['address'] ?? null,
-                    'currency' => $branding['currency'] ?? '৳',
-                ],
+                'coming_soon' => false,
+                'restaurant' => $this->restaurant($tenant, $branding),
                 'theme' => $theme,
                 // The two fonts' categories and weights, to load and fall back.
                 'fonts' => SiteTheme::fontFaces($theme),
@@ -113,33 +117,54 @@ class PublicSiteController extends Controller
         });
     }
 
-    /**
-     * The live version, or for a restaurant that never published, the
-     * standard pages drafted from its data - without photos, since copying
-     * files on a visitor's request is not this endpoint's business, and so
-     * without a gallery that would be empty.
-     *
-     * @return array{version: int|null, theme: array<string, mixed>, pages: list<array<string, mixed>>}
-     */
-    private function liveSite(Tenant $tenant): array
+    /** @return array<string, mixed> */
+    private function restaurant(Tenant $tenant, array $branding): array
     {
-        $live = SiteVersion::live();
+        return [
+            'code' => $tenant->slug,
+            'name' => $branding['name'] ?? $tenant->name,
+            'logo_url' => $branding['logo_url'] ?? null,
+            'phone' => $branding['phone'] ?? null,
+            'email' => $branding['email'] ?? null,
+            'address' => $branding['address'] ?? null,
+            'currency' => $branding['currency'] ?? '৳',
+        ];
+    }
 
-        if ($live !== null) {
-            return [
-                'version' => $live->number,
-                'theme' => SiteBuilderController::themeFrom($live->snapshot['theme'] ?? []),
-                'pages' => array_values($live->snapshot['pages'] ?? []),
-            ];
-        }
+    /**
+     * What a restaurant that has never published shows: its name, logo and
+     * contact details on a Coming soon page - nothing from the editor's
+     * drafts, and no tags. Online ordering works without a website, so the
+     * page still points to it.
+     *
+     * @return array<string, mixed>
+     */
+    private function comingSoon(Tenant $tenant, array $branding): array
+    {
+        $theme = SiteBuilderController::defaultTheme();
 
         return [
+            'coming_soon' => true,
+            'restaurant' => $this->restaurant($tenant, $branding),
+            'theme' => $theme,
+            'fonts' => SiteTheme::fontFaces($theme),
             'version' => null,
-            'theme' => SiteBuilderController::defaultTheme(),
-            'pages' => array_values(array_filter(
-                (new SiteDraft($tenant))->pages(withPhoto: false),
-                fn (array $page) => $page['kind'] !== 'gallery',
-            )),
+            'tracking' => null,
+            'pages' => [],
+            'order_page' => null,
+            'page' => [
+                'title' => 'Coming soon',
+                'kind' => null,
+                'meta_title' => null,
+                'meta_description' => null,
+                'og_image' => null,
+                'sections' => [],
+            ],
+            'reviews' => [],
+            'review_summary' => null,
+            'posts' => ['facebook' => [], 'instagram' => []],
+            'social_accounts' => null,
+            'social' => $this->socialLinks(),
         ];
     }
 
