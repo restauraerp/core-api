@@ -6,8 +6,10 @@ use App\Models\Location;
 use App\Models\Order;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\Tenancy\RoleDefinitions;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantProvisioner;
+use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\Test;
@@ -31,6 +33,9 @@ class LocationDeletionTest extends TestCase
     {
         parent::setUp();
 
+        // The permission catalogue, so the owner role below can delete outlets.
+        $this->seed(RolePermissionSeeder::class);
+
         // Provisioned rather than factory-made, because a real tenant comes
         // with its head office already created - which is the "only outlet"
         // these tests are about.
@@ -41,10 +46,12 @@ class LocationDeletionTest extends TestCase
             'status' => 'active',
         ]);
 
-        Sanctum::actingAs(app(TenantContext::class)->runFor(
-            $this->tenant,
-            fn () => User::factory()->create(['tenant_id' => $this->tenant->getKey()]),
-        ));
+        Sanctum::actingAs(app(TenantContext::class)->runFor($this->tenant, function () {
+            $user = User::factory()->create(['tenant_id' => $this->tenant->getKey()]);
+            $user->assignRole(RoleDefinitions::RESTAURANT_ADMIN);
+
+            return $user;
+        }));
     }
 
     /**

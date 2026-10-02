@@ -44,6 +44,14 @@ class LocationController extends Controller
             ], 403);
         }
 
+        // After the plan check, not before: a Starter owner holds no
+        // create_location (Locations is not in Starter), and must still be
+        // told it is the plan's outlet cap - which the front turns into an
+        // upgrade prompt - rather than a bare "forbidden".
+        if (! $request->user()?->can('create_location')) {
+            abort(403, 'You do not have permission to add outlets.');
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'type' => ['nullable', 'string', new Enum(LocationType::class)],

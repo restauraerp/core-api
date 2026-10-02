@@ -84,12 +84,16 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 Route::prefix('v1')->group(function () {
-    // Locations API
+    // Locations API - reads only. The storefront and the online order page
+    // list branches without signing in; changing them is in the signed-in
+    // group below. These were whole apiResources here, which left creating,
+    // editing and deleting branches, halls, tables and cameras open to anyone
+    // who could name a restaurant code.
     Route::get('location-types', [LocationController::class, 'types']);
-    Route::apiResource('locations', LocationController::class);
-    Route::apiResource('locations.halls', HallController::class)->shallow();
-    Route::apiResource('locations.tables', TableController::class)->shallow();
-    Route::apiResource('locations.cctv-cameras', CctvCameraController::class)->shallow();
+    Route::apiResource('locations', LocationController::class)->only(['index', 'show']);
+    Route::apiResource('locations.halls', HallController::class)->shallow()->only(['index', 'show']);
+    Route::apiResource('locations.tables', TableController::class)->shallow()->only(['index', 'show']);
+    Route::apiResource('locations.cctv-cameras', CctvCameraController::class)->shallow()->only(['index', 'show']);
 
     // Settings API.
     //
@@ -97,15 +101,21 @@ Route::prefix('v1')->group(function () {
     // website_settings holds currency_symbol and site_name, which POS, the
     // catalog and the settings screen all read on load - gating it took the
     // till offline on tiers that had simply not bought a storefront.
-    Route::apiResource('website-settings', WebsiteSettingController::class);
+    //
+    // Reads only here - the storefront and receipts read them unsigned-in.
+    // Writes are in the signed-in group below.
+    Route::apiResource('website-settings', WebsiteSettingController::class)->only(['index', 'show']);
 
     // Website & CMS API - the storefront itself, which is what the Website
     // module actually sells. Gated whole, reads included: a tier without it has
     // no public site to serve, not merely an admin screen it cannot open.
+    //
+    // Reads only here, for the public site. Writes are in the signed-in group
+    // below, behind manage_website_content.
     Route::middleware('module:website')->group(function () {
-        Route::apiResource('social-links', SocialLinkController::class);
-        Route::apiResource('pages', PageController::class);
-        Route::apiResource('google-reviews', GoogleReviewController::class);
+        Route::apiResource('social-links', SocialLinkController::class)->only(['index', 'show']);
+        Route::apiResource('pages', PageController::class)->only(['index', 'show']);
+        Route::apiResource('google-reviews', GoogleReviewController::class)->only(['index', 'show']);
     });
 
     // Public Catalog API
@@ -306,8 +316,33 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('payrolls', PayrollController::class);
         });
 
+        // Writes for the public reads registered above, now signed in and
+        // permission-checked.
+        // create_location is checked inside, after the plan's outlet cap.
+        Route::post('locations', [LocationController::class, 'store']);
+        Route::match(['put', 'patch'], 'locations/{location}', [LocationController::class, 'update'])->middleware('can:update_location');
+        Route::delete('locations/{location}', [LocationController::class, 'destroy'])->middleware('can:delete_location');
+        // A branch's halls, tables and cameras are part of editing the branch.
+        Route::middleware('can:update_location')->group(function () {
+            Route::apiResource('locations.halls', HallController::class)->shallow()->except(['index', 'show']);
+            Route::apiResource('locations.tables', TableController::class)->shallow()->except(['index', 'show']);
+            Route::apiResource('locations.cctv-cameras', CctvCameraController::class)->shallow()->except(['index', 'show']);
+        });
+
+        // Settings (Restaurant identity, slips, Facebook page, business day)
+        // and the Website screens both write these.
+        Route::apiResource('website-settings', WebsiteSettingController::class)
+            ->except(['index', 'show'])
+            ->middleware('can:manage_site_settings');
+
+        Route::middleware(['module:website', 'can:manage_website_content'])->group(function () {
+            Route::apiResource('social-links', SocialLinkController::class)->except(['index', 'show']);
+            Route::apiResource('pages', PageController::class)->except(['index', 'show']);
+            Route::apiResource('google-reviews', GoogleReviewController::class)->except(['index', 'show']);
+        });
+
         // Catalog API (Protected Routes)
-        Route::post('website-settings/logo', [WebsiteSettingController::class, 'uploadLogo']);
+        Route::post('website-settings/logo', [WebsiteSettingController::class, 'uploadLogo'])->middleware('can:manage_site_settings');
         // Site builder: the restaurant's website pages, as drafts and
         // published versions. Website module, manage_website_content.
         Route::middleware('module:website')->group(function () {
