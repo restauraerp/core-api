@@ -391,20 +391,4 @@ final class SiteSections
 
         return $templates;
     }
-
-    /**
-     * The page every restaurant starts with, built from what it already has.
-     *
-     * @return list<array{id: string, type: string, props: array<string, mixed>}>
-     */
-    public static function starterHome(string $restaurantName): array
-    {
-        return self::clean([
-            ['type' => 'hero', 'props' => ['title' => mb_substr($restaurantName, 0, 120), 'subtitle' => 'Fresh food, made to order.']],
-            ['type' => 'menu'],
-            ['type' => 'order_button'],
-            ['type' => 'branches'],
-            ['type' => 'contact'],
-        ]);
-    }
 }

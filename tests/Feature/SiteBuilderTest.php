@@ -65,7 +65,8 @@ class SiteBuilderTest extends TestCase
             ->assertOk()
             ->assertJsonPath('restaurant.code', 'spice')
             ->assertJsonPath('page.sections.0.type', 'hero')
-            ->assertJsonPath('page.sections.1.type', 'menu');
+            // Drafted from the restaurant's data - see SiteDraftTest.
+            ->assertJsonPath('page.sections.1.type', 'text');
     }
 
     #[Test]

@@ -12,6 +12,7 @@ use App\Models\Tenant;
 use App\Rules\PhoneNumber;
 use App\Support\Billing\Modules;
 use App\Support\Branding\RestaurantBranding;
+use App\Support\Site\SiteDraft;
 use App\Support\Site\SiteSections;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
@@ -54,8 +55,13 @@ class PublicSiteController extends Controller
             // A component the restaurant's package no longer includes is left
             // out rather than shown broken.
             $allowed = SiteSections::definitions($tenant->modules());
+            // Never published: the site is drafted from the restaurant's data,
+            // without the banner photo (copying files on a visitor's request
+            // is not this endpoint's business).
+            $fallback = $page === null ? (new SiteDraft($tenant))->build(withPhoto: false) : null;
+
             $sections = array_values(array_filter(
-                $page?->published ?? SiteSections::starterHome($name),
+                $page?->published ?? $fallback['sections'],
                 fn (array $section) => isset($allowed[$section['type']]),
             ));
             $types = array_column($sections, 'type');
@@ -80,7 +86,7 @@ class PublicSiteController extends Controller
                 'page' => [
                     'title' => $page?->title ?? 'Home',
                     'meta_title' => $page?->meta_title,
-                    'meta_description' => $page?->meta_description,
+                    'meta_description' => $page?->meta_description ?? $fallback['meta_description'] ?? null,
                     'og_image' => $page?->og_image,
                     'sections' => $sections,
                 ],

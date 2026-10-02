@@ -349,6 +349,7 @@ Route::prefix('v1')->group(function () {
             Route::get('site-builder/components', [SiteBuilderController::class, 'components']);
             Route::put('site-builder/theme', [SiteBuilderController::class, 'updateTheme']);
             Route::get('site-builder/templates', [SiteBuilderController::class, 'templates']);
+            Route::get('site-builder/smart-draft', [SiteBuilderController::class, 'smartDraft']);
             Route::get('site-builder/domain', [SiteDomainController::class, 'show']);
             Route::put('site-builder/domain', [SiteDomainController::class, 'update']);
             Route::post('site-builder/domain/verify', [SiteDomainController::class, 'verify'])->middleware('throttle:10,1');

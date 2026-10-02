@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\SitePage;
 use App\Models\WebsiteSetting;
 use App\Support\Branding\RestaurantBranding;
+use App\Support\Site\SiteDraft;
 use App\Support\Site\SiteSections;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
@@ -92,6 +93,18 @@ class SiteBuilderController extends Controller
         ];
     }
 
+    /**
+     * GET /site-builder/smart-draft - the page rebuilt from the restaurant's
+     * data as it is now (dishes, photos, reviews, branches, modules), for the
+     * editor to apply like a template.
+     */
+    public function smartDraft(Request $request): JsonResponse
+    {
+        $this->authorizeManage($request);
+
+        return response()->json((new SiteDraft($this->context->get()))->build());
+    }
+
     /** GET /site-builder/templates - layouts to start a page from. */
     public function templates(Request $request): JsonResponse
     {
@@ -108,13 +121,15 @@ class SiteBuilderController extends Controller
         $this->authorizeManage($request);
 
         if (! SitePage::exists()) {
-            $name = RestaurantBranding::current()['name'] ?? $this->context->get()?->name ?? 'Welcome';
+            // The restaurant's first site, put together from its own data.
+            $draft = (new SiteDraft($this->context->get()))->build();
             SitePage::create([
                 'slug' => 'home',
                 'title' => 'Home',
                 'is_home' => true,
                 'sort_order' => 1,
-                'draft' => SiteSections::starterHome($name),
+                'draft' => $draft['sections'],
+                'meta_description' => $draft['meta_description'],
             ]);
         }
 
