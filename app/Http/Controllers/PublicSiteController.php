@@ -6,12 +6,14 @@ use App\Models\Customer;
 use App\Models\GoogleReview;
 use App\Models\Location;
 use App\Models\Reservation;
+use App\Models\SiteIntegration;
 use App\Models\SiteVersion;
 use App\Models\SocialLink;
 use App\Models\Tenant;
 use App\Rules\PhoneNumber;
 use App\Support\Billing\Modules;
 use App\Support\Branding\RestaurantBranding;
+use App\Support\Site\Conversion;
 use App\Support\Site\SiteDraft;
 use App\Support\Site\SiteSections;
 use App\Support\Tenancy\TenantContext;
@@ -75,6 +77,7 @@ class PublicSiteController extends Controller
                 ],
                 'theme' => $theme,
                 'version' => $site['version'],
+                'tracking' => SiteIntegration::current()?->publicTags(),
                 // Navigation: the published pages, home first.
                 'pages' => $pages->sortByDesc('is_home')->values()->map(fn (array $p) => [
                     'slug' => ! empty($p['is_home']) ? '' : $p['slug'],
@@ -151,7 +154,7 @@ class PublicSiteController extends Controller
                 'time' => ['required', 'date_format:H:i'],
                 'guests' => ['required', 'integer', 'min:1', 'max:50'],
                 'notes' => ['nullable', 'string', 'max:500'],
-            ]);
+            ] + Conversion::REQUEST_RULES);
 
             $location = Location::where('is_active', true)->whereKey($validated['location_id'])->first()
                 ?? throw ValidationException::withMessages(['location_id' => ['Choose one of our branches.']]);
@@ -173,6 +176,8 @@ class PublicSiteController extends Controller
                 'source' => 'website',
                 'notes' => $validated['notes'] ?? null,
             ]);
+
+            PublicOrderController::reportConversion(Conversion::forReservation($reservation, $request, $validated['name'], $validated['phone']));
 
             return response()->json([
                 'reservation_id' => $reservation->id,

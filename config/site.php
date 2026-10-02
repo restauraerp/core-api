@@ -22,4 +22,14 @@ return [
 
     'server_ip' => env('SITE_SERVER_IP'),
 
+    /*
+    | currency       ISO code reported with website conversions (prices are
+    |                stored in it; the symbol shown to guests is separate).
+    | meta_graph     Graph API version for Meta calls (Conversions API, pages).
+    */
+
+    'currency' => env('SITE_CURRENCY', 'BDT'),
+
+    'meta_graph' => env('META_GRAPH_VERSION', 'v21.0'),
+
 ];

@@ -41,6 +41,7 @@ use App\Http\Controllers\Platform\PackageController as PlatformPackageController
 use App\Http\Controllers\PublicSiteController;
 use App\Http\Controllers\SiteBuilderController;
 use App\Http\Controllers\SiteDomainController;
+use App\Http\Controllers\SiteIntegrationController;
 use App\Http\Controllers\TelegramIntegrationController;
 use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\Platform\StatsController as PlatformStatsController;
@@ -355,6 +356,8 @@ Route::prefix('v1')->group(function () {
             Route::post('site-builder/domain/verify', [SiteDomainController::class, 'verify'])->middleware('throttle:10,1');
             Route::post('site-builder/images', [SiteBuilderController::class, 'uploadImage']);
             Route::post('site-builder/standard-pages', [SiteBuilderController::class, 'standardPages']);
+            Route::get('site-builder/integrations', [SiteIntegrationController::class, 'show']);
+            Route::put('site-builder/integrations', [SiteIntegrationController::class, 'update']);
             Route::put('site-builder/page-order', [SiteBuilderController::class, 'reorder']);
             Route::post('site-builder/publish', [SiteBuilderController::class, 'publish']);
             Route::get('site-builder/versions', [SiteBuilderController::class, 'versions']);
