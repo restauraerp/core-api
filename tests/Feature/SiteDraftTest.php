@@ -20,8 +20,9 @@ use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
 /**
- * The smart first draft: a restaurant's site put together from its own data,
- * by rules. Each section appears only when there is something to show.
+ * The smart first draft: a restaurant's site - a full set of standard pages -
+ * put together from its own data, by rules. Each section appears only when
+ * there is something to show.
  */
 class SiteDraftTest extends TestCase
 {
@@ -86,7 +87,11 @@ class SiteDraftTest extends TestCase
             'name' => 'Basic site', 'modules' => ['pos', 'orders', 'catalog', 'website'], 'outlets' => 1,
         ])->id]));
 
-        $this->assertSame(['hero', 'text', 'menu', 'order_button', 'contact'], $this->types());
+        $this->assertSame(['hero', 'text', 'button', 'order_button'], $this->types());
+
+        // Without CRM there is no Book a table page.
+        $this->getJson('/api/v1/site-builder/smart-draft?kind=reservations')->assertUnprocessable();
+        $this->assertNotContains('reservations', $this->getJson('/api/v1/site/spice')->json('pages.*.kind'));
     }
 
     #[Test]
@@ -102,14 +107,23 @@ class SiteDraftTest extends TestCase
         $draft = $this->getJson('/api/v1/site-builder/smart-draft')->assertOk();
         $types = array_column($draft->json('sections'), 'type');
 
-        // Growth includes CRM (reservations); two branches now.
-        $this->assertSame(['hero', 'text', 'featured', 'menu', 'order_button', 'reviews', 'reservations', 'branches', 'contact'], $types);
+        $this->assertSame(['hero', 'text', 'featured', 'button', 'order_button', 'reviews'], $types);
 
         // The words come from the restaurant's own menu and name.
         $this->assertSame('Spice Garden', $draft->json('sections.0.props.title'));
         $this->assertStringContainsString('Biryani and Kebab', $draft->json('sections.0.props.subtitle'));
         $this->assertStringContainsString('Welcome to Spice Garden', $draft->json('sections.1.props.body'));
         $this->assertStringContainsString('Spice Garden', $draft->json('meta_description'));
+
+        // The other standard pages are drafted the same way.
+        $page = fn (string $kind) => $this->getJson("/api/v1/site-builder/smart-draft?kind={$kind}")->assertOk();
+        $this->assertSame('online_order', $page('order')->json('sections.0.type'));
+        $this->assertSame('reservations', $page('reservations')->json('sections.0.type'));
+        $this->assertCount(4, $page('gallery')->json('sections.0.props.images'));
+        // Provisioning's branch and Gulshan.
+        $this->assertSame('Our branches', $page('locations')->json('sections.0.props.heading'));
+        $this->assertSame('image_text', $page('about')->json('sections.0.type'));
+        $this->getJson('/api/v1/site-builder/smart-draft?kind=script')->assertUnprocessable();
     }
 
     #[Test]
@@ -134,10 +148,16 @@ class SiteDraftTest extends TestCase
         $this->assertSame('', $public->json('page.sections.0.props.image'));
         $this->assertNotNull($public->json('page.meta_description'));
         $this->assertSame([], Storage::disk('public')->files('site/'.$this->tenant->getKey()));
+        // Every standard page is there, but a gallery would be empty without photos.
+        $this->assertSame(['', 'menu', 'order', 'reservations', 'about', 'locations', 'contact'], $public->json('pages.*.slug'));
+        $this->assertSame('order', $public->json('order_page'));
+        $this->getJson('/api/v1/site/spice/menu')->assertOk()->assertJsonPath('page.sections.0.type', 'menu');
 
         // First visit to the builder saves the draft as the home page.
         $this->getJson('/api/v1/site-pages')
             ->assertJsonPath('pages.0.sections.2.type', 'featured')
-            ->assertJsonPath('pages.0.is_published', false);
+            ->assertJsonPath('pages.0.is_live', false)
+            ->assertJsonPath('pages.5.kind', 'gallery')
+            ->assertJsonCount(3, 'pages.5.sections.0.props.images');
     }
 }

@@ -85,8 +85,12 @@ class SiteBuilderTest extends TestCase
             ->assertOk()
             ->assertJsonPath('site_code', 'spice')
             ->assertJsonPath('pages.0.is_home', true)
-            ->assertJsonPath('pages.0.is_published', false)
-            ->assertJsonPath('pages.0.sections.0.type', 'hero');
+            ->assertJsonPath('pages.0.is_live', false)
+            ->assertJsonPath('pages.0.sections.0.type', 'hero')
+            // A full site of standard pages, not just a home page.
+            ->assertJsonPath('pages.*.kind', ['home', 'menu', 'order', 'reservations', 'about', 'gallery', 'locations', 'contact'])
+            ->assertJsonPath('site.live_version', null)
+            ->assertJsonPath('site.has_unpublished_changes', true);
 
         $this->getJson('/api/v1/site-builder/components')
             ->assertOk()
@@ -105,7 +109,7 @@ class SiteBuilderTest extends TestCase
 
         $this->getJson('/api/v1/site/spice')->assertJsonPath('page.sections.0.type', 'hero');
 
-        $this->postJson("/api/v1/site-pages/{$id}/publish")->assertOk()->assertJsonPath('page.is_published', true);
+        $this->postJson('/api/v1/site-builder/publish')->assertCreated()->assertJsonPath('version.number', 1);
 
         $this->getJson('/api/v1/site/spice')
             ->assertJsonPath('page.sections.0.type', 'text')
@@ -151,7 +155,7 @@ class SiteBuilderTest extends TestCase
         $this->postJson('/api/v1/site-pages', ['title' => 'About Us'])->assertUnprocessable();
 
         $this->getJson('/api/v1/site/spice/about-us')->assertNotFound();
-        $this->postJson("/api/v1/site-pages/{$page['id']}/publish")->assertOk();
+        $this->postJson('/api/v1/site-builder/publish')->assertCreated();
         $this->getJson('/api/v1/site/spice/about-us')->assertOk()->assertJsonPath('page.title', 'About Us');
     }
 
@@ -161,7 +165,6 @@ class SiteBuilderTest extends TestCase
         $id = $this->homeId();
 
         $this->deleteJson("/api/v1/site-pages/{$id}")->assertUnprocessable();
-        $this->postJson("/api/v1/site-pages/{$id}/unpublish")->assertUnprocessable();
         $this->putJson("/api/v1/site-pages/{$id}", ['slug' => 'elsewhere'])->assertUnprocessable();
     }
 
@@ -183,6 +186,10 @@ class SiteBuilderTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['palette', 'font']);
 
+        // A draft like the pages: live on the next Publish website.
+        $this->getJson('/api/v1/site/spice')->assertJsonPath('theme.palette', 'emerald');
+        $this->getJson('/api/v1/site-pages')->assertJsonPath('site.has_unpublished_changes', true);
+        $this->postJson('/api/v1/site-builder/publish')->assertCreated();
         $this->getJson('/api/v1/site/spice')->assertJsonPath('theme.palette', 'saffron')->assertJsonPath('theme.font', 'bangla');
     }
 
@@ -200,7 +207,7 @@ class SiteBuilderTest extends TestCase
         $this->putJson("/api/v1/site-pages/{$id}", ['og_image' => 'https://evil.example/x.jpg'])->assertUnprocessable();
         $this->putJson("/api/v1/site-pages/{$id}", ['meta_title' => str_repeat('x', 71)])->assertUnprocessable();
 
-        $this->postJson("/api/v1/site-pages/{$id}/publish")->assertOk();
+        $this->postJson('/api/v1/site-builder/publish')->assertCreated();
         $this->getJson('/api/v1/site/spice')
             ->assertJsonPath('page.meta_description', 'Order online or book a table.')
             ->assertJsonPath('page.og_image', 'site/1/share.jpg');
@@ -271,7 +278,7 @@ class SiteBuilderTest extends TestCase
 
         $id = $this->homeId();
         $this->putJson("/api/v1/site-pages/{$id}", ['sections' => [['type' => 'social']]])->assertOk();
-        $this->postJson("/api/v1/site-pages/{$id}/publish")->assertOk();
+        $this->postJson('/api/v1/site-builder/publish')->assertCreated();
 
         $this->getJson('/api/v1/site/spice')
             ->assertJsonCount(1, 'social')

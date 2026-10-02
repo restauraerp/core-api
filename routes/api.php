@@ -354,8 +354,12 @@ Route::prefix('v1')->group(function () {
             Route::put('site-builder/domain', [SiteDomainController::class, 'update']);
             Route::post('site-builder/domain/verify', [SiteDomainController::class, 'verify'])->middleware('throttle:10,1');
             Route::post('site-builder/images', [SiteBuilderController::class, 'uploadImage']);
-            Route::post('site-pages/{sitePage}/publish', [SiteBuilderController::class, 'publish']);
-            Route::post('site-pages/{sitePage}/unpublish', [SiteBuilderController::class, 'unpublish']);
+            Route::post('site-builder/standard-pages', [SiteBuilderController::class, 'standardPages']);
+            Route::put('site-builder/page-order', [SiteBuilderController::class, 'reorder']);
+            Route::post('site-builder/publish', [SiteBuilderController::class, 'publish']);
+            Route::get('site-builder/versions', [SiteBuilderController::class, 'versions']);
+            Route::post('site-builder/versions/{siteVersion}/make-live', [SiteBuilderController::class, 'makeLive']);
+            Route::post('site-builder/versions/{siteVersion}/edit', [SiteBuilderController::class, 'loadVersion']);
             Route::apiResource('site-pages', SiteBuilderController::class)->except(['show']);
         });
 

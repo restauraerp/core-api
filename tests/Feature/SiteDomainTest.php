@@ -150,6 +150,10 @@ class SiteDomainTest extends TestCase
         $this->putJson('/api/v1/site-builder/theme', ['palette' => 'ocean', 'font' => 'classic', 'footer_text' => '<b>hi</b>'])
             ->assertUnprocessable()->assertJsonValidationErrors('footer_text');
 
+        // Site settings are part of the draft: live on Publish website.
+        $this->getJson('/api/v1/site/spice')->assertJsonPath('theme.footer_text', '');
+        $this->getJson('/api/v1/site-pages')->assertOk();
+        $this->postJson('/api/v1/site-builder/publish')->assertCreated();
         $this->getJson('/api/v1/site/spice')->assertJsonPath('theme.footer_text', 'Open daily 11am - 11pm');
     }
 

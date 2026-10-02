@@ -54,7 +54,17 @@ class PublicOrderController extends Controller
 
             $locations = Location::where('is_active', true)
                 ->orderBy('name')
-                ->get(['id', 'name', 'address', 'phone']);
+                ->get(['id', 'name', 'address', 'phone', 'map_url'])
+                // A map link for the website's Locations page - web addresses
+                // only, so a saved value can never become script there.
+                ->map(fn (Location $l) => [
+                    'id' => $l->id,
+                    'name' => $l->name,
+                    'address' => $l->address,
+                    'phone' => $l->phone,
+                    'map_url' => is_string($l->map_url) && preg_match('#^https?://#i', $l->map_url) ? $l->map_url : null,
+                ])
+                ->values();
 
             $products = Product::with(['images', 'locations'])
                 ->where('is_active', true)

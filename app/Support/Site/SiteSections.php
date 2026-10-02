@@ -83,6 +83,14 @@ final class SiteSections
                     'background' => array_merge($background, ['default' => 'brand']),
                 ],
             ],
+            'online_order' => [
+                'label' => 'Ordering',
+                'kind' => 'live',
+                'description' => 'Your full online ordering - menu, cart and checkout - inside your website, in its colours. Orders arrive like any online order.',
+                'fields' => [
+                    'heading' => ['type' => 'text', 'label' => 'Heading (optional)', 'max' => 120, 'default' => ''],
+                ],
+            ],
             'branches' => [
                 'label' => 'Branches',
                 'kind' => 'live',
