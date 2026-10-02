@@ -8,6 +8,7 @@ use App\Models\WebsiteSetting;
 use App\Support\Branding\RestaurantBranding;
 use App\Support\Site\SiteDraft;
 use App\Support\Site\SiteSections;
+use App\Support\Site\SiteStarters;
 use App\Support\Site\SiteTheme;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
@@ -145,6 +146,65 @@ class SiteBuilderController extends Controller
             ?? throw ValidationException::withMessages(['kind' => ['Your package does not include this page.']]);
 
         return response()->json(['sections' => $page['sections'], 'meta_description' => $page['meta_description']]);
+    }
+
+    /** GET /site-builder/starters - whole starter websites, previewed with this restaurant's data. */
+    public function starters(Request $request): JsonResponse
+    {
+        $this->authorizeManage($request);
+        $tenant = $this->context->get();
+
+        return response()->json([
+            'starters' => collect(SiteStarters::all())->map(function (array $starter, string $key) use ($tenant) {
+                $built = SiteStarters::build($key, $tenant, withPhoto: false);
+
+                return [
+                    'key' => $key,
+                    'name' => $starter['name'],
+                    'description' => $starter['description'],
+                    'tags' => $starter['tags'],
+                    'theme' => $built['theme'],
+                    'pages' => array_column($built['pages'], 'title'),
+                    'home' => array_column($built['pages'][0]['sections'] ?? [], 'type'),
+                ];
+            })->values(),
+        ]);
+    }
+
+    /**
+     * POST /site-builder/starters/{key} - replaces the editor's whole draft
+     * site with a starter: pages and theme. Nothing changes for visitors
+     * until Publish website, and published versions stay in History.
+     */
+    public function applyStarter(Request $request, string $key): JsonResponse
+    {
+        $this->authorizeManage($request);
+
+        if (! isset(SiteStarters::all()[$key])) {
+            abort(404, 'No such starter site.');
+        }
+
+        $built = SiteStarters::build($key, $this->context->get());
+
+        DB::transaction(function () use ($built) {
+            SitePage::query()->delete();
+
+            foreach ($built['pages'] as $i => $page) {
+                SitePage::create([
+                    'kind' => $page['kind'],
+                    'slug' => $page['slug'],
+                    'title' => $page['title'],
+                    'is_home' => $page['is_home'],
+                    'sort_order' => $i + 1,
+                    'draft' => $page['sections'],
+                    'meta_description' => $page['meta_description'],
+                ]);
+            }
+
+            $this->storeTheme($built['theme']);
+        });
+
+        return response()->json($this->workspace() + ['theme' => self::theme()]);
     }
 
     /** GET /site-builder/templates - layouts to start a page from. */
