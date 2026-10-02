@@ -122,6 +122,7 @@ class SiteDraftTest extends TestCase
         $this->assertCount(4, $page('gallery')->json('sections.0.props.images'));
         // Provisioning's branch and Gulshan.
         $this->assertSame('Our branches', $page('locations')->json('sections.0.props.heading'));
+        $this->assertSame('map', $page('locations')->json('sections.0.type'));
         $this->assertSame('image_text', $page('about')->json('sections.0.type'));
         $this->getJson('/api/v1/site-builder/smart-draft?kind=script')->assertUnprocessable();
     }

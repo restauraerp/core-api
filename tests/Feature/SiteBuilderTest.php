@@ -284,4 +284,15 @@ class SiteBuilderTest extends TestCase
             ->assertJsonCount(1, 'social')
             ->assertJsonPath('social.0.url', 'https://facebook.com/spice');
     }
+
+    #[Test]
+    public function a_map_shows_branches_chosen_by_id(): void
+    {
+        $id = $this->homeId();
+        $map = fn (mixed $locations) => $this->putJson("/api/v1/site-pages/{$id}", ['sections' => [['type' => 'map', 'props' => ['locations' => $locations, 'layout' => 'grid']]]]);
+
+        $map([3, 5])->assertOk()->assertJsonPath('page.sections.0.props.locations', [3, 5])->assertJsonPath('page.sections.0.props.height', 'medium');
+        $map(['javascript:alert(1)'])->assertUnprocessable();
+        $this->putJson("/api/v1/site-pages/{$id}", ['sections' => [['type' => 'map', 'props' => ['height' => '9999px']]]])->assertUnprocessable();
+    }
 }

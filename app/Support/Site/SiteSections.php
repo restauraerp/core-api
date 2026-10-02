@@ -100,6 +100,18 @@ final class SiteSections
                     'background' => $background,
                 ],
             ],
+            'map' => [
+                'label' => 'Map',
+                'kind' => 'live',
+                'description' => 'Google Maps for your branches, from Locations. With several branches, guests pick one from the list beside the map.',
+                'fields' => [
+                    'heading' => ['type' => 'text', 'label' => 'Heading', 'max' => 120, 'default' => 'Find us'],
+                    'locations' => ['type' => 'locations', 'label' => 'Branches (none ticked shows all)', 'default' => []],
+                    'layout' => ['type' => 'enum', 'label' => 'Layout', 'options' => ['list', 'grid'], 'default' => 'list'],
+                    'height' => ['type' => 'enum', 'label' => 'Map height', 'options' => ['small', 'medium', 'large'], 'default' => 'medium'],
+                    'background' => $background,
+                ],
+            ],
             'contact' => [
                 'label' => 'Contact',
                 'kind' => 'live',
@@ -312,7 +324,7 @@ final class SiteSections
                 is_string($value) && preg_match('#^site/[A-Za-z0-9/_.-]{1,200}$#', $value) && ! str_contains($value, '..') => $value,
                 default => $fail('must be a photo uploaded here.'),
             },
-            'categories', 'products' => is_array($value) && array_is_list($value) && count($value) <= 100 && array_filter($value, fn ($v) => ! is_int($v)) === []
+            'categories', 'products', 'locations' => is_array($value) && array_is_list($value) && count($value) <= 100 && array_filter($value, fn ($v) => ! is_int($v)) === []
                 ? array_values(array_unique($value))
                 : $fail('must be a list to choose from.'),
             'images' => is_array($value) && array_is_list($value) && count($value) <= $field['max']

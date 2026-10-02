@@ -98,11 +98,12 @@ class SiteDraft
                 ['type' => 'order_button', 'props' => ['heading' => 'Like what you see?']],
             ], "Photos from {$name}."],
             'locations' => [$f['branches']->count() > 1 ? 'Locations' : 'Find us', [
-                ['type' => 'branches', 'props' => ['heading' => $f['branches']->count() > 1 ? 'Our branches' : 'Find us']],
+                ['type' => 'map', 'props' => ['heading' => $f['branches']->count() > 1 ? 'Our branches' : 'Find us']],
                 ['type' => 'order_button', 'props' => ['background' => 'muted']],
             ], $this->where() !== '' ? "{$name}{$this->where()}." : "Find {$name}."],
             'contact' => ['Contact', [
                 ['type' => 'contact'],
+                ['type' => 'map', 'props' => ['heading' => '', 'height' => 'small']],
                 ['type' => 'social', 'props' => ['background' => 'muted']],
             ], "Contact {$name}."],
             default => throw new \InvalidArgumentException("Unknown page kind {$kind}"),
