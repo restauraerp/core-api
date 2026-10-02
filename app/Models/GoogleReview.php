@@ -15,6 +15,15 @@ class GoogleReview extends Model
         'text',
         'time',
         'is_displayed',
+        'source',
+        'external_id',
+        'author_photo_url',
+    ];
+
+    protected $casts = [
+        'time' => 'datetime',
+        'is_displayed' => 'boolean',
+        'rating' => 'integer',
     ];
 
     public $timestamps = false;

@@ -24,3 +24,11 @@ Artisan::command('inspire', function () {
 Schedule::command('tenants:expire')
     ->dailyAt('00:15')
     ->withoutOverlapping();
+
+/**
+ * Google reviews for restaurants that connected their Business Profile.
+ * Hourly is plenty for reviews and well inside Google's quotas.
+ */
+Schedule::command('site:sync-google-reviews')
+    ->hourly()
+    ->withoutOverlapping();

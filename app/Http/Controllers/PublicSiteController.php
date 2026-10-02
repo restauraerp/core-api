@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Customer;
+use App\Models\GoogleBusinessConnection;
 use App\Models\GoogleReview;
 use App\Models\Location;
 use App\Models\Reservation;
@@ -98,6 +99,7 @@ class PublicSiteController extends Controller
                 ],
                 // Only what this page's sections draw on.
                 'reviews' => in_array('reviews', $types, true) ? $this->reviews() : [],
+                'review_summary' => in_array('reviews', $types, true) ? $this->reviewSummary() : null,
                 'social' => in_array('social', $types, true) || $theme['footer_social'] ? $this->socialLinks() : [],
             ]);
         });
@@ -204,19 +206,56 @@ class PublicSiteController extends Controller
     }
 
     /** @return list<array<string, mixed>> */
+    /**
+     * Reviews chosen for display, newest first - enough for a Reviews section
+     * to sort and filter (5 stars only, newest, best...) as it is set to.
+     */
     private function reviews(): array
     {
         return GoogleReview::where('is_displayed', true)
             ->orderByDesc('time')
-            ->limit(12)
-            ->get(['author_name', 'rating', 'text', 'time'])
+            ->limit(60)
+            ->get(['author_name', 'author_photo_url', 'rating', 'text', 'time', 'source'])
             ->map(fn (GoogleReview $r) => [
                 'author' => $r->author_name,
+                'photo' => $r->author_photo_url,
                 'rating' => (int) $r->rating,
                 'text' => $r->text,
+                'time' => $r->time?->toIso8601String(),
+                'source' => $r->source,
             ])
             ->values()
             ->all();
+    }
+
+    /**
+     * The overall rating: Google's own figures when the profile is
+     * connected, otherwise worked out from every review stored (shown or
+     * not - hiding a review must not flatter the average).
+     *
+     * @return array{rating: float|null, total: int, write_review_url: string|null, google_url: string|null}
+     */
+    private function reviewSummary(): array
+    {
+        $google = GoogleBusinessConnection::first();
+
+        if ($google?->average_rating !== null) {
+            return [
+                'rating' => round($google->average_rating, 1),
+                'total' => (int) $google->total_reviews,
+                'write_review_url' => $google->review_uri,
+                'google_url' => $google->maps_uri,
+            ];
+        }
+
+        $all = GoogleReview::whereNotNull('rating');
+
+        return [
+            'rating' => ($avg = $all->avg('rating')) !== null ? round((float) $avg, 1) : null,
+            'total' => (clone $all)->count(),
+            'write_review_url' => null,
+            'google_url' => null,
+        ];
     }
 
     /**

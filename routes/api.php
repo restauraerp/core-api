@@ -40,6 +40,7 @@ use App\Http\Controllers\Platform\PlanController as PlatformPlanController;
 use App\Http\Controllers\Platform\PackageController as PlatformPackageController;
 use App\Http\Controllers\PublicSiteController;
 use App\Http\Controllers\SiteBuilderController;
+use App\Http\Controllers\GoogleBusinessController;
 use App\Http\Controllers\SiteDomainController;
 use App\Http\Controllers\SiteIntegrationController;
 use App\Http\Controllers\TelegramIntegrationController;
@@ -166,6 +167,11 @@ Route::prefix('v1')->group(function () {
 
     Route::post('site/{code}/reservations', [PublicSiteController::class, 'reserve'])
         ->middleware('throttle:10,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+    // Google sends the owner back here after connecting their Business
+    // Profile. Public: who it is for travels in the sealed state.
+    Route::get('integrations/google/callback', [GoogleBusinessController::class, 'callback'])
+        ->middleware('throttle:30,1')
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
     Route::get('site/{code}/{slug?}', [PublicSiteController::class, 'show'])
         ->where('slug', '[a-z0-9-]+')
@@ -359,6 +365,12 @@ Route::prefix('v1')->group(function () {
             Route::post('site-builder/images', [SiteBuilderController::class, 'uploadImage']);
             Route::post('site-builder/standard-pages', [SiteBuilderController::class, 'standardPages']);
             Route::get('site-builder/integrations', [SiteIntegrationController::class, 'show']);
+            Route::get('site-builder/google', [GoogleBusinessController::class, 'show']);
+            Route::post('site-builder/google/connect', [GoogleBusinessController::class, 'connect']);
+            Route::get('site-builder/google/locations', [GoogleBusinessController::class, 'locations']);
+            Route::put('site-builder/google/location', [GoogleBusinessController::class, 'chooseLocation']);
+            Route::post('site-builder/google/sync', [GoogleBusinessController::class, 'sync'])->middleware('throttle:10,1');
+            Route::delete('site-builder/google', [GoogleBusinessController::class, 'disconnect']);
             Route::put('site-builder/integrations', [SiteIntegrationController::class, 'update']);
             Route::put('site-builder/page-order', [SiteBuilderController::class, 'reorder']);
             Route::post('site-builder/publish', [SiteBuilderController::class, 'publish']);
