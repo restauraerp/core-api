@@ -6,10 +6,12 @@ use App\Models\Customer;
 use App\Models\GoogleBusinessConnection;
 use App\Models\GoogleReview;
 use App\Models\Location;
+use App\Models\MetaConnection;
 use App\Models\Reservation;
 use App\Models\SiteIntegration;
 use App\Models\SiteVersion;
 use App\Models\SocialLink;
+use App\Models\SocialPost;
 use App\Models\Tenant;
 use App\Rules\PhoneNumber;
 use App\Support\Billing\Modules;
@@ -100,6 +102,11 @@ class PublicSiteController extends Controller
                 // Only what this page's sections draw on.
                 'reviews' => in_array('reviews', $types, true) ? $this->reviews() : [],
                 'review_summary' => in_array('reviews', $types, true) ? $this->reviewSummary() : null,
+                'posts' => [
+                    'facebook' => in_array('facebook_posts', $types, true) ? SocialPost::latest(SocialPost::FACEBOOK) : [],
+                    'instagram' => in_array('instagram_feed', $types, true) ? SocialPost::latest(SocialPost::INSTAGRAM) : [],
+                ],
+                'social_accounts' => array_intersect($types, ['facebook_posts', 'instagram_feed']) ? MetaConnection::accountLinks() : null,
                 'social' => in_array('social', $types, true) || $theme['footer_social'] ? $this->socialLinks() : [],
             ]);
         });

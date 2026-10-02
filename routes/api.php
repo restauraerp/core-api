@@ -41,6 +41,7 @@ use App\Http\Controllers\Platform\PackageController as PlatformPackageController
 use App\Http\Controllers\PublicSiteController;
 use App\Http\Controllers\SiteBuilderController;
 use App\Http\Controllers\GoogleBusinessController;
+use App\Http\Controllers\MetaPagesController;
 use App\Http\Controllers\SiteDomainController;
 use App\Http\Controllers\SiteIntegrationController;
 use App\Http\Controllers\TelegramIntegrationController;
@@ -170,6 +171,9 @@ Route::prefix('v1')->group(function () {
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
     // Google sends the owner back here after connecting their Business
     // Profile. Public: who it is for travels in the sealed state.
+    Route::get('integrations/meta/callback', [MetaPagesController::class, 'callback'])
+        ->middleware('throttle:30,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
     Route::get('integrations/google/callback', [GoogleBusinessController::class, 'callback'])
         ->middleware('throttle:30,1')
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
@@ -365,6 +369,12 @@ Route::prefix('v1')->group(function () {
             Route::post('site-builder/images', [SiteBuilderController::class, 'uploadImage']);
             Route::post('site-builder/standard-pages', [SiteBuilderController::class, 'standardPages']);
             Route::get('site-builder/integrations', [SiteIntegrationController::class, 'show']);
+            Route::get('site-builder/meta', [MetaPagesController::class, 'show']);
+            Route::post('site-builder/meta/connect', [MetaPagesController::class, 'connect']);
+            Route::get('site-builder/meta/pages', [MetaPagesController::class, 'pages']);
+            Route::put('site-builder/meta/page', [MetaPagesController::class, 'choosePage']);
+            Route::post('site-builder/meta/sync', [MetaPagesController::class, 'sync'])->middleware('throttle:10,1');
+            Route::delete('site-builder/meta', [MetaPagesController::class, 'disconnect']);
             Route::get('site-builder/google', [GoogleBusinessController::class, 'show']);
             Route::post('site-builder/google/connect', [GoogleBusinessController::class, 'connect']);
             Route::get('site-builder/google/locations', [GoogleBusinessController::class, 'locations']);

@@ -155,6 +155,31 @@ final class SiteSections
                     'background' => $background,
                 ],
             ],
+            'facebook_posts' => [
+                'label' => 'Facebook posts',
+                'kind' => 'live',
+                'description' => 'Your latest Facebook Page posts. Connect your Page in Site > Facebook & Instagram.',
+                'fields' => [
+                    'heading' => ['type' => 'text', 'label' => 'Heading', 'max' => 120, 'default' => 'Latest news'],
+                    'count' => ['type' => 'enum', 'label' => 'How many', 'options' => ['3', '6', '9'], 'default' => '3'],
+                    'with_photo' => ['type' => 'bool', 'label' => 'Only posts with a photo', 'default' => false],
+                    'show_follow' => ['type' => 'bool', 'label' => 'Show "Follow us on Facebook"', 'default' => true],
+                    'background' => $background,
+                ],
+            ],
+            'instagram_feed' => [
+                'label' => 'Instagram feed',
+                'kind' => 'live',
+                'description' => 'Your latest Instagram photos and reels, from the account linked to your Facebook Page.',
+                'fields' => [
+                    'heading' => ['type' => 'text', 'label' => 'Heading', 'max' => 120, 'default' => 'Follow us on Instagram'],
+                    'count' => ['type' => 'enum', 'label' => 'How many', 'options' => ['4', '6', '8', '12'], 'default' => '8'],
+                    'columns' => ['type' => 'enum', 'label' => 'Columns', 'options' => ['3', '4', '6'], 'default' => '4'],
+                    'show_captions' => ['type' => 'bool', 'label' => 'Show captions', 'default' => false],
+                    'show_follow' => ['type' => 'bool', 'label' => 'Show "Follow" button', 'default' => true],
+                    'background' => $background,
+                ],
+            ],
             'social' => [
                 'label' => 'Social links',
                 'kind' => 'live',

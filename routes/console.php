@@ -32,3 +32,11 @@ Schedule::command('tenants:expire')
 Schedule::command('site:sync-google-reviews')
     ->hourly()
     ->withoutOverlapping();
+
+/**
+ * Facebook and Instagram posts for restaurant websites. Hourly also keeps
+ * their image links fresh - Meta's expire.
+ */
+Schedule::command('site:sync-social-posts')
+    ->hourly()
+    ->withoutOverlapping();
