@@ -38,6 +38,8 @@ use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\Platform\PlanController as PlatformPlanController;
 use App\Http\Controllers\Platform\PackageController as PlatformPackageController;
+use App\Http\Controllers\PublicSiteController;
+use App\Http\Controllers\SiteBuilderController;
 use App\Http\Controllers\TelegramIntegrationController;
 use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\Platform\StatsController as PlatformStatsController;
@@ -139,6 +141,13 @@ Route::prefix('v1')->group(function () {
     Route::post('order/{slug}', [PublicOrderController::class, 'store'])
         ->middleware('throttle:10,1')
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+    // A restaurant's public website, as data: published pages and the
+    // starter home. The tenant comes from the restaurant code in the URL.
+    Route::get('site/{code}/{slug?}', [PublicSiteController::class, 'show'])
+        ->where('slug', '[a-z0-9-]+')
+        ->middleware('throttle:120,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+
     // Updates from a restaurant's Telegram bot. Telegram is the caller; it
     // proves itself with the bot's webhook secret, and the bot says which
     // restaurant this is.
@@ -286,6 +295,16 @@ Route::prefix('v1')->group(function () {
 
         // Catalog API (Protected Routes)
         Route::post('website-settings/logo', [WebsiteSettingController::class, 'uploadLogo']);
+        // Site builder: the restaurant's website pages, as drafts and
+        // published versions. Website module, manage_website_content.
+        Route::middleware('module:website')->group(function () {
+            Route::get('site-builder/components', [SiteBuilderController::class, 'components']);
+            Route::post('site-builder/images', [SiteBuilderController::class, 'uploadImage']);
+            Route::post('site-pages/{sitePage}/publish', [SiteBuilderController::class, 'publish']);
+            Route::post('site-pages/{sitePage}/unpublish', [SiteBuilderController::class, 'unpublish']);
+            Route::apiResource('site-pages', SiteBuilderController::class)->except(['show']);
+        });
+
         // Before the resource, so "reorder" is not read as a category id.
         Route::put('product-categories/reorder', [ProductCategoryController::class, 'reorder']);
         Route::apiResource('product-categories', ProductCategoryController::class)->except(['index', 'show']);

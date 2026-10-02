@@ -1,0 +1,226 @@
+<?php
+
+namespace App\Support\Site;
+
+use Illuminate\Validation\ValidationException;
+
+/**
+ * Every component the site builder offers, and what each may be set to.
+ *
+ * The single source of truth: the editor builds its settings forms from
+ * definitions() (GET /site-builder/components), and clean() checks every
+ * saved page against it. A section is {id, type, props}; an unknown type, an
+ * unknown setting or a value outside its field's rules is refused or dropped.
+ * There is no field that takes markup or script, which is what makes "no
+ * custom code" a property of the data rather than a promise.
+ *
+ * Two kinds:
+ *   - live: drawn from the restaurant's own data at view time (menu, online
+ *     ordering, branches, contact). Their settings change how it is shown,
+ *     never the data itself.
+ *   - content: what the owner writes - headings, text, images.
+ */
+final class SiteSections
+{
+    /** Most sections one page may hold. */
+    public const MAX_SECTIONS = 40;
+
+    /** Background choices, shared by every section; colours come from the theme. */
+    private const BACKGROUNDS = ['default', 'muted', 'brand', 'dark'];
+
+    /**
+     * @return array<string, array{label: string, kind: string, description: string, fields: array<string, array<string, mixed>>}>
+     */
+    public static function definitions(): array
+    {
+        $background = ['type' => 'enum', 'label' => 'Background', 'options' => self::BACKGROUNDS, 'default' => 'default'];
+
+        return [
+            // ---- Live: from the restaurant's data ----------------------------
+            'menu' => [
+                'label' => 'Menu',
+                'kind' => 'live',
+                'description' => 'Your menu by category, in the order set in Catalog > Categories. Prices and items update by themselves.',
+                'fields' => [
+                    'heading' => ['type' => 'text', 'label' => 'Heading', 'max' => 120, 'default' => 'Our Menu'],
+                    'layout' => ['type' => 'enum', 'label' => 'Layout', 'options' => ['grid', 'list'], 'default' => 'grid'],
+                    'show_prices' => ['type' => 'bool', 'label' => 'Show prices', 'default' => true],
+                    'show_images' => ['type' => 'bool', 'label' => 'Show photos', 'default' => true],
+                    'categories' => ['type' => 'categories', 'label' => 'Categories', 'default' => []],
+                    'background' => $background,
+                ],
+            ],
+            'order_button' => [
+                'label' => 'Order online',
+                'kind' => 'live',
+                'description' => 'A button to your online ordering page.',
+                'fields' => [
+                    'heading' => ['type' => 'text', 'label' => 'Heading', 'max' => 120, 'default' => 'Hungry? Order online'],
+                    'label' => ['type' => 'text', 'label' => 'Button text', 'max' => 40, 'default' => 'Order now'],
+                    'background' => array_merge($background, ['default' => 'brand']),
+                ],
+            ],
+            'branches' => [
+                'label' => 'Branches',
+                'kind' => 'live',
+                'description' => 'Your branches with address and phone, from Locations.',
+                'fields' => [
+                    'heading' => ['type' => 'text', 'label' => 'Heading', 'max' => 120, 'default' => 'Visit us'],
+                    'background' => $background,
+                ],
+            ],
+            'contact' => [
+                'label' => 'Contact',
+                'kind' => 'live',
+                'description' => 'Phone, email and address from Settings > Restaurant identity.',
+                'fields' => [
+                    'heading' => ['type' => 'text', 'label' => 'Heading', 'max' => 120, 'default' => 'Get in touch'],
+                    'background' => $background,
+                ],
+            ],
+
+            // ---- Content: written by the owner -------------------------------
+            'hero' => [
+                'label' => 'Banner',
+                'kind' => 'content',
+                'description' => 'A large heading with a background photo and a button.',
+                'fields' => [
+                    'title' => ['type' => 'text', 'label' => 'Title', 'max' => 120, 'default' => 'Welcome'],
+                    'subtitle' => ['type' => 'textarea', 'label' => 'Subtitle', 'max' => 300, 'default' => ''],
+                    'image' => ['type' => 'image', 'label' => 'Background photo', 'default' => ''],
+                    'align' => ['type' => 'enum', 'label' => 'Alignment', 'options' => ['center', 'left'], 'default' => 'center'],
+                    'button' => ['type' => 'enum', 'label' => 'Button', 'options' => ['order', 'menu', 'none'], 'default' => 'order'],
+                    'button_label' => ['type' => 'text', 'label' => 'Button text', 'max' => 40, 'default' => 'Order now'],
+                ],
+            ],
+            'text' => [
+                'label' => 'Text',
+                'kind' => 'content',
+                'description' => 'A heading and paragraphs.',
+                'fields' => [
+                    'heading' => ['type' => 'text', 'label' => 'Heading', 'max' => 120, 'default' => ''],
+                    'body' => ['type' => 'textarea', 'label' => 'Text', 'max' => 4000, 'default' => ''],
+                    'align' => ['type' => 'enum', 'label' => 'Alignment', 'options' => ['left', 'center'], 'default' => 'left'],
+                    'background' => $background,
+                ],
+            ],
+            'image' => [
+                'label' => 'Image',
+                'kind' => 'content',
+                'description' => 'A photo with an optional caption.',
+                'fields' => [
+                    'image' => ['type' => 'image', 'label' => 'Photo', 'default' => ''],
+                    'caption' => ['type' => 'text', 'label' => 'Caption', 'max' => 200, 'default' => ''],
+                    'width' => ['type' => 'enum', 'label' => 'Width', 'options' => ['contained', 'full'], 'default' => 'contained'],
+                ],
+            ],
+            'spacer' => [
+                'label' => 'Space',
+                'kind' => 'content',
+                'description' => 'Empty space between sections.',
+                'fields' => [
+                    'size' => ['type' => 'enum', 'label' => 'Size', 'options' => ['small', 'medium', 'large'], 'default' => 'medium'],
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * A page's sections, checked and cleaned. Unknown settings are dropped,
+     * missing ones take their default; an unknown type or a bad value is
+     * refused with the section's position in the message.
+     *
+     * @return list<array{id: string, type: string, props: array<string, mixed>}>
+     */
+    public static function clean(mixed $sections): array
+    {
+        if (! is_array($sections) || ! array_is_list($sections)) {
+            throw ValidationException::withMessages(['sections' => ['A page is a list of sections.']]);
+        }
+
+        if (count($sections) > self::MAX_SECTIONS) {
+            throw ValidationException::withMessages(['sections' => ['A page can hold up to '.self::MAX_SECTIONS.' sections.']]);
+        }
+
+        $definitions = self::definitions();
+        $clean = [];
+        $ids = [];
+
+        foreach ($sections as $i => $section) {
+            $where = 'Section '.($i + 1);
+            $type = is_array($section) ? ($section['type'] ?? null) : null;
+
+            if (! is_string($type) || ! isset($definitions[$type])) {
+                throw ValidationException::withMessages(['sections' => ["{$where} is not a component the builder offers."]]);
+            }
+
+            $id = is_string($section['id'] ?? null) && preg_match('/^[A-Za-z0-9_-]{1,40}$/', $section['id'])
+                ? $section['id']
+                : bin2hex(random_bytes(6));
+
+            // Unique within the page, so the editor can address each one.
+            while (isset($ids[$id])) {
+                $id = bin2hex(random_bytes(6));
+            }
+            $ids[$id] = true;
+
+            $given = is_array($section['props'] ?? null) ? $section['props'] : [];
+            $props = [];
+
+            foreach ($definitions[$type]['fields'] as $name => $field) {
+                $props[$name] = array_key_exists($name, $given)
+                    ? self::value($field, $given[$name], "{$where} ({$definitions[$type]['label']}): {$field['label']}")
+                    : $field['default'];
+            }
+
+            $clean[] = ['id' => $id, 'type' => $type, 'props' => $props];
+        }
+
+        return $clean;
+    }
+
+    /** One setting, checked against its field. */
+    private static function value(array $field, mixed $value, string $where): mixed
+    {
+        $fail = fn (string $why) => throw ValidationException::withMessages(['sections' => ["{$where} {$why}"]]);
+
+        return match ($field['type']) {
+            'text', 'textarea' => match (true) {
+                $value === null => '',
+                ! is_string($value) => $fail('must be text.'),
+                mb_strlen($value) > $field['max'] => $fail("is longer than {$field['max']} characters."),
+                // Plain text only: rendered escaped, so markup would only show
+                // as literal characters - refused to say so plainly.
+                $value !== strip_tags($value) => $fail('cannot contain HTML.'),
+                default => $field['type'] === 'text' ? trim($value) : $value,
+            },
+            'enum' => in_array($value, $field['options'], true) ? $value : $fail('is not one of the choices.'),
+            'bool' => is_bool($value) ? $value : $fail('must be on or off.'),
+            'image' => match (true) {
+                $value === null || $value === '' => '',
+                is_string($value) && preg_match('#^site/[A-Za-z0-9/_.-]{1,200}$#', $value) && ! str_contains($value, '..') => $value,
+                default => $fail('must be a photo uploaded here.'),
+            },
+            'categories' => is_array($value) && array_is_list($value) && count($value) <= 100 && array_filter($value, fn ($v) => ! is_int($v)) === []
+                ? array_values(array_unique($value))
+                : $fail('must be a list of categories.'),
+            default => $fail('has an unknown kind of setting.'),
+        };
+    }
+
+    /**
+     * The page every restaurant starts with, built from what it already has.
+     *
+     * @return list<array{id: string, type: string, props: array<string, mixed>}>
+     */
+    public static function starterHome(string $restaurantName): array
+    {
+        return self::clean([
+            ['type' => 'hero', 'props' => ['title' => mb_substr($restaurantName, 0, 120), 'subtitle' => 'Fresh food, made to order.']],
+            ['type' => 'menu'],
+            ['type' => 'order_button'],
+            ['type' => 'branches'],
+            ['type' => 'contact'],
+        ]);
+    }
+}
