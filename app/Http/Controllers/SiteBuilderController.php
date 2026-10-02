@@ -8,6 +8,7 @@ use App\Models\WebsiteSetting;
 use App\Support\Branding\RestaurantBranding;
 use App\Support\Site\SiteDraft;
 use App\Support\Site\SiteSections;
+use App\Support\Site\SiteTheme;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -40,30 +41,29 @@ class SiteBuilderController extends Controller
 
         return response()->json([
             'components' => SiteSections::definitions($this->modules()),
-            'palettes' => SiteSections::PALETTES,
-            'fonts' => SiteSections::FONTS,
+            'fonts' => SiteTheme::fonts(),
             'theme' => self::theme(),
         ]);
     }
 
     /**
-     * PUT /site-builder/theme - the site's colour palette, type style, header
-     * and footer. A draft, like the pages: live on the next Publish website.
+     * PUT /site-builder/theme - the site's colours, fonts, header and footer.
+     * A draft, like the pages: live on the next Publish website.
      */
     public function updateTheme(Request $request): JsonResponse
     {
         $this->authorizeManage($request);
 
-        $validated = $request->validate([
-            'palette' => ['required', Rule::in(SiteSections::PALETTES)],
-            'font' => ['required', Rule::in(SiteSections::FONTS)],
-            // The header and footer every page shares.
-            'header_order_button' => ['sometimes', 'boolean'],
-            'footer_social' => ['sometimes', 'boolean'],
-            'footer_text' => ['sometimes', 'nullable', 'string', 'max:200', 'not_regex:/<[^>]*>/'],
-        ], [
+        $validated = $request->validate(SiteTheme::rules(), [
             'footer_text.not_regex' => 'The footer text cannot contain HTML.',
+            'colors.*.regex' => 'Colours are hex values like #D97706.',
         ]);
+
+        // The old single type style sets both fonts.
+        if (isset($validated['font'])) {
+            $legacy = SiteTheme::from(['font' => $validated['font']]);
+            $validated += ['heading_font' => $legacy['heading_font'], 'body_font' => $legacy['body_font']];
+        }
 
         $this->storeTheme($validated);
 
@@ -75,11 +75,13 @@ class SiteBuilderController extends Controller
     {
         $store = fn (string $key, string $value) => WebsiteSetting::updateOrCreate(['key' => $key], ['value' => $value, 'type' => 'string']);
 
-        if (array_key_exists('palette', $theme)) {
-            $store('site_palette', $theme['palette']);
+        foreach (['palette' => 'site_palette', 'heading_font' => 'site_heading_font', 'body_font' => 'site_body_font'] as $field => $key) {
+            if (array_key_exists($field, $theme)) {
+                $store($key, (string) $theme[$field]);
+            }
         }
-        if (array_key_exists('font', $theme)) {
-            $store('site_font', $theme['font']);
+        if (array_key_exists('colors', $theme)) {
+            $store('site_colors', $theme['colors'] ? json_encode($theme['colors']) : '');
         }
         if (array_key_exists('header_order_button', $theme)) {
             $store('site_header_order', $theme['header_order_button'] ? '1' : '0');
@@ -93,47 +95,40 @@ class SiteBuilderController extends Controller
     }
 
     /**
-     * The current restaurant's draft site-wide settings - theme, header and
-     * footer - with defaults for any never set.
+     * The current restaurant's draft site-wide settings - colours, fonts,
+     * header and footer - with defaults for any never set.
      *
-     * @return array{palette: string, font: string, header_order_button: bool, footer_social: bool, footer_text: string}
+     * @return array<string, mixed> see SiteTheme::from()
      */
     public static function theme(): array
     {
         $settings = WebsiteSetting::whereIn('key', [
-            'site_palette', 'site_font', 'site_header_order', 'site_footer_social', 'site_footer_text',
+            'site_palette', 'site_colors', 'site_font', 'site_heading_font', 'site_body_font',
+            'site_header_order', 'site_footer_social', 'site_footer_text',
         ])->pluck('value', 'key');
 
-        return self::themeFrom([
+        return SiteTheme::from([
             'palette' => $settings['site_palette'] ?? null,
+            'colors' => json_decode((string) ($settings['site_colors'] ?? ''), true),
             'font' => $settings['site_font'] ?? null,
+            'heading_font' => $settings['site_heading_font'] ?? null,
+            'body_font' => $settings['site_body_font'] ?? null,
             'header_order_button' => ($settings['site_header_order'] ?? '1') !== '0',
             'footer_social' => ($settings['site_footer_social'] ?? '1') !== '0',
             'footer_text' => $settings['site_footer_text'] ?? '',
         ]);
     }
 
-    /** @return array{palette: string, font: string, header_order_button: bool, footer_social: bool, footer_text: string} */
+    /** @return array<string, mixed> see SiteTheme::from() */
     public static function defaultTheme(): array
     {
-        return self::themeFrom([]);
+        return SiteTheme::from([]);
     }
 
-    /**
-     * A theme with every key present and valid - for one read from settings
-     * or from a published version.
-     *
-     * @return array{palette: string, font: string, header_order_button: bool, footer_social: bool, footer_text: string}
-     */
+    /** @return array<string, mixed> see SiteTheme::from() */
     public static function themeFrom(array $theme): array
     {
-        return [
-            'palette' => in_array($theme['palette'] ?? null, SiteSections::PALETTES, true) ? $theme['palette'] : SiteSections::PALETTES[0],
-            'font' => in_array($theme['font'] ?? null, SiteSections::FONTS, true) ? $theme['font'] : SiteSections::FONTS[0],
-            'header_order_button' => (bool) ($theme['header_order_button'] ?? true),
-            'footer_social' => (bool) ($theme['footer_social'] ?? true),
-            'footer_text' => (string) ($theme['footer_text'] ?? ''),
-        ];
+        return SiteTheme::from($theme);
     }
 
     /**
@@ -384,7 +379,7 @@ class SiteBuilderController extends Controller
                 ])->save();
             }
 
-            $this->storeTheme(array_merge(self::defaultTheme(), $snapshot['theme'] ?? []));
+            $this->storeTheme(SiteTheme::from($snapshot['theme'] ?? []));
         });
 
         return response()->json($this->workspace() + ['theme' => self::theme()]);
@@ -501,7 +496,7 @@ class SiteBuilderController extends Controller
             'latest_version' => SiteVersion::max('number'),
             'live_published_at' => $live?->published_at?->toIso8601String(),
             'has_unpublished_changes' => $live === null
-                || self::comparable($this->draftSnapshot(clean: false)) !== self::comparable($live->snapshot),
+                || self::comparable($this->draftSnapshot(clean: false)) !== self::comparable(self::normalised($live->snapshot)),
         ];
     }
 
@@ -528,6 +523,14 @@ class SiteBuilderController extends Controller
                 'sections' => $clean ? SiteSections::clean($page->draft ?? [], $modules) : ($page->draft ?? []),
             ])->values()->all(),
         ];
+    }
+
+    /** A version's snapshot with its theme read the current way, for comparing. */
+    private static function normalised(array $snapshot): array
+    {
+        $snapshot['theme'] = SiteTheme::from($snapshot['theme'] ?? []);
+
+        return $snapshot;
     }
 
     /** @return array<int, array<string, mixed>> the live version's pages by id */

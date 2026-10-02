@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\Location;
 use App\Models\Package;
 use App\Models\Reservation;
+use App\Models\SiteVersion;
 use App\Models\SocialLink;
 use App\Models\Tenant;
 use App\Models\User;
@@ -179,7 +180,7 @@ class SiteBuilderTest extends TestCase
     {
         $this->asRole(RoleDefinitions::RESTAURANT_ADMIN);
 
-        $this->getJson('/api/v1/site/spice')->assertJsonPath('theme.palette', 'emerald')->assertJsonPath('theme.font', 'modern');
+        $this->getJson('/api/v1/site/spice')->assertJsonPath('theme.palette', 'emerald')->assertJsonPath('theme.heading_font', 'Inter');
 
         $this->putJson('/api/v1/site-builder/theme', ['palette' => 'saffron', 'font' => 'bangla'])->assertOk();
         $this->putJson('/api/v1/site-builder/theme', ['palette' => '#ff0000', 'font' => 'comic-sans'])
@@ -190,7 +191,7 @@ class SiteBuilderTest extends TestCase
         $this->getJson('/api/v1/site/spice')->assertJsonPath('theme.palette', 'emerald');
         $this->getJson('/api/v1/site-pages')->assertJsonPath('site.has_unpublished_changes', true);
         $this->postJson('/api/v1/site-builder/publish')->assertCreated();
-        $this->getJson('/api/v1/site/spice')->assertJsonPath('theme.palette', 'saffron')->assertJsonPath('theme.font', 'bangla');
+        $this->getJson('/api/v1/site/spice')->assertJsonPath('theme.palette', 'saffron')->assertJsonPath('theme.body_font', 'Hind Siliguri');
     }
 
     #[Test]
@@ -294,5 +295,47 @@ class SiteBuilderTest extends TestCase
         $map([3, 5])->assertOk()->assertJsonPath('page.sections.0.props.locations', [3, 5])->assertJsonPath('page.sections.0.props.height', 'medium');
         $map(['javascript:alert(1)'])->assertUnprocessable();
         $this->putJson("/api/v1/site-pages/{$id}", ['sections' => [['type' => 'map', 'props' => ['height' => '9999px']]]])->assertUnprocessable();
+    }
+
+    #[Test]
+    public function colours_and_fonts_are_any_valid_values_from_the_catalogue(): void
+    {
+        $this->asRole(RoleDefinitions::RESTAURANT_ADMIN)->getJson('/api/v1/site-pages')->assertOk();
+        $colors = ['primary' => '#d97706', 'secondary' => '#7C2D12', 'accent' => '#0F766E', 'neutral' => '#1C1917', 'base' => '#FFFBF5'];
+
+        $this->putJson('/api/v1/site-builder/theme', [
+            'palette' => 'custom', 'colors' => $colors, 'heading_font' => 'Playfair Display', 'body_font' => 'Lato',
+        ])->assertOk()
+            ->assertJsonPath('theme.colors.primary', '#D97706')
+            ->assertJsonPath('theme.heading_font', 'Playfair Display');
+
+        // Not a colour, an unknown colour slot, a font we do not offer.
+        $this->putJson('/api/v1/site-builder/theme', ['colors' => ['primary' => 'red'] + $colors])->assertUnprocessable()->assertJsonValidationErrors('colors.primary');
+        $this->putJson('/api/v1/site-builder/theme', ['colors' => $colors + ['evil' => '#000000']])->assertUnprocessable()->assertJsonValidationErrors('colors');
+        $this->putJson('/api/v1/site-builder/theme', ['heading_font' => 'Comic Sans MS'])->assertUnprocessable()->assertJsonValidationErrors('heading_font');
+        $this->putJson('/api/v1/site-builder/theme', ['palette' => 'x" onload="'])->assertUnprocessable();
+
+        $this->postJson('/api/v1/site-builder/publish')->assertCreated();
+        $this->getJson('/api/v1/site/spice')
+            ->assertJsonPath('theme.colors.base', '#FFFBF5')
+            ->assertJsonPath('fonts.heading', ['name' => 'Playfair Display', 'category' => 'serif', 'weights' => '400;700'])
+            ->assertJsonPath('fonts.body.name', 'Lato');
+    }
+
+    #[Test]
+    public function a_version_from_before_font_pairs_still_reads_and_is_not_a_change(): void
+    {
+        $this->asRole(RoleDefinitions::RESTAURANT_ADMIN)->getJson('/api/v1/site-pages')->assertOk();
+        $this->postJson('/api/v1/site-builder/publish')->assertCreated();
+
+        // As the versions migration wrote them: a palette name and one style.
+        SiteVersion::withoutGlobalScopes()->get()->each(function ($v) {
+            $snapshot = $v->snapshot;
+            $snapshot['theme'] = ['palette' => 'emerald', 'font' => 'modern', 'header_order_button' => true, 'footer_social' => true, 'footer_text' => ''];
+            $v->forceFill(['snapshot' => $snapshot])->save();
+        });
+
+        $this->getJson('/api/v1/site/spice')->assertJsonPath('theme.heading_font', 'Inter')->assertJsonPath('theme.colors', null);
+        $this->getJson('/api/v1/site-pages')->assertJsonPath('site.has_unpublished_changes', false);
     }
 }

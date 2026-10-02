@@ -28,12 +28,6 @@ final class SiteSections
     /** Background choices, shared by every section; colours come from the theme. */
     private const BACKGROUNDS = ['default', 'muted', 'brand', 'dark'];
 
-    /** Site-wide colour palettes. The colours themselves live in the front's theme map. */
-    public const PALETTES = ['emerald', 'saffron', 'crimson', 'ocean', 'charcoal'];
-
-    /** Site-wide type styles. */
-    public const FONTS = ['modern', 'rounded', 'classic', 'bangla'];
-
     /** Most photos a Gallery may hold. */
     public const MAX_GALLERY = 12;
 

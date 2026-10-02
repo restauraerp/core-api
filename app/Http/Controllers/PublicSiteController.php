@@ -16,6 +16,7 @@ use App\Support\Branding\RestaurantBranding;
 use App\Support\Site\Conversion;
 use App\Support\Site\SiteDraft;
 use App\Support\Site\SiteSections;
+use App\Support\Site\SiteTheme;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -76,6 +77,8 @@ class PublicSiteController extends Controller
                     'currency' => $branding['currency'] ?? '৳',
                 ],
                 'theme' => $theme,
+                // The two fonts' categories and weights, to load and fall back.
+                'fonts' => SiteTheme::fontFaces($theme),
                 'version' => $site['version'],
                 'tracking' => SiteIntegration::current()?->publicTags(),
                 // Navigation: the published pages, home first.
