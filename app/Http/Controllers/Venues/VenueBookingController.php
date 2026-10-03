@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Venues;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\Venues\EmailVenueGuest;
 use App\Models\Customer;
 use App\Models\Hall;
 use App\Models\VenueBooking;
@@ -129,6 +130,7 @@ class VenueBookingController extends Controller
             'customer_id' => $customer->id,
             'guest_name' => $v['name'],
             'guest_phone' => $phone,
+            'guest_email' => isset($v['email']) ? mb_strtolower(trim($v['email'])) : null,
             'event_type' => $v['event_type'],
             'event_title' => $v['event_title'] ?? null,
             'starts_at' => $start,
@@ -147,6 +149,11 @@ class VenueBookingController extends Controller
             'handled_by' => $status === VenueBooking::CONFIRMED ? $request->user()->getKey() : null,
             'handled_at' => $status === VenueBooking::CONFIRMED ? now() : null,
         ]);
+
+        // Taken by phone and confirmed on the spot: the guest gets it in writing.
+        if ($status === VenueBooking::CONFIRMED) {
+            EmailVenueGuest::notify($booking, 'confirmed');
+        }
 
         return response()->json($this->detail($booking), 201);
     }
@@ -208,6 +215,9 @@ class VenueBookingController extends Controller
         if (isset($v['phone'])) {
             $changes['guest_phone'] = Phone::normalise($v['phone']) ?? $v['phone'];
         }
+        if (array_key_exists('email', $v)) {
+            $changes['guest_email'] = $v['email'] ? mb_strtolower(trim($v['email'])) : null;
+        }
 
         $venueBooking->update($changes);
 
@@ -243,9 +253,35 @@ class VenueBookingController extends Controller
             $changes += ['decline_reason' => null, 'handled_by' => null, 'handled_at' => null];
         }
 
+        $from = $venueBooking->status;
         $venueBooking->update($changes);
 
+        // The guest hears about the moves that change things for them.
+        if ($from !== $to && in_array($to, [VenueBooking::CONFIRMED, VenueBooking::DECLINED, VenueBooking::CANCELLED], true)) {
+            EmailVenueGuest::notify($venueBooking, strtolower($to));
+        }
+
         return response()->json($this->detail($venueBooking->fresh()));
+    }
+
+    /**
+     * POST /venue-bookings/{id}/email - sends the guest the quotation (a
+     * tentative booking) or the confirmation (a confirmed one) now.
+     */
+    public function email(Request $request, VenueBooking $venueBooking): JsonResponse
+    {
+        $this->authorizeManage($request);
+
+        if (! $venueBooking->guest_email) {
+            throw ValidationException::withMessages(['email' => ['Add the guest\'s email to the booking first.']]);
+        }
+        if (! in_array($venueBooking->status, [VenueBooking::PENDING, VenueBooking::CONFIRMED, VenueBooking::COMPLETED], true)) {
+            throw ValidationException::withMessages(['email' => ['There is nothing to send for a '.strtolower($venueBooking->status).' booking.']]);
+        }
+
+        EmailVenueGuest::notify($venueBooking, $venueBooking->status === VenueBooking::PENDING ? 'quotation' : 'confirmed');
+
+        return response()->json(['queued' => true, 'to' => $venueBooking->guest_email]);
     }
 
     /** POST /venue-bookings/{id}/called */
@@ -275,6 +311,8 @@ class VenueBookingController extends Controller
         }
 
         $venueBooking->payments()->create($v + ['paid_at' => now(), 'received_by' => $request->user()->getKey()]);
+        // A receipt, with what is still due.
+        EmailVenueGuest::notify($venueBooking, 'payment');
 
         return response()->json($this->detail($venueBooking->fresh()), 201);
     }
@@ -330,8 +368,10 @@ class VenueBookingController extends Controller
     {
         return [
             'name' => [$required, 'string', 'max:100'],
-            // The number staff call - always required.
+            // The number staff call - always required, never verified.
             'phone' => [$required, 'string', 'max:20', PhoneNumber::mobile()],
+            // Where booking emails go: confirmed, declined, payments.
+            'email' => ['nullable', 'email:rfc', 'max:191'],
             'event_title' => ['nullable', 'string', 'max:150'],
             'notes' => ['nullable', 'string', 'max:2000'],
         ];
@@ -421,6 +461,7 @@ class VenueBookingController extends Controller
             'next' => VenueBooking::TRANSITIONS[$b->status] ?? [],
             'guest_name' => $b->guest_name,
             'guest_phone' => $b->guest_phone,
+            'guest_email' => $b->guest_email,
             'event_type' => $b->event_type,
             'event_title' => $b->event_title,
             'guests' => $b->guests,
@@ -458,6 +499,7 @@ class VenueBookingController extends Controller
             'handled_at' => $b->handled_at?->toIso8601String(),
             'called_at' => $b->called_at?->toIso8601String(),
             'called_by' => $b->caller?->name,
+            'last_emailed_at' => $b->last_emailed_at?->toIso8601String(),
             'payments' => $b->payments->map(fn (VenueBookingPayment $p) => [
                 'id' => $p->id,
                 'amount' => (float) $p->amount,

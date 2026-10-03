@@ -12,6 +12,7 @@ use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantProvisioner;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -236,11 +237,13 @@ class VenueBookingTest extends TestCase
     public function a_website_enquiry_arrives_as_a_tentative_booking(): void
     {
         $enquiry = fn (array $o = []) => $this->postJson('/api/v1/site/spice/venue-enquiries', array_merge([
-            'name' => 'Nadia', 'phone' => '01711000999', 'hall_id' => $this->hall->id, 'event_type' => 'birthday',
+            'name' => 'Nadia', 'email' => 'nadia@example.com', 'phone' => '01711000999', 'hall_id' => $this->hall->id, 'event_type' => 'birthday',
             'date' => $this->day(20), 'start_time' => '17:00', 'end_time' => '21:00', 'guests' => 60, 'notes' => 'Kids party',
         ], $o));
 
         $enquiry(['phone' => null])->assertUnprocessable()->assertJsonValidationErrors('phone');
+        $enquiry(['email' => null])->assertUnprocessable()->assertJsonValidationErrors('email');
+        $enquiry(['email' => 'not-an-email'])->assertUnprocessable()->assertJsonValidationErrors('email');
         $enquiry(['date' => now()->subDay()->format('Y-m-d')])->assertUnprocessable()->assertJsonValidationErrors('date');
 
         $id = $enquiry()->assertCreated()->assertJsonPath('venue', 'Grand Hall')->json('enquiry_id');
@@ -288,5 +291,61 @@ class VenueBookingTest extends TestCase
             ->firstWhere('source', 'venue_bookings');
         $this->assertSame(30000, (int) $line['total']);
         $this->assertSame(1, $line['entries']);
+    }
+
+    #[Test]
+    public function the_guest_is_kept_informed_by_email(): void
+    {
+        config(['platform.website_url' => 'https://website.test', 'platform.token' => 'secret']);
+        Http::fake(['website.test/*' => Http::response(['status' => 'queued'])]);
+        $sent = fn () => collect(Http::recorded())
+            ->map(fn ($pair) => $pair[0])
+            ->filter(fn ($r) => str_ends_with($r->url(), '/api/notifications/venue-booking'))
+            ->values();
+
+        // A website enquiry: "we have it".
+        $id = $this->postJson('/api/v1/site/spice/venue-enquiries', [
+            'name' => 'Nadia', 'email' => 'Nadia@Example.com', 'phone' => '01711000999', 'hall_id' => $this->hall->id, 'event_type' => 'birthday',
+            'date' => $this->day(20), 'start_time' => '17:00', 'end_time' => '21:00', 'guests' => 60,
+        ])->assertCreated()->json('enquiry_id');
+
+        $first = $sent()->last();
+        $this->assertSame('received', $first['kind']);
+        $this->assertSame('nadia@example.com', $first['guest']['email']);
+        $this->assertSame('Spice Garden', $first['restaurant']['name']);
+        $this->assertSame('Bearer secret', $first->header('Authorization')[0]);
+
+        // Staff send the quotation, then confirm, then take a payment.
+        $this->postJson("/api/v1/venue-bookings/{$id}/email")->assertOk()->assertJsonPath('to', 'nadia@example.com');
+        $this->assertSame('quotation', $sent()->last()['kind']);
+
+        $this->postJson("/api/v1/venue-bookings/{$id}/status", ['status' => 'Confirmed'])->assertOk();
+        $this->assertSame('confirmed', $sent()->last()['kind']);
+
+        $this->postJson("/api/v1/venue-bookings/{$id}/payments", ['amount' => 5000, 'method' => 'bkash'])->assertCreated();
+        $receipt = $sent()->last();
+        $this->assertSame('payment', $receipt['kind']);
+        $this->assertSame(5000, (int) $receipt['payment']['amount']);
+        $this->assertSame(15000, (int) $receipt['due']);
+
+        $this->getJson("/api/v1/venue-bookings/{$id}")->assertJsonPath('last_emailed_at', fn ($v) => $v !== null);
+        $this->assertCount(4, $sent());
+
+        // Confirming an already confirmed booking changes nothing and sends nothing.
+        $this->postJson("/api/v1/venue-bookings/{$id}/status", ['status' => 'Confirmed'])->assertOk();
+        $this->assertCount(4, $sent());
+    }
+
+    #[Test]
+    public function no_email_no_message_and_staff_are_told(): void
+    {
+        config(['platform.website_url' => 'https://website.test', 'platform.token' => 'secret']);
+        Http::fake();
+
+        $id = $this->postJson('/api/v1/venue-bookings', $this->booking(['status' => 'Confirmed']))->assertCreated()->json('id');
+
+        Http::assertNothingSent();
+        $this->postJson("/api/v1/venue-bookings/{$id}/email")->assertUnprocessable()->assertJsonValidationErrors('email');
+        $this->putJson("/api/v1/venue-bookings/{$id}", $this->booking(['email' => 'bad']))->assertUnprocessable()->assertJsonValidationErrors('email');
     }
 }

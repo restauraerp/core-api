@@ -42,7 +42,7 @@ class VenueBooking extends Model
     public const EVENT_TYPES = ['birthday', 'wedding', 'holud', 'aqiqah', 'engagement', 'anniversary', 'corporate', 'meeting', 'reunion', 'other'];
 
     protected $fillable = [
-        'location_id', 'hall_id', 'customer_id', 'guest_name', 'guest_phone',
+        'location_id', 'hall_id', 'customer_id', 'guest_name', 'guest_phone', 'guest_email', 'last_emailed_at',
         'event_type', 'event_title', 'starts_at', 'ends_at', 'guests',
         'package_id', 'package_name', 'package_price', 'rent_amount', 'extras', 'discount', 'total',
         'status', 'source', 'notes', 'decline_reason', 'handled_by', 'handled_at', 'called_at', 'called_by',
@@ -59,6 +59,7 @@ class VenueBooking extends Model
         'total' => 'float',
         'handled_at' => 'datetime',
         'called_at' => 'datetime',
+        'last_emailed_at' => 'datetime',
     ];
 
     public function canMoveTo(string $status): bool

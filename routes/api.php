@@ -467,6 +467,7 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('venue-bookings', VenueBookingController::class);
             Route::post('venue-bookings/{venueBooking}/status', [VenueBookingController::class, 'status']);
             Route::post('venue-bookings/{venueBooking}/called', [VenueBookingController::class, 'called']);
+            Route::post('venue-bookings/{venueBooking}/email', [VenueBookingController::class, 'email'])->middleware('throttle:20,1');
             Route::post('venue-bookings/{venueBooking}/payments', [VenueBookingController::class, 'addPayment']);
             Route::delete('venue-bookings/{venueBooking}/payments/{payment}', [VenueBookingController::class, 'removePayment']);
             Route::apiResource('quotations', QuotationController::class);

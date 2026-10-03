@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\Venues\EmailVenueGuest;
 use App\Models\Customer;
 use App\Models\GoogleBusinessConnection;
 use App\Models\GoogleReview;
@@ -240,8 +241,8 @@ class PublicSiteController extends Controller
      *
      * Arrives in Venues as a tentative booking, source 'website', priced at
      * the venue's rent alone - the restaurant adds food and extras when it
-     * calls back. Tentative bookings may overlap; whoever confirms first
-     * holds the hall.
+     * gets back to the guest. Tentative bookings may overlap; whoever confirms
+     * first holds the hall. The guest is kept informed by email.
      */
     public function venueEnquiry(Request $request, string $code): JsonResponse
     {
@@ -254,6 +255,9 @@ class PublicSiteController extends Controller
         return $this->context->runFor($tenant, function () use ($request) {
             $v = $request->validate([
                 'name' => ['required', 'string', 'max:100'],
+                // Everything about the booking is sent here - no phone or
+                // WhatsApp verification. The phone is a contact number only.
+                'email' => ['required', 'email:rfc', 'max:191'],
                 'phone' => ['required', 'string', 'max:20', PhoneNumber::mobile()],
                 'hall_id' => ['required', 'integer'],
                 'event_type' => ['required', Rule::in(VenueBooking::EVENT_TYPES)],
@@ -287,6 +291,7 @@ class PublicSiteController extends Controller
                 'customer_id' => $customer->id,
                 'guest_name' => $v['name'],
                 'guest_phone' => $phone,
+                'guest_email' => mb_strtolower(trim($v['email'])),
                 'event_type' => $v['event_type'],
                 'starts_at' => $start,
                 'ends_at' => $end,
@@ -299,6 +304,8 @@ class PublicSiteController extends Controller
             ]);
 
             PublicOrderController::reportConversion(Conversion::forVenueEnquiry($booking, $request));
+            // "We have your enquiry" - and the address to reply to.
+            EmailVenueGuest::notify($booking, 'received');
 
             return response()->json([
                 'enquiry_id' => $booking->id,

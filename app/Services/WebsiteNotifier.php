@@ -90,7 +90,17 @@ class WebsiteNotifier
         ]);
     }
 
-    private function post(string $path, array $payload): void
+    /**
+     * Asks the website to email a venue booking's guest - see EmailVenueGuest.
+     *
+     * @return bool whether the website took it
+     */
+    public function venueBooking(array $payload): bool
+    {
+        return $this->post('notifications/venue-booking', $payload);
+    }
+
+    private function post(string $path, array $payload): bool
     {
         $website = rtrim((string) config('platform.website_url'), '/');
         $secret = (string) config('platform.token');
@@ -98,7 +108,7 @@ class WebsiteNotifier
         if ($website === '' || $secret === '') {
             Log::warning("Cannot notify the website ({$path}): website URL or platform token missing.");
 
-            return;
+            return false;
         }
 
         try {
@@ -110,9 +120,15 @@ class WebsiteNotifier
 
             if ($response->failed()) {
                 Log::error("Website refused {$path}: ".$response->status().' '.$response->body());
+
+                return false;
             }
+
+            return true;
         } catch (\Throwable $e) {
             Log::error("Failed to reach the website for {$path}: ".$e->getMessage());
+
+            return false;
         }
     }
 }
