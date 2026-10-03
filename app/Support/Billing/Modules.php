@@ -125,7 +125,7 @@ class Modules
             self::INVENTORY => ['view_inventory', 'create_inventory_item', 'update_inventory_item', 'delete_inventory_item'],
             self::ACCOUNTING => ['view_accounting', 'manage_ledgers', 'manage_expenses', 'manage_incomes'],
             self::REPORTING => ['view_reporting'],
-            self::CRM => ['view_crm', 'manage_customers', 'manage_loyalty_settings', 'manage_reservations'],
+            self::CRM => ['view_crm', 'manage_customers', 'manage_loyalty_settings', 'manage_reservations', 'manage_venue_bookings'],
             self::HR => ['view_hr', 'manage_employees', 'manage_attendance', 'manage_leaves', 'manage_payroll'],
             // manage_integrations: the Telegram bot riders are notified through.
             self::DELIVERY => ['view_delivery', 'update_delivery_status', 'manage_integrations'],

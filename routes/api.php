@@ -70,6 +70,9 @@ use App\Http\Controllers\StorageUnitItemController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\TableController;
+use App\Http\Controllers\Venues\VenueBookingController;
+use App\Http\Controllers\Venues\VenueController;
+use App\Http\Controllers\Venues\VenuePackageController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\TaxRuleController;
 use App\Http\Controllers\UpgradeLinkController;
@@ -453,6 +456,16 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('reservations', ReservationController::class);
             Route::post('reservations/{reservation}/status', [ReservationController::class, 'status']);
             Route::post('reservations/{reservation}/called', [ReservationController::class, 'called']);
+
+            // Venue booking: halls hired out for events.
+            Route::apiResource('venues', VenueController::class)->except(['show']);
+            Route::apiResource('venue-packages', VenuePackageController::class)->except(['show'])->parameters(['venue-packages' => 'package']);
+            Route::post('venue-bookings/quote', [VenueBookingController::class, 'quote']);
+            Route::apiResource('venue-bookings', VenueBookingController::class);
+            Route::post('venue-bookings/{venueBooking}/status', [VenueBookingController::class, 'status']);
+            Route::post('venue-bookings/{venueBooking}/called', [VenueBookingController::class, 'called']);
+            Route::post('venue-bookings/{venueBooking}/payments', [VenueBookingController::class, 'addPayment']);
+            Route::delete('venue-bookings/{venueBooking}/payments/{payment}', [VenueBookingController::class, 'removePayment']);
             Route::apiResource('quotations', QuotationController::class);
             Route::apiResource('quotations.items', QuotationItemController::class)->shallow();
         });
