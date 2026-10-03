@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\Bookings\EmailTableGuest;
 use App\Models\Customer;
 use App\Models\Reservation;
 use App\Models\Table;
@@ -104,6 +105,7 @@ class ReservationController extends Controller
             'table_id' => $validated['table_id'] ?? null,
             'guest_name' => $validated['name'],
             'guest_phone' => $phone,
+            'guest_email' => isset($validated['email']) ? mb_strtolower(trim($validated['email'])) : null,
             'reservation_date' => $at,
             'guest_count' => $validated['guests'],
             'notes' => $validated['notes'] ?? null,
@@ -112,6 +114,11 @@ class ReservationController extends Controller
             'handled_by' => $status === Reservation::CONFIRMED ? $request->user()->getKey() : null,
             'handled_at' => $status === Reservation::CONFIRMED ? now() : null,
         ]);
+
+        // Taken by phone and approved on the spot: the guest gets it in writing.
+        if ($status === Reservation::CONFIRMED) {
+            EmailTableGuest::notify($reservation, 'confirmed');
+        }
 
         return response()->json($this->present($reservation->fresh(['location', 'table', 'handler', 'caller'])), 201);
     }
@@ -154,6 +161,9 @@ class ReservationController extends Controller
         }
         if (array_key_exists('notes', $validated)) {
             $changes['notes'] = $validated['notes'];
+        }
+        if (array_key_exists('email', $validated)) {
+            $changes['guest_email'] = $validated['email'] ? mb_strtolower(trim($validated['email'])) : null;
         }
 
         $reservation->update($changes);
@@ -201,6 +211,11 @@ class ReservationController extends Controller
 
         $reservation->update($changes);
 
+        // The guest hears about the moves that change things for them.
+        if (in_array($to, [Reservation::CONFIRMED, Reservation::DECLINED, Reservation::CANCELLED], true)) {
+            EmailTableGuest::notify($reservation, strtolower($to));
+        }
+
         return response()->json($this->present($reservation->fresh(['location', 'table', 'handler', 'caller'])));
     }
 
@@ -228,8 +243,10 @@ class ReservationController extends Controller
     {
         return [
             'name' => ['required', 'string', 'max:100'],
-            // The number staff call to confirm - always required.
+            // The number staff call to confirm - always required, never verified.
             'phone' => ['required', 'string', 'max:20', PhoneNumber::mobile()],
+            // Where booking emails go: approved, declined, cancelled.
+            'email' => ['nullable', 'email:rfc', 'max:191'],
             'location_id' => ['required', 'integer', $this->tenantExists('locations')],
             'table_id' => ['nullable', 'integer', $this->tenantExists('tables')],
             'date' => ['required', 'date_format:Y-m-d'],
@@ -278,6 +295,7 @@ class ReservationController extends Controller
             'next' => Reservation::TRANSITIONS[$r->status] ?? [],
             'guest_name' => $r->guest_name,
             'guest_phone' => $r->guest_phone,
+            'guest_email' => $r->guest_email,
             'guests' => $r->guest_count,
             'at' => $at?->toIso8601String(),
             // In the restaurant's own time, whatever the viewer's browser says.
@@ -292,6 +310,7 @@ class ReservationController extends Controller
             'handled_at' => $r->handled_at?->toIso8601String(),
             'called_at' => $r->called_at?->toIso8601String(),
             'called_by' => $r->caller?->name,
+            'last_emailed_at' => $r->last_emailed_at?->toIso8601String(),
             'created_at' => $r->created_at?->toIso8601String(),
         ];
     }

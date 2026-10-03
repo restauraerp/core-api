@@ -186,7 +186,7 @@ class SiteIntegrationTest extends TestCase
         $location = $this->inTenant(fn () => Location::query()->firstOrFail());
 
         $id = $this->postJson('/api/v1/site/spice/reservations', [
-            'name' => 'Rina', 'phone' => '01811223344', 'location_id' => $location->id,
+            'name' => 'Rina', 'email' => 'rina@example.com', 'phone' => '01811223344', 'location_id' => $location->id,
             'date' => now()->addDay()->format('Y-m-d'), 'time' => '19:30', 'guests' => 2,
         ])->assertCreated()->json('reservation_id');
 

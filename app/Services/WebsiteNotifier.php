@@ -100,6 +100,16 @@ class WebsiteNotifier
         return $this->post('notifications/venue-booking', $payload);
     }
 
+    /**
+     * Asks the website to email a table booking's guest - see EmailTableGuest.
+     *
+     * @return bool whether the website took it
+     */
+    public function tableBooking(array $payload): bool
+    {
+        return $this->post('notifications/table-booking', $payload);
+    }
+
     private function post(string $path, array $payload): bool
     {
         $website = rtrim((string) config('platform.website_url'), '/');

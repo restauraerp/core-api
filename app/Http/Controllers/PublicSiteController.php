@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\Bookings\EmailTableGuest;
 use App\Jobs\Venues\EmailVenueGuest;
 use App\Models\Customer;
 use App\Models\GoogleBusinessConnection;
@@ -192,6 +193,9 @@ class PublicSiteController extends Controller
         return $this->context->runFor($tenant, function () use ($request) {
             $validated = $request->validate([
                 'name' => ['required', 'string', 'max:100'],
+                // The guest is kept informed by email; the phone is the number
+                // staff call to confirm - neither is verified.
+                'email' => ['required', 'email:rfc', 'max:191'],
                 'phone' => ['required', 'string', 'max:20', PhoneNumber::mobile()],
                 'location_id' => ['required', 'integer'],
                 'date' => ['required', 'date_format:Y-m-d'],
@@ -218,6 +222,7 @@ class PublicSiteController extends Controller
                 // The booking's own copy: the number staff call to confirm.
                 'guest_name' => $validated['name'],
                 'guest_phone' => Phone::normalise($validated['phone']) ?? $validated['phone'],
+                'guest_email' => mb_strtolower(trim($validated['email'])),
                 'reservation_date' => $at,
                 'guest_count' => $validated['guests'],
                 'status' => 'Pending',
@@ -226,6 +231,8 @@ class PublicSiteController extends Controller
             ]);
 
             PublicOrderController::reportConversion(Conversion::forReservation($reservation, $request, $validated['name'], $validated['phone']));
+            // "We have your request" - not yet a booked table.
+            EmailTableGuest::notify($reservation, 'received');
 
             return response()->json([
                 'reservation_id' => $reservation->id,

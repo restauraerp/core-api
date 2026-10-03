@@ -262,7 +262,7 @@ class SiteBuilderTest extends TestCase
         $location = app(TenantContext::class)->runFor($this->tenant, fn () => Location::query()->firstOrFail());
         $tomorrow = now()->addDay()->format('Y-m-d');
         $request = fn (array $overrides = []) => $this->postJson('/api/v1/site/spice/reservations', array_merge([
-            'name' => 'Rahim', 'phone' => '01711223344', 'location_id' => $location->id,
+            'name' => 'Rahim', 'email' => 'rahim@example.com', 'phone' => '01711223344', 'location_id' => $location->id,
             'date' => $tomorrow, 'time' => '19:30', 'guests' => 4, 'notes' => 'Window seat',
         ], $overrides));
 

@@ -13,6 +13,8 @@ use App\Support\Tenancy\TenantContext;
 use App\Support\Tenancy\TenantProvisioner;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -65,7 +67,7 @@ class ReservationManagementTest extends TestCase
     private function websiteRequest(array $overrides = []): int
     {
         return $this->postJson('/api/v1/site/spice/reservations', array_merge([
-            'name' => 'Rahim Uddin', 'phone' => '01711223344', 'location_id' => $this->location->id,
+            'name' => 'Rahim Uddin', 'email' => 'rahim@example.com', 'phone' => '01711223344', 'location_id' => $this->location->id,
             'date' => now()->addDays(2)->format('Y-m-d'), 'time' => '19:30', 'guests' => 4, 'notes' => 'Birthday',
         ], $overrides))->assertCreated()->json('reservation_id');
     }
@@ -76,7 +78,7 @@ class ReservationManagementTest extends TestCase
         $this->postJson('/api/v1/site/spice/reservations', [
             'name' => 'No Phone', 'location_id' => $this->location->id,
             'date' => now()->addDay()->format('Y-m-d'), 'time' => '19:00', 'guests' => 2,
-        ])->assertUnprocessable()->assertJsonValidationErrors('phone');
+        ])->assertUnprocessable()->assertJsonValidationErrors(['phone', 'email']);
 
         $id = $this->websiteRequest();
 
@@ -221,5 +223,59 @@ class ReservationManagementTest extends TestCase
 
         $this->getJson("/api/v1/reservations/{$id}")->assertJsonPath('time', '21:45');
         $this->assertSame(Reservation::PENDING, $this->inTenant(fn () => Reservation::find($id)->status));
+    }
+
+    #[Test]
+    public function the_guest_is_kept_informed_by_email(): void
+    {
+        config(['platform.website_url' => 'https://website.test', 'platform.token' => 'secret']);
+        Http::fake(['website.test/*' => Http::response(['status' => 'queued'])]);
+        $sent = fn () => collect(Http::recorded())
+            ->map(fn ($pair) => $pair[0])
+            ->filter(fn ($r) => str_ends_with($r->url(), '/api/notifications/table-booking'))
+            ->values();
+
+        $id = $this->websiteRequest(['email' => 'Rahim@Example.com']);
+        $this->assertSame('received', $sent()->last()['kind']);
+        $this->assertSame('rahim@example.com', $sent()->last()['guest']['email']);
+        $this->assertSame(4, $sent()->last()['booking']['guests']);
+
+        $table = $this->inTenant(fn () => Table::create(['location_id' => $this->location->id, 'name' => 'T9', 'capacity' => 4]));
+        $this->postJson("/api/v1/reservations/{$id}/status", ['status' => 'Confirmed', 'table_id' => $table->id])->assertOk();
+        $confirmed = $sent()->last();
+        $this->assertSame('confirmed', $confirmed['kind']);
+        $this->assertSame('T9', $confirmed['booking']['table']);
+        $this->assertSame('19:30', Carbon::parse($confirmed['booking']['time'])->format('H:i'));
+
+        // Seating them is not news to the guest.
+        $this->postJson("/api/v1/reservations/{$id}/status", ['status' => 'Seated'])->assertOk();
+        $this->assertCount(2, $sent());
+
+        $this->getJson("/api/v1/reservations/{$id}")->assertJsonPath('guest_email', 'rahim@example.com')->assertJsonPath('last_emailed_at', fn ($v) => $v !== null);
+
+        // Declined, with the reason.
+        $other = $this->websiteRequest(['email' => 'sumi@example.com', 'phone' => '01912345678']);
+        $this->postJson("/api/v1/reservations/{$other}/status", ['status' => 'Declined', 'reason' => 'Fully booked'])->assertOk();
+        $this->assertSame('declined', $sent()->last()['kind']);
+        $this->assertSame('Fully booked', $sent()->last()['reason']);
+    }
+
+    #[Test]
+    public function a_staff_booking_without_an_email_sends_nothing(): void
+    {
+        config(['platform.website_url' => 'https://website.test', 'platform.token' => 'secret']);
+        Http::fake();
+
+        $this->postJson('/api/v1/reservations', [
+            'name' => 'Walk In', 'phone' => '01811223344', 'location_id' => $this->location->id,
+            'date' => now()->addDay()->format('Y-m-d'), 'time' => '13:00', 'guests' => 2,
+        ])->assertCreated()->assertJsonPath('guest_email', null);
+
+        Http::assertNothingSent();
+
+        $this->postJson('/api/v1/reservations', [
+            'name' => 'Bad', 'phone' => '01811223344', 'email' => 'nope', 'location_id' => $this->location->id,
+            'date' => now()->addDay()->format('Y-m-d'), 'time' => '13:00', 'guests' => 2,
+        ])->assertUnprocessable()->assertJsonValidationErrors('email');
     }
 }

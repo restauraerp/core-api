@@ -61,6 +61,7 @@ class Reservation extends Model
         'table_id',
         'guest_name',
         'guest_phone',
+        'guest_email',
         'reservation_date',
         'guest_count',
         'status',
@@ -71,6 +72,7 @@ class Reservation extends Model
         'handled_at',
         'called_at',
         'called_by',
+        'last_emailed_at',
     ];
 
     protected function casts(): array
@@ -79,6 +81,7 @@ class Reservation extends Model
             'reservation_date' => 'datetime',
             'handled_at' => 'datetime',
             'called_at' => 'datetime',
+            'last_emailed_at' => 'datetime',
             'guest_count' => 'integer',
         ];
     }
