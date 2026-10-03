@@ -7,6 +7,7 @@ use App\Models\Hall;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\RoomType;
 use App\Models\Tenant;
 use App\Support\Billing\Modules;
 use App\Support\Branding\RestaurantBranding;
@@ -34,7 +35,7 @@ class SiteDraft
     private const MIN_FEATURED = 3;
 
     /** The standard pages, in the order they appear in the site's navigation. */
-    public const KINDS = ['home', 'menu', 'order', 'reservations', 'events', 'about', 'gallery', 'locations', 'contact'];
+    public const KINDS = ['home', 'menu', 'order', 'reservations', 'rooms', 'events', 'about', 'gallery', 'locations', 'contact'];
 
     private ?array $facts = null;
 
@@ -91,6 +92,11 @@ class SiteDraft
                 ['type' => 'reservations', 'props' => ['heading' => 'Book a table']],
                 ['type' => 'contact', 'props' => ['heading' => 'Rather call?', 'background' => 'muted']],
             ], "Book a table at {$name}."] : null,
+            // Only for a restaurant with the hotel module and rooms to let.
+            'rooms' => $f['rooms'] > 0 ? ['Rooms', [
+                ['type' => 'rooms'],
+                ['type' => 'contact', 'props' => ['heading' => 'Questions about your stay?', 'background' => 'muted']],
+            ], "Rooms at {$name} - check what is free and book online."] : null,
             // Only for a restaurant with CRM and venues to hire.
             'events' => $f['books'] && $f['venues'] > 0 ? ['Events', [
                 ['type' => 'venues', 'props' => ['heading' => $f['venues'] > 1 ? 'Our venues' : 'Host your event with us']],
@@ -151,6 +157,7 @@ class SiteDraft
             'branches' => Location::where('is_active', true)->orderBy('name')->get(['id', 'name', 'address']),
             'reviews' => GoogleReview::where('is_displayed', true)->exists(),
             'venues' => Hall::where('is_active', true)->count(),
+            'rooms' => in_array(Modules::HOTEL, $modules, true) ? RoomType::where('is_active', true)->count() : 0,
             'delivers' => in_array(Modules::DELIVERY, $modules, true),
             'books' => in_array(Modules::CRM, $modules, true),
         ];

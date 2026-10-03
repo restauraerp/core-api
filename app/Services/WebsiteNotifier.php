@@ -110,6 +110,16 @@ class WebsiteNotifier
         return $this->post('notifications/table-booking', $payload);
     }
 
+    /**
+     * Asks the website to email a room booking's guest - see EmailRoomGuest.
+     *
+     * @return bool whether the website took it
+     */
+    public function roomBooking(array $payload): bool
+    {
+        return $this->post('notifications/room-booking', $payload);
+    }
+
     private function post(string $path, array $payload): bool
     {
         $website = rtrim((string) config('platform.website_url'), '/');

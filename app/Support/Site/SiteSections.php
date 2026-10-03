@@ -168,6 +168,18 @@ final class SiteSections
                     'background' => $background,
                 ],
             ],
+            'rooms' => [
+                'label' => 'Hotel rooms',
+                'kind' => 'live',
+                'requires' => 'hotel',
+                'description' => 'Your room types with photos and rates, from Hotel - guests pick dates, see what is free and request a booking with their phone number.',
+                'fields' => [
+                    'heading' => ['type' => 'text', 'label' => 'Heading', 'max' => 120, 'default' => 'Stay with us'],
+                    'intro' => ['type' => 'textarea', 'label' => 'Text above the rooms', 'max' => 500, 'default' => 'Comfortable rooms, a short walk from the table. Choose your dates to see what is free.'],
+                    'show_prices' => ['type' => 'bool', 'label' => 'Show nightly rates', 'default' => true],
+                    'background' => $background,
+                ],
+            ],
             'facebook_posts' => [
                 'label' => 'Facebook posts',
                 'kind' => 'live',

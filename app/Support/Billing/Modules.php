@@ -39,6 +39,9 @@ class Modules
 
     public const WEBSITE = 'website';
 
+    /** Hotel rooms: room types, rooms, room bookings - for restaurants that also run a hotel. */
+    public const HOTEL = 'hotel';
+
     /**
      * The six every tier includes.
      *
@@ -83,7 +86,27 @@ class Modules
         self::KITCHEN_KIOSK,
         self::LOCATIONS,
         self::WEBSITE,
+        self::HOTEL,
     ];
+
+    /**
+     * Modules a restaurant only has when it is given them - in a custom
+     * package - never by its tier: most restaurants have no rooms to let,
+     * and a Hotel menu would only be in their way.
+     *
+     * @var list<string>
+     */
+    public const ADD_ONS = [self::HOTEL];
+
+    /**
+     * What a tier that "includes everything" includes: all but the add-ons.
+     *
+     * @return list<string>
+     */
+    public static function standard(): array
+    {
+        return array_values(array_diff(self::ALL, self::ADD_ONS));
+    }
 
     /**
      * What each module is called on the pricing page and in the admin panel.
@@ -103,6 +126,7 @@ class Modules
             self::KITCHEN_KIOSK => 'Kitchen Kiosk',
             self::LOCATIONS => 'Locations',
             self::WEBSITE => 'Website',
+            self::HOTEL => 'Hotel rooms',
             default => ucfirst(str_replace('_', ' ', $module)),
         };
     }
@@ -132,6 +156,7 @@ class Modules
             self::KITCHEN_KIOSK => ['view_kitchen_kiosk', 'update_kiosk_status'],
             self::LOCATIONS => ['view_locations', 'create_location', 'update_location', 'delete_location'],
             self::WEBSITE => ['view_website', 'manage_website_content'],
+            self::HOTEL => ['manage_hotel'],
         ];
     }
 

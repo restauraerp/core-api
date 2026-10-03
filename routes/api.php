@@ -70,6 +70,9 @@ use App\Http\Controllers\StorageUnitItemController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\TableController;
+use App\Http\Controllers\Hotel\HotelSetupController;
+use App\Http\Controllers\Hotel\RoomBookingController;
+use App\Http\Controllers\PublicHotelController;
 use App\Http\Controllers\Venues\VenueBookingController;
 use App\Http\Controllers\Venues\VenueController;
 use App\Http\Controllers\Venues\VenuePackageController;
@@ -170,6 +173,13 @@ Route::prefix('v1')->group(function () {
         ->middleware('throttle:120,1')
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
 
+    // A hotel's rooms on its website: what is free, and a booking request.
+    Route::get('site/{code}/rooms', [PublicHotelController::class, 'rooms'])
+        ->middleware('throttle:60,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+    Route::post('site/{code}/room-requests', [PublicHotelController::class, 'request'])
+        ->middleware('throttle:10,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
     Route::post('site/{code}/venue-enquiries', [PublicSiteController::class, 'venueEnquiry'])
         ->middleware('throttle:10,1')
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
@@ -460,6 +470,34 @@ Route::prefix('v1')->group(function () {
             Route::post('reservations/{reservation}/status', [ReservationController::class, 'status']);
             Route::post('reservations/{reservation}/called', [ReservationController::class, 'called']);
 
+        });
+
+        // Hotel rooms (the `hotel` add-on module): room types, rooms, room bookings.
+        Route::middleware('module:hotel')->group(function () {
+            Route::get('hotel/room-types', [HotelSetupController::class, 'index']);
+            Route::post('hotel/room-types', [HotelSetupController::class, 'storeType']);
+            Route::put('hotel/room-types/{roomType}', [HotelSetupController::class, 'updateType']);
+            Route::delete('hotel/room-types/{roomType}', [HotelSetupController::class, 'destroyType']);
+            Route::post('hotel/room-types/{roomType}/rooms', [HotelSetupController::class, 'storeRooms']);
+            Route::put('hotel/rooms/{room}', [HotelSetupController::class, 'updateRoom']);
+            Route::delete('hotel/rooms/{room}', [HotelSetupController::class, 'destroyRoom']);
+            Route::post('hotel/photos', [HotelSetupController::class, 'uploadPhoto']);
+            Route::get('hotel/availability', [RoomBookingController::class, 'availability']);
+            Route::post('hotel/bookings/quote', [RoomBookingController::class, 'quote']);
+            Route::get('hotel/bookings', [RoomBookingController::class, 'index']);
+            Route::post('hotel/bookings', [RoomBookingController::class, 'store']);
+            Route::get('hotel/bookings/{roomBooking}', [RoomBookingController::class, 'show']);
+            Route::put('hotel/bookings/{roomBooking}', [RoomBookingController::class, 'update']);
+            Route::delete('hotel/bookings/{roomBooking}', [RoomBookingController::class, 'destroy']);
+            Route::post('hotel/bookings/{roomBooking}/status', [RoomBookingController::class, 'status']);
+            Route::get('hotel/bookings/{roomBooking}/rooms', [RoomBookingController::class, 'rooms']);
+            Route::post('hotel/bookings/{roomBooking}/room', [RoomBookingController::class, 'assignRoom']);
+            Route::post('hotel/bookings/{roomBooking}/payments', [RoomBookingController::class, 'addPayment']);
+            Route::delete('hotel/bookings/{roomBooking}/payments/{payment}', [RoomBookingController::class, 'removePayment']);
+            Route::post('hotel/bookings/{roomBooking}/email', [RoomBookingController::class, 'email'])->middleware('throttle:20,1');
+        });
+
+        Route::middleware('module:crm')->group(function () {
             // Venue booking: halls hired out for events.
             Route::apiResource('venues', VenueController::class)->except(['show']);
             Route::apiResource('venue-packages', VenuePackageController::class)->except(['show'])->parameters(['venue-packages' => 'package']);

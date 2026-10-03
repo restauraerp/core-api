@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Hotel\HotelSetupController;
 use App\Jobs\Bookings\EmailTableGuest;
 use App\Jobs\Venues\EmailVenueGuest;
 use App\Models\Customer;
@@ -11,6 +12,7 @@ use App\Models\Hall;
 use App\Models\Location;
 use App\Models\MetaConnection;
 use App\Models\Reservation;
+use App\Models\RoomType;
 use App\Models\SiteIntegration;
 use App\Models\SiteVersion;
 use App\Models\SocialLink;
@@ -119,6 +121,7 @@ class PublicSiteController extends Controller
                 ],
                 'social_accounts' => array_intersect($types, ['facebook_posts', 'instagram_feed']) ? MetaConnection::accountLinks() : null,
                 'venues' => in_array('venues', $types, true) ? $this->venues() : [],
+                'room_types' => in_array('rooms', $types, true) ? $this->roomTypes() : [],
                 'social' => in_array('social', $types, true) || $theme['footer_social'] ? $this->socialLinks() : [],
             ]);
         });
@@ -321,6 +324,17 @@ class PublicSiteController extends Controller
                 'guests' => $booking->guests,
             ], 201);
         });
+    }
+
+    /** @return list<array<string, mixed>> the room types guests can book */
+    private function roomTypes(): array
+    {
+        return RoomType::with('location:id,name')->where('is_active', true)
+            ->whereHas('rooms', fn ($q) => $q->where('in_service', true))
+            ->orderBy('sort_order')->orderBy('rate')->get()
+            ->map(fn (RoomType $t) => HotelSetupController::presentType($t, withRooms: false))
+            ->values()
+            ->all();
     }
 
     /** @return list<array<string, mixed>> the venues taking bookings */

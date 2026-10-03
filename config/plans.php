@@ -65,7 +65,7 @@ return [
             'price_monthly' => 2490,
             'price_yearly' => 29900,
             'setup_fee' => 8000,
-            'modules' => Modules::ALL,
+            'modules' => Modules::standard(),
         ],
 
         'business' => [
@@ -76,7 +76,7 @@ return [
             'price_monthly' => 5990,
             'price_yearly' => 69900,
             'setup_fee' => 20000,
-            'modules' => Modules::ALL,
+            'modules' => Modules::standard(),
         ],
 
         'enterprise' => [
@@ -87,7 +87,7 @@ return [
             'price_monthly' => 14990,
             'price_yearly' => 149900,
             'setup_fee' => 50000,
-            'modules' => Modules::ALL,
+            'modules' => Modules::standard(),
         ],
 
     ],

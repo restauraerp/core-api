@@ -12,6 +12,7 @@ use App\Models\Order;
 use App\Models\Partner;
 use App\Models\PartnerPayout;
 use App\Models\PurchaseOrder;
+use App\Models\RoomBookingPayment;
 use App\Models\VenueBookingPayment;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
@@ -569,7 +570,17 @@ class ReportController extends Controller
      */
     private function venueIncome($from, $to, $locationId): array
     {
-        $query = VenueBookingPayment::query();
+        return $this->paymentIncome(VenueBookingPayment::query(), $from, $to, $locationId);
+    }
+
+    /**
+     * Payments against bookings (venue or room) in a window, by when they
+     * were paid; the booking says which branch.
+     *
+     * @return array{total: float, entries: int}
+     */
+    private function paymentIncome($query, $from, $to, $locationId): array
+    {
         if ($from) $query->where('paid_at', '>=', $from);
         if ($to)   $query->where('paid_at', '<', $to);
         if ($locationId && $locationId !== '' && $locationId !== 'all') {
@@ -620,6 +631,8 @@ class ReportController extends Controller
 
         // Venue hire and event payments, counted when the money came in.
         $venueIncome = $this->venueIncome($from, $to, $locationId);
+        // Hotel room payments, likewise.
+        $roomIncome = $this->paymentIncome(RoomBookingPayment::query(), $from, $to, $locationId);
 
         $expenseQuery = Expense::query();
         if ($from) $expenseQuery->where('created_at', '>=', $from);
@@ -638,7 +651,7 @@ class ReportController extends Controller
         $purchaseExpenses = (float) $purchaseQuery->sum('total_amount');
 
         $totalExpenses = $operationalExpenses + $purchaseExpenses;
-        $totalIncome = $revenue + $deliveryCharges + $otherIncome + $venueIncome['total'];
+        $totalIncome = $revenue + $deliveryCharges + $otherIncome + $venueIncome['total'] + $roomIncome['total'];
         $profit = $totalIncome - $totalExpenses;
 
         return response()->json([
@@ -651,6 +664,8 @@ class ReportController extends Controller
                 'other_income' => $otherIncome,
                 // Payments against venue bookings (Venues), by the day received.
                 'venue_income' => $venueIncome['total'],
+                // Payments against hotel room bookings, by the day received.
+                'room_income' => $roomIncome['total'],
                 'total_income' => $totalIncome,
                 'operational_expenses' => $operationalExpenses,
                 'purchase_expenses' => $purchaseExpenses,
@@ -737,6 +752,10 @@ class ReportController extends Controller
         $venue = $this->venueIncome($from, $to, $locationId);
         if ($venue['total'] != 0.0) {
             $income[] = ['header_id' => null, 'name' => 'Venue bookings', 'source' => 'venue_bookings', 'entries' => $venue['entries'], 'total' => $venue['total']];
+        }
+        $rooms = $this->paymentIncome(RoomBookingPayment::query(), $from, $to, $locationId);
+        if ($rooms['total'] != 0.0) {
+            $income[] = ['header_id' => null, 'name' => 'Room bookings', 'source' => 'room_bookings', 'entries' => $rooms['entries'], 'total' => $rooms['total']];
         }
 
         // Purchases: inventory bought through purchase orders.

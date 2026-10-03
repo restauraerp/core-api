@@ -55,6 +55,8 @@ class RoleDefinitions
 
             'view_website', 'manage_website_content',
 
+            'manage_hotel',
+
             'view_settings', 'manage_system_settings',
 
             'view_reporting',
@@ -95,7 +97,7 @@ class RoleDefinitions
                 'view_dashboard', 'view_dashboard_stats',
                 'view_pos', 'create_pos_order',
                 'view_orders', 'update_order_status',
-                'manage_reservations', 'manage_venue_bookings',
+                'manage_reservations', 'manage_venue_bookings', 'manage_hotel',
                 'view_inventory', 'update_inventory_item',
                 'view_hr', 'manage_employees', 'manage_attendance', 'manage_leaves', 'manage_payroll',
                 'view_reporting',
