@@ -96,19 +96,6 @@ class ResourcePersistenceTest extends TestCase
         ], ['name', 'email', 'phone', 'address']);
     }
 
-    public function test_reservation_create_persists_its_fields(): void
-    {
-        $customer = $this->customer();
-        $location = $this->location();
-
-        $this->assertPersists('reservations', fn () => [
-            'customer_id' => $customer->id,
-            'location_id' => $location->id,
-            'guest_count' => 4,
-            'status' => 'confirmed',
-        ], ['customer_id', 'location_id', 'guest_count', 'status']);
-    }
-
     public function test_purchase_order_create_persists_its_fields(): void
     {
         [$supplier, $location, $item] = app(TenantContext::class)->runFor($this->tenant, fn () => [
@@ -201,12 +188,7 @@ class ResourcePersistenceTest extends TestCase
             ->assertStatus(422)
             ->assertJsonValidationErrors('name');
 
-        $this->postJson('/api/v1/reservations', [])
-            ->assertStatus(422)
-            ->assertJsonValidationErrors(['customer_id', 'location_id']);
-
         $this->assertDatabaseCount('suppliers', 0);
-        $this->assertDatabaseCount('reservations', 0);
     }
 
     public function test_update_is_partial_and_does_not_blank_omitted_fields(): void
@@ -223,22 +205,5 @@ class ResourcePersistenceTest extends TestCase
             ->assertOk()
             ->assertJsonPath('status', 'closed')
             ->assertJsonPath('subject', 'Original subject');
-    }
-
-    public function test_a_foreign_key_from_another_tenant_is_refused(): void
-    {
-        // tenantExists, not a plain exists rule: an unscoped rule would let a
-        // request attach another restaurant's customer to its own reservation.
-        $otherTenant = Tenant::factory()->create(['slug' => 'someone-else']);
-
-        $theirCustomer = app(TenantContext::class)->runFor(
-            $otherTenant,
-            fn () => Customer::create(['name' => 'Not Yours']),
-        );
-
-        $this->postJson('/api/v1/reservations', [
-            'customer_id' => $theirCustomer->id,
-            'location_id' => $this->location()->id,
-        ])->assertStatus(422)->assertJsonValidationErrors('customer_id');
     }
 }

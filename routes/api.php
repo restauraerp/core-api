@@ -451,6 +451,8 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('loyalty-settings', LoyaltySettingController::class);
             Route::apiResource('loyalty-transactions', LoyaltyTransactionController::class);
             Route::apiResource('reservations', ReservationController::class);
+            Route::post('reservations/{reservation}/status', [ReservationController::class, 'status']);
+            Route::post('reservations/{reservation}/called', [ReservationController::class, 'called']);
             Route::apiResource('quotations', QuotationController::class);
             Route::apiResource('quotations.items', QuotationItemController::class)->shallow();
         });

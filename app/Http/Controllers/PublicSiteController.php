@@ -209,6 +209,9 @@ class PublicSiteController extends Controller
             $reservation = Reservation::create([
                 'customer_id' => $customer->id,
                 'location_id' => $location->id,
+                // The booking's own copy: the number staff call to confirm.
+                'guest_name' => $validated['name'],
+                'guest_phone' => Phone::normalise($validated['phone']) ?? $validated['phone'],
                 'reservation_date' => $at,
                 'guest_count' => $validated['guests'],
                 'status' => 'Pending',

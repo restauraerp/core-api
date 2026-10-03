@@ -47,7 +47,7 @@ class RoleDefinitions
 
             'view_delivery', 'update_delivery_status', 'manage_integrations',
 
-            'view_crm', 'manage_customers', 'manage_loyalty_settings',
+            'view_crm', 'manage_customers', 'manage_loyalty_settings', 'manage_reservations',
 
             'view_locations', 'create_location', 'update_location', 'delete_location',
 
@@ -95,6 +95,7 @@ class RoleDefinitions
                 'view_dashboard', 'view_dashboard_stats',
                 'view_pos', 'create_pos_order',
                 'view_orders', 'update_order_status',
+                'manage_reservations',
                 'view_inventory', 'update_inventory_item',
                 'view_hr', 'manage_employees', 'manage_attendance', 'manage_leaves', 'manage_payroll',
                 'view_reporting',
@@ -104,6 +105,8 @@ class RoleDefinitions
                 'view_dashboard',
                 'view_pos', 'create_pos_order',
                 'view_orders', 'update_order_status',
+                // Front of house takes the table bookings.
+                'manage_reservations',
             ],
 
             'chef' => [
