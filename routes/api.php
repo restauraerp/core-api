@@ -170,6 +170,9 @@ Route::prefix('v1')->group(function () {
         ->middleware('throttle:120,1')
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
 
+    Route::post('site/{code}/venue-enquiries', [PublicSiteController::class, 'venueEnquiry'])
+        ->middleware('throttle:10,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
     Route::post('site/{code}/reservations', [PublicSiteController::class, 'reserve'])
         ->middleware('throttle:10,1')
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);

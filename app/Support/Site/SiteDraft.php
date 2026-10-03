@@ -3,6 +3,7 @@
 namespace App\Support\Site;
 
 use App\Models\GoogleReview;
+use App\Models\Hall;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\ProductCategory;
@@ -17,12 +18,13 @@ use Illuminate\Support\Facades\Storage;
  *
  * Rules, not AI: nothing leaves the server and the result is the same every
  * time for the same data. A full site of standard pages - Home, Menu, Order
- * online, Book a table, About, Gallery, Locations, Contact - each one a normal
+ * online, Book a table, Events, About, Gallery, Locations, Contact - each one a normal
  * page of components, checked like any other, for the owner to change. Within
  * a page a section is only included when there is something to show -
  * Featured dishes needs photos, Reviews needs reviews chosen for display - and
  * the words are written from the restaurant's own name, menu categories and
- * branches. Book a table is only for restaurants with CRM.
+ * branches. Book a table is only for restaurants with CRM, Events for those
+ * with CRM and venues to hire.
  *
  * Runs inside the restaurant's tenant context.
  */
@@ -32,7 +34,7 @@ class SiteDraft
     private const MIN_FEATURED = 3;
 
     /** The standard pages, in the order they appear in the site's navigation. */
-    public const KINDS = ['home', 'menu', 'order', 'reservations', 'about', 'gallery', 'locations', 'contact'];
+    public const KINDS = ['home', 'menu', 'order', 'reservations', 'events', 'about', 'gallery', 'locations', 'contact'];
 
     private ?array $facts = null;
 
@@ -89,6 +91,11 @@ class SiteDraft
                 ['type' => 'reservations', 'props' => ['heading' => 'Book a table']],
                 ['type' => 'contact', 'props' => ['heading' => 'Rather call?', 'background' => 'muted']],
             ], "Book a table at {$name}."] : null,
+            // Only for a restaurant with CRM and venues to hire.
+            'events' => $f['books'] && $f['venues'] > 0 ? ['Events', [
+                ['type' => 'venues', 'props' => ['heading' => $f['venues'] > 1 ? 'Our venues' : 'Host your event with us']],
+                ['type' => 'contact', 'props' => ['heading' => 'Talk to us about your event', 'background' => 'muted']],
+            ], "Weddings, birthdays and events at {$name}."] : null,
             'about' => ['About', $this->about($withPhoto), "About {$name}."],
             'gallery' => ['Gallery', [
                 ['type' => 'gallery', 'props' => [
@@ -143,6 +150,7 @@ class SiteDraft
             'photos' => Product::where('is_active', true)->whereHas('images')->with('images')->limit(12)->get(),
             'branches' => Location::where('is_active', true)->orderBy('name')->get(['id', 'name', 'address']),
             'reviews' => GoogleReview::where('is_displayed', true)->exists(),
+            'venues' => Hall::where('is_active', true)->count(),
             'delivers' => in_array(Modules::DELIVERY, $modules, true),
             'books' => in_array(Modules::CRM, $modules, true),
         ];

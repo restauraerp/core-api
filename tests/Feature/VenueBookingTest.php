@@ -231,4 +231,62 @@ class VenueBookingTest extends TestCase
         $this->getJson('/api/v1/venue-bookings')->assertForbidden();
         $this->getJson('/api/v1/venues')->assertForbidden();
     }
+
+    #[Test]
+    public function a_website_enquiry_arrives_as_a_tentative_booking(): void
+    {
+        $enquiry = fn (array $o = []) => $this->postJson('/api/v1/site/spice/venue-enquiries', array_merge([
+            'name' => 'Nadia', 'phone' => '01711000999', 'hall_id' => $this->hall->id, 'event_type' => 'birthday',
+            'date' => $this->day(20), 'start_time' => '17:00', 'end_time' => '21:00', 'guests' => 60, 'notes' => 'Kids party',
+        ], $o));
+
+        $enquiry(['phone' => null])->assertUnprocessable()->assertJsonValidationErrors('phone');
+        $enquiry(['date' => now()->subDay()->format('Y-m-d')])->assertUnprocessable()->assertJsonValidationErrors('date');
+
+        $id = $enquiry()->assertCreated()->assertJsonPath('venue', 'Grand Hall')->json('enquiry_id');
+
+        $this->getJson("/api/v1/venue-bookings/{$id}")
+            ->assertJsonPath('status', 'Pending')
+            ->assertJsonPath('source', 'website')
+            ->assertJsonPath('guest_phone', '+8801711000999')
+            // The rent alone; food and extras are added when staff call back.
+            ->assertJsonPath('total', 20000)
+            ->assertJsonPath('notes', 'Kids party');
+
+        // A venue switched off takes no enquiries.
+        $this->putJson("/api/v1/venues/{$this->hall->id}", ['is_active' => false])->assertOk();
+        $enquiry()->assertUnprocessable()->assertJsonValidationErrors('hall_id');
+    }
+
+    #[Test]
+    public function the_website_shows_the_venues_on_an_events_page(): void
+    {
+        $pages = $this->getJson('/api/v1/site-pages')->assertOk();
+        $this->assertContains('events', $pages->json('pages.*.kind'));
+        $events = collect($pages->json('pages'))->firstWhere('kind', 'events');
+        $this->assertSame('venues', $events['sections'][0]['type']);
+
+        $this->postJson('/api/v1/site-builder/publish')->assertCreated();
+        $this->getJson('/api/v1/site/spice/events')
+            ->assertOk()
+            ->assertJsonPath('venues.0.name', 'Grand Hall')
+            ->assertJsonPath('venues.0.capacity', 200);
+    }
+
+    #[Test]
+    public function venue_payments_count_as_income_in_the_reports(): void
+    {
+        $id = $this->postJson('/api/v1/venue-bookings', $this->booking())->assertCreated()->json('id');
+        $this->postJson("/api/v1/venue-bookings/{$id}/payments", ['amount' => 30000, 'method' => 'cash'])->assertCreated();
+
+        $this->getJson('/api/v1/reports/profit')
+            ->assertOk()
+            ->assertJsonPath('summary.venue_income', 30000)
+            ->assertJsonPath('summary.total_income', fn ($v) => $v >= 30000);
+
+        $line = collect($this->getJson('/api/v1/reports/accounting-by-header')->assertOk()->json('income'))
+            ->firstWhere('source', 'venue_bookings');
+        $this->assertSame(30000, (int) $line['total']);
+        $this->assertSame(1, $line['entries']);
+    }
 }

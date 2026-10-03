@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Customer;
 use App\Models\GoogleBusinessConnection;
 use App\Models\GoogleReview;
+use App\Models\Hall;
 use App\Models\Location;
 use App\Models\MetaConnection;
 use App\Models\Reservation;
@@ -13,6 +14,7 @@ use App\Models\SiteVersion;
 use App\Models\SocialLink;
 use App\Models\SocialPost;
 use App\Models\Tenant;
+use App\Models\VenueBooking;
 use App\Rules\PhoneNumber;
 use App\Support\Billing\Modules;
 use App\Support\Branding\RestaurantBranding;
@@ -21,9 +23,11 @@ use App\Support\Site\Conversion;
 use App\Support\Site\SiteSections;
 use App\Support\Site\SiteTheme;
 use App\Support\Tenancy\TenantContext;
+use App\Support\Venues\VenuePricing;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -112,6 +116,7 @@ class PublicSiteController extends Controller
                     'instagram' => in_array('instagram_feed', $types, true) ? SocialPost::latest(SocialPost::INSTAGRAM) : [],
                 ],
                 'social_accounts' => array_intersect($types, ['facebook_posts', 'instagram_feed']) ? MetaConnection::accountLinks() : null,
+                'venues' => in_array('venues', $types, true) ? $this->venues() : [],
                 'social' => in_array('social', $types, true) || $theme['footer_social'] ? $this->socialLinks() : [],
             ]);
         });
@@ -228,6 +233,101 @@ class PublicSiteController extends Controller
                 'guests' => $reservation->guest_count,
             ], 201);
         });
+    }
+
+    /**
+     * POST /site/{code}/venue-enquiries - an event enquiry from the website.
+     *
+     * Arrives in Venues as a tentative booking, source 'website', priced at
+     * the venue's rent alone - the restaurant adds food and extras when it
+     * calls back. Tentative bookings may overlap; whoever confirms first
+     * holds the hall.
+     */
+    public function venueEnquiry(Request $request, string $code): JsonResponse
+    {
+        $tenant = $this->siteTenant($code);
+
+        if (! $tenant->hasModule(Modules::CRM)) {
+            abort(404, 'This restaurant does not take venue bookings online.');
+        }
+
+        return $this->context->runFor($tenant, function () use ($request) {
+            $v = $request->validate([
+                'name' => ['required', 'string', 'max:100'],
+                'phone' => ['required', 'string', 'max:20', PhoneNumber::mobile()],
+                'hall_id' => ['required', 'integer'],
+                'event_type' => ['required', Rule::in(VenueBooking::EVENT_TYPES)],
+                'date' => ['required', 'date_format:Y-m-d'],
+                'start_time' => ['required', 'date_format:H:i'],
+                'end_time' => ['required', 'date_format:H:i'],
+                'guests' => ['required', 'integer', 'min:1', 'max:5000'],
+                'notes' => ['nullable', 'string', 'max:1000'],
+            ] + Conversion::REQUEST_RULES);
+
+            $hall = Hall::where('is_active', true)->whereKey($v['hall_id'])->first()
+                ?? throw ValidationException::withMessages(['hall_id' => ['Choose one of our venues.']]);
+
+            $tz = config('app.timezone');
+            $start = Carbon::createFromFormat('Y-m-d H:i', $v['date'].' '.$v['start_time'], $tz);
+            $end = Carbon::createFromFormat('Y-m-d H:i', $v['date'].' '.$v['end_time'], $tz);
+            if ($end->lte($start)) {
+                $end->addDay();
+            }
+            if ($start->isPast() || $start->gt(now()->addYear())) {
+                throw ValidationException::withMessages(['date' => ['Choose a date from today up to a year ahead.']]);
+            }
+
+            $phone = Phone::normalise($v['phone']) ?? $v['phone'];
+            $customer = Customer::firstOrCreate(['phone' => $phone], ['name' => $v['name']]);
+            $price = VenuePricing::quote($hall, $start, $end, (int) $v['guests'], null, [], 0);
+
+            $booking = VenueBooking::create([
+                'location_id' => $hall->location_id,
+                'hall_id' => $hall->id,
+                'customer_id' => $customer->id,
+                'guest_name' => $v['name'],
+                'guest_phone' => $phone,
+                'event_type' => $v['event_type'],
+                'starts_at' => $start,
+                'ends_at' => $end,
+                'guests' => $v['guests'],
+                'rent_amount' => $price['rent_amount'],
+                'total' => $price['total'],
+                'status' => VenueBooking::PENDING,
+                'source' => 'website',
+                'notes' => $v['notes'] ?? null,
+            ]);
+
+            PublicOrderController::reportConversion(Conversion::forVenueEnquiry($booking, $request));
+
+            return response()->json([
+                'enquiry_id' => $booking->id,
+                'venue' => $hall->name,
+                'at' => $start->toIso8601String(),
+                'guests' => $booking->guests,
+            ], 201);
+        });
+    }
+
+    /** @return list<array<string, mixed>> the venues taking bookings */
+    private function venues(): array
+    {
+        return Hall::with('location:id,name')
+            ->where('is_active', true)
+            ->orderBy('location_id')->orderBy('name')
+            ->get()
+            ->map(fn (Hall $h) => [
+                'id' => $h->id,
+                'name' => $h->name,
+                'description' => $h->description,
+                'capacity' => $h->capacity,
+                'min_guests' => $h->min_guests,
+                'price' => (float) $h->price,
+                'rent_type' => $h->rent_type ?? Hall::PER_EVENT,
+                'location' => $h->location?->name,
+            ])
+            ->values()
+            ->all();
     }
 
     /** The restaurant, if it has a website. */

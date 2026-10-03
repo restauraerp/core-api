@@ -17,6 +17,11 @@ class VenueBookingPayment extends Model
 
     protected $casts = ['amount' => 'float', 'paid_at' => 'datetime'];
 
+    public function booking(): BelongsTo
+    {
+        return $this->belongsTo(VenueBooking::class, 'venue_booking_id');
+    }
+
     public function receiver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'received_by');

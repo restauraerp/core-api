@@ -12,6 +12,7 @@ use App\Models\Order;
 use App\Models\Partner;
 use App\Models\PartnerPayout;
 use App\Models\PurchaseOrder;
+use App\Models\VenueBookingPayment;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Time\BusinessTime;
@@ -559,6 +560,28 @@ class ReportController extends Controller
     }
 
     /**
+     * Money received against venue bookings in a window - by when it was
+     * paid, like a till sale, not by the event date. Refunds are not
+     * recorded here, so a cancelled booking's advance still counts until
+     * the payment is removed.
+     *
+     * @return array{total: float, entries: int}
+     */
+    private function venueIncome($from, $to, $locationId): array
+    {
+        $query = VenueBookingPayment::query();
+        if ($from) $query->where('paid_at', '>=', $from);
+        if ($to)   $query->where('paid_at', '<', $to);
+        if ($locationId && $locationId !== '' && $locationId !== 'all') {
+            $query->whereHas('booking', fn ($q) => $q->where('location_id', $locationId));
+        }
+
+        $row = $query->selectRaw('COUNT(*) as entries, COALESCE(SUM(amount), 0) as total')->first();
+
+        return ['total' => round((float) $row->total, 2), 'entries' => (int) $row->entries];
+    }
+
+    /**
      * Net profit = collected revenue − all expenses in the window.
      *
      * GET /reports/profit?from=&to=&location_id=
@@ -595,6 +618,9 @@ class ReportController extends Controller
         }
         $otherIncome = (float) $incomeQuery->sum('amount');
 
+        // Venue hire and event payments, counted when the money came in.
+        $venueIncome = $this->venueIncome($from, $to, $locationId);
+
         $expenseQuery = Expense::query();
         if ($from) $expenseQuery->where('created_at', '>=', $from);
         if ($to)   $expenseQuery->where('created_at', '<', $to);
@@ -612,7 +638,7 @@ class ReportController extends Controller
         $purchaseExpenses = (float) $purchaseQuery->sum('total_amount');
 
         $totalExpenses = $operationalExpenses + $purchaseExpenses;
-        $totalIncome = $revenue + $deliveryCharges + $otherIncome;
+        $totalIncome = $revenue + $deliveryCharges + $otherIncome + $venueIncome['total'];
         $profit = $totalIncome - $totalExpenses;
 
         return response()->json([
@@ -623,6 +649,8 @@ class ReportController extends Controller
                 // Delivery charges collected on paid orders, shown on their own.
                 'delivery_charges' => $deliveryCharges,
                 'other_income' => $otherIncome,
+                // Payments against venue bookings (Venues), by the day received.
+                'venue_income' => $venueIncome['total'],
                 'total_income' => $totalIncome,
                 'operational_expenses' => $operationalExpenses,
                 'purchase_expenses' => $purchaseExpenses,
@@ -705,6 +733,10 @@ class ReportController extends Controller
         }
         if ($delivery != 0.0) {
             $income[] = ['header_id' => null, 'name' => 'Delivery charges', 'source' => 'orders', 'entries' => (int) $paid->orders, 'total' => $delivery];
+        }
+        $venue = $this->venueIncome($from, $to, $locationId);
+        if ($venue['total'] != 0.0) {
+            $income[] = ['header_id' => null, 'name' => 'Venue bookings', 'source' => 'venue_bookings', 'entries' => $venue['entries'], 'total' => $venue['total']];
         }
 
         // Purchases: inventory bought through purchase orders.

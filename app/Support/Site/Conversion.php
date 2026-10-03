@@ -4,6 +4,7 @@ namespace App\Support\Site;
 
 use App\Models\Order;
 use App\Models\Reservation;
+use App\Models\VenueBooking;
 use Illuminate\Http\Request;
 
 /**
@@ -54,6 +55,18 @@ final class Conversion
         return self::base($request, $name, $phone, $reservation->customer_id) + [
             'event' => 'lead',
             'event_id' => 'reservation-'.$reservation->id,
+            'transaction_id' => null,
+            'value' => null,
+            'items' => [],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public static function forVenueEnquiry(VenueBooking $booking, Request $request): array
+    {
+        return self::base($request, $booking->guest_name, $booking->guest_phone, $booking->customer_id) + [
+            'event' => 'lead',
+            'event_id' => 'venue-'.$booking->id,
             'transaction_id' => null,
             'value' => null,
             'items' => [],
