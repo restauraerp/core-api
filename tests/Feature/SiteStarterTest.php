@@ -2,9 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Models\Hall;
+use App\Models\Location;
 use App\Models\Package;
+use App\Models\RoomType;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Support\Billing\Modules;
 use App\Support\Site\SiteSections;
 use App\Support\Site\SiteStarters;
 use App\Support\Tenancy\RoleDefinitions;
@@ -101,5 +105,88 @@ class SiteStarterTest extends TestCase
         foreach ($built['pages'] as $page) {
             $this->assertSame($page['sections'], SiteSections::clean($page['sections'], ['pos', 'orders', 'catalog', 'website']));
         }
+    }
+
+    /** The tenant on a package with every module, so hotel starters have rooms to show. */
+    private function withEverything(): Tenant
+    {
+        $this->tenant->update(['package_id' => Package::create(['name' => 'All', 'modules' => Modules::ALL, 'outlets' => 3])->id]);
+
+        return $this->tenant->fresh();
+    }
+
+    /** @return array{theme: array<string, mixed>, pages: list<array<string, mixed>>} */
+    private function built(string $key, ?Tenant $tenant = null): array
+    {
+        $tenant ??= $this->tenant->fresh();
+
+        return app(TenantContext::class)->runFor($tenant, fn () => SiteStarters::build($key, $tenant, withPhoto: false));
+    }
+
+    #[Test]
+    public function hotels_resorts_and_halls_are_among_the_starters_by_category(): void
+    {
+        $res = $this->getJson('/api/v1/site-builder/starters')->assertOk();
+
+        $this->assertSame(SiteStarters::CATEGORIES, $res->json('categories'));
+        $byCategory = collect($res->json('starters'))->groupBy('category');
+        $this->assertGreaterThanOrEqual(5, $byCategory['stay']->count());
+        $this->assertNotEmpty($byCategory['events']);
+        $this->assertGreaterThanOrEqual(15, $byCategory['restaurant']->count());
+
+        // Spice Garden is on Growth, which has no hotel: the picker is told,
+        // and a hall starter needs only CRM, which Growth has.
+        $starter = fn (string $key) => collect($res->json('starters'))->firstWhere('key', $key);
+        $this->assertSame(['hotel'], $starter('resort')['missing']);
+        $this->assertSame([], $starter('convention_hall')['missing']);
+        $this->assertSame([], $starter('classic')['missing']);
+    }
+
+    #[Test]
+    public function a_hotel_starter_leads_with_its_rooms(): void
+    {
+        $tenant = $this->withEverything();
+        app(TenantContext::class)->runFor($tenant, fn () => RoomType::create([
+            'location_id' => Location::query()->firstOrFail()->id, 'name' => 'Deluxe', 'max_adults' => 2, 'rate' => 5000, 'is_active' => true,
+        ]));
+
+        $built = $this->built('hotel', $tenant);
+        $home = $built['pages'][0]['sections'];
+
+        $this->assertSame('rooms', $built['pages'][1]['kind']);
+        $this->assertSame(['hero', 'rooms'], array_column(array_slice($home, 0, 2), 'type'));
+        $this->assertSame('rooms', $home[0]['props']['button']);
+        $this->assertSame('Book a room', $home[0]['props']['button_label']);
+        $this->assertSame('Our rooms', $home[1]['props']['heading']);
+
+        foreach ($built['pages'] as $page) {
+            $this->assertSame($page['sections'], SiteSections::clean($page['sections'], Modules::ALL), $page['kind']);
+        }
+    }
+
+    #[Test]
+    public function without_the_hotel_add_on_a_hotel_starter_has_no_rooms_and_its_banner_shows_the_menu(): void
+    {
+        $built = $this->built('resort');
+        $home = $built['pages'][0]['sections'];
+
+        $this->assertNotContains('rooms', array_column($built['pages'], 'kind'));
+        $this->assertNotContains('rooms', array_column($home, 'type'));
+        $this->assertSame('menu', $home[0]['props']['button']);
+    }
+
+    #[Test]
+    public function a_convention_hall_starter_leads_with_its_venues(): void
+    {
+        app(TenantContext::class)->runFor($this->tenant, fn () => Hall::create([
+            'location_id' => Location::query()->firstOrFail()->id, 'name' => 'Grand Ballroom', 'capacity' => 500, 'price' => 150000, 'rent_type' => 'event', 'is_active' => true,
+        ]));
+
+        $built = $this->built('convention_hall');
+        $home = $built['pages'][0]['sections'];
+
+        $this->assertContains('events', array_column($built['pages'], 'kind'));
+        $this->assertSame(['hero', 'venues'], array_column(array_slice($home, 0, 2), 'type'));
+        $this->assertSame('events', $home[0]['props']['button']);
     }
 }

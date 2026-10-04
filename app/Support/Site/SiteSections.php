@@ -225,7 +225,8 @@ final class SiteSections
                     'subtitle' => ['type' => 'textarea', 'label' => 'Subtitle', 'max' => 300, 'default' => ''],
                     'image' => ['type' => 'image', 'label' => 'Background photo', 'default' => ''],
                     'align' => ['type' => 'enum', 'label' => 'Alignment', 'options' => ['center', 'left'], 'default' => 'center'],
-                    'button' => ['type' => 'enum', 'label' => 'Button', 'options' => ['order', 'menu', 'none'], 'default' => 'order'],
+                    // rooms / events link to those pages, for a hotel or a hall.
+                    'button' => ['type' => 'enum', 'label' => 'Button', 'options' => ['order', 'menu', 'rooms', 'events', 'none'], 'default' => 'order'],
                     'button_label' => ['type' => 'text', 'label' => 'Button text', 'max' => 40, 'default' => 'Order now'],
                 ],
             ],

@@ -158,6 +158,7 @@ class SiteBuilderController extends Controller
         $tenant = $this->context->get();
 
         return response()->json([
+            'categories' => SiteStarters::CATEGORIES,
             'starters' => collect(SiteStarters::all())->map(function (array $starter, string $key) use ($tenant) {
                 $built = SiteStarters::build($key, $tenant, withPhoto: false);
 
@@ -166,6 +167,10 @@ class SiteBuilderController extends Controller
                     'name' => $starter['name'],
                     'description' => $starter['description'],
                     'tags' => $starter['tags'],
+                    'category' => $starter['category'],
+                    // Modules the starter is built around that this restaurant
+                    // lacks, so the picker can say why there are no rooms.
+                    'missing' => array_values(array_diff($starter['needs'], $tenant->modules())),
                     'theme' => $built['theme'],
                     'pages' => array_column($built['pages'], 'title'),
                     'home' => array_column($built['pages'][0]['sections'] ?? [], 'type'),
