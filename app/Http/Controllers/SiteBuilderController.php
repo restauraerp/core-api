@@ -6,6 +6,7 @@ use App\Models\SiteIntegration;
 use App\Models\SitePage;
 use App\Models\SiteVersion;
 use App\Models\WebsiteSetting;
+use App\Support\Assets\Media;
 use App\Support\Branding\RestaurantBranding;
 use App\Support\Site\SiteDraft;
 use App\Support\Site\SiteSections;
@@ -474,7 +475,7 @@ class SiteBuilderController extends Controller
             'image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
         ]);
 
-        $path = $request->file('image')->store('site/'.$this->context->id(), 'public');
+        $path = $request->file('image')->store('site/'.$this->context->id(), Media::disk());
 
         return response()->json(['path' => $path], 201);
     }

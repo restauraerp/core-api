@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Image;
 use App\Models\Product;
+use App\Support\Assets\Media;
 use Illuminate\Http\Request;
 
 class ProductController extends Controller
@@ -102,7 +103,7 @@ class ProductController extends Controller
 
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $i => $file) {
-                $path = $file->store('foods', 'public');
+                $path = $file->store('foods', Media::disk());
                 Image::create([
                     'imageable_id'   => $product->id,
                     'imageable_type' => Product::class,
@@ -182,7 +183,7 @@ class ProductController extends Controller
         $featuredIndex = $request->input('featured_image_index');
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $i => $file) {
-                $path = $file->store('foods', 'public');
+                $path = $file->store('foods', Media::disk());
                 Image::create([
                     'imageable_id'   => $product->id,
                     'imageable_type' => Product::class,

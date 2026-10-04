@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\OneTimeLoginToken;
 use App\Rules\PhoneNumber;
+use App\Support\Assets\Media;
 use App\Support\Tenancy\TenantContext;
 use Spatie\Permission\Models\Role;
 use Illuminate\Http\Request;
@@ -46,7 +47,7 @@ class UserController extends Controller
         ]);
 
         if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('users', 'public');
+            $path = $request->file('image')->store('users', Media::disk());
             $validated['image_url'] = $path;
         }
 
@@ -126,7 +127,7 @@ class UserController extends Controller
         }
 
         if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('users', 'public');
+            $path = $request->file('image')->store('users', Media::disk());
             $validated['image_url'] = $path;
         }
 

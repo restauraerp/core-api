@@ -6,11 +6,11 @@ use App\Models\Tenant;
 use App\Models\User;
 use App\Services\WebsiteNotifier;
 use App\Support\Assets\ManagedAssets;
+use App\Support\Assets\Media;
 use App\Support\Billing\Subscription;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Erases a tenant: every row that carries its tenant_id, the auth rows that
@@ -255,7 +255,6 @@ class RemoveTenant extends Command
         $mine = $this->assets->normaliseMany($mine);
         $theirs = $this->assets->normaliseMany($theirs);
 
-        $disk = Storage::disk('public');
         $plan = ['delete' => [], 'shared' => [], 'missing' => []];
 
         foreach ($mine as $path) {
@@ -263,7 +262,7 @@ class RemoveTenant extends Command
             // path another tenant still points at must survive this deletion.
             match (true) {
                 in_array($path, $theirs, true) => $plan['shared'][] = $path,
-                ! $disk->exists($path) => $plan['missing'][] = $path,
+                ! Media::exists($path) => $plan['missing'][] = $path,
                 default => $plan['delete'][] = $path,
             };
         }
@@ -277,11 +276,10 @@ class RemoveTenant extends Command
      */
     private function deleteAssets(array $paths): array
     {
-        $disk = Storage::disk('public');
         $deleted = [];
 
         foreach ($paths as $path) {
-            if ($disk->delete($path)) {
+            if (Media::delete($path)) {
                 $deleted[] = $path;
 
                 continue;

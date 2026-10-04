@@ -17,6 +17,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Media Disk
+    |--------------------------------------------------------------------------
+    |
+    | Where uploads (menu photos, site images, logos, receipts...) are written:
+    | "public" keeps them on this server, "s3" sends them to the bucket below.
+    | Files already on the public disk, and the demo images, stay there and
+    | keep being served from it - see App\Support\Assets\Media.
+    |
+    */
+
+    'media_disk' => env('MEDIA_DISK', 'public'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------
     |
@@ -33,7 +47,10 @@ return [
         'local' => [
             'driver' => 'local',
             'root' => storage_path('app/private'),
-            'serve' => true,
+            // Off: serving puts a signed-URL route at /storage/{path}, which is
+            // the address every client uses for public uploads (see
+            // StorageController), and nothing hands out this disk's URLs.
+            'serve' => false,
             'throw' => false,
             'report' => false,
         ],
@@ -56,6 +73,9 @@ return [
             'url' => env('AWS_URL'),
             'endpoint' => env('AWS_ENDPOINT'),
             'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+            // Uploads are read by browsers, so a stored object must be
+            // readable through the bucket's public-read policy. No ACL is
+            // sent: buckets with Object Ownership enforced reject one.
             'throw' => false,
             'report' => false,
         ],

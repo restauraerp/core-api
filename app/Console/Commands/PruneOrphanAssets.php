@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Support\Assets\ManagedAssets;
+use App\Support\Assets\Media;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -52,7 +53,6 @@ class PruneOrphanAssets extends Command
 
     public function handle(): int
     {
-        $disk = Storage::disk('public');
         $referenced = array_flip($this->assets->referencedPaths());
         $cutoff = now()->subMinutes(max(0, (int) $this->option('older-than')))->getTimestamp();
 
@@ -60,23 +60,30 @@ class PruneOrphanAssets extends Command
         $bytes = 0;
         $skippedRecent = 0;
 
-        foreach (ManagedAssets::UPLOAD_DIRECTORIES as $directory) {
-            foreach ($disk->allFiles($directory) as $path) {
-                if (isset($referenced[$path]) || Str::startsWith(basename($path), '.')) {
-                    continue;
+        // Both disks: older uploads are on this server, newer ones in the
+        // bucket once MEDIA_DISK points there. Orphans are kept as
+        // [disk, path] so each is deleted from the disk it was found on.
+        foreach (Media::disks() as $diskName) {
+            $disk = Storage::disk($diskName);
+
+            foreach (ManagedAssets::UPLOAD_DIRECTORIES as $directory) {
+                foreach ($disk->allFiles($directory) as $path) {
+                    if (isset($referenced[$path]) || Str::startsWith(basename($path), '.')) {
+                        continue;
+                    }
+
+                    // An upload lands on disk before its row is committed. Without
+                    // this window a sweep running at the wrong moment would delete
+                    // a file somebody is in the middle of uploading.
+                    if ($disk->lastModified($path) > $cutoff) {
+                        $skippedRecent++;
+
+                        continue;
+                    }
+
+                    $orphans[] = [$diskName, $path];
+                    $bytes += $disk->size($path);
                 }
-
-                // An upload lands on disk before its row is committed. Without
-                // this window a sweep running at the wrong moment would delete
-                // a file somebody is in the middle of uploading.
-                if ($disk->lastModified($path) > $cutoff) {
-                    $skippedRecent++;
-
-                    continue;
-                }
-
-                $orphans[] = $path;
-                $bytes += $disk->size($path);
             }
         }
 
@@ -89,8 +96,8 @@ class PruneOrphanAssets extends Command
         $this->line('');
         $this->line(count($orphans).' orphaned file(s), '.$this->humanBytes($bytes).':');
 
-        foreach (array_slice($orphans, 0, 20) as $path) {
-            $this->line('  '.$path);
+        foreach (array_slice($orphans, 0, 20) as [$diskName, $path]) {
+            $this->line("  {$path}".(count(Media::disks()) > 1 ? " ({$diskName})" : ''));
         }
 
         if (count($orphans) > 20) {
@@ -117,8 +124,8 @@ class PruneOrphanAssets extends Command
 
         $deleted = 0;
 
-        foreach ($orphans as $path) {
-            if ($disk->delete($path)) {
+        foreach ($orphans as [$diskName, $path]) {
+            if (Storage::disk($diskName)->delete($path)) {
                 $deleted++;
 
                 continue;

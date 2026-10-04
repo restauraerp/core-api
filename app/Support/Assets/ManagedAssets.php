@@ -4,7 +4,6 @@ namespace App\Support\Assets;
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
@@ -19,7 +18,7 @@ use Illuminate\Support\Str;
 class ManagedAssets
 {
     /**
-     * Columns holding a path on the `public` disk.
+     * Columns holding an upload path (on the local or media disk; see Media).
      *
      * Deliberately excluded: cctv_cameras.stream_url, locations.map_url and
      * social_links.url all hold third-party URLs, not uploads.
@@ -126,9 +125,9 @@ class ManagedAssets
             return false;
         }
 
-        $disk = Storage::disk('public');
-
-        return $disk->exists($path) && $disk->delete($path);
+        // Whichever disk it is on: the bucket for new uploads, the local disk
+        // for older ones.
+        return Media::delete($path);
     }
 
     /**

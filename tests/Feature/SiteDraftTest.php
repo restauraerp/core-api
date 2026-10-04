@@ -139,6 +139,40 @@ class SiteDraftTest extends TestCase
     }
 
     #[Test]
+    public function a_demo_photo_is_copied_on_the_server_even_with_the_bucket_on(): void
+    {
+        // Demo imagery is a local file shared by every demo restaurant; the
+        // site's copy of it must not be pushed into the bucket.
+        Storage::fake('s3');
+        config(['filesystems.media_disk' => 's3']);
+        $this->dishes('Biryani', 3, photos: true);
+
+        $image = $this->getJson('/api/v1/site-builder/smart-draft')->json('sections.0.props.image');
+
+        Storage::disk('public')->assertExists($image);
+        $this->assertSame([], Storage::disk('s3')->allFiles());
+    }
+
+    #[Test]
+    public function an_uploaded_photo_in_the_bucket_is_copied_within_the_bucket(): void
+    {
+        Storage::fake('s3');
+        config(['filesystems.media_disk' => 's3']);
+        $this->inTenant(function () {
+            $cat = ProductCategory::create(['name' => 'Kebab', 'is_active' => true]);
+            $product = Product::create(['name' => 'Seekh', 'price' => 100, 'category_id' => $cat->id, 'is_active' => true]);
+            Storage::disk('s3')->put('foods/seekh.jpg', 'jpeg-bytes');
+            $product->images()->create(['url' => 'foods/seekh.jpg']);
+        });
+
+        $image = $this->getJson('/api/v1/site-builder/smart-draft')->json('sections.0.props.image');
+
+        $this->assertStringStartsWith('site/'.$this->tenant->getKey().'/banner-', $image);
+        Storage::disk('s3')->assertExists($image);
+        Storage::disk('public')->assertMissing($image);
+    }
+
+    #[Test]
     public function the_first_builder_visit_drafts_the_site(): void
     {
         $this->dishes('Biryani', 3, photos: true);

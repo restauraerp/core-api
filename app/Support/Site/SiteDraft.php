@@ -9,10 +9,10 @@ use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\RoomType;
 use App\Models\Tenant;
+use App\Support\Assets\Media;
 use App\Support\Billing\Modules;
 use App\Support\Branding\RestaurantBranding;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * A restaurant's website, put together from what it already has.
@@ -245,7 +245,6 @@ class SiteDraft
      */
     private function photos(Collection $products, string $prefix, int $limit): array
     {
-        $disk = Storage::disk('public');
         $paths = [];
 
         foreach ($products as $product) {
@@ -255,7 +254,12 @@ class SiteDraft
 
             $source = $product->images->first()?->url;
 
-            if (! $source || ! $disk->exists($source)) {
+            // The copy stays on the disk the photo is on: a demo dish's photo
+            // is a local file and must not end up in the bucket, an uploaded
+            // one is already there.
+            $disk = $source ? Media::locate($source) : null;
+
+            if ($disk === null) {
                 continue;
             }
 

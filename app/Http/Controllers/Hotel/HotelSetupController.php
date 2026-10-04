@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Room;
 use App\Models\RoomBooking;
 use App\Models\RoomType;
+use App\Support\Assets\Media;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -119,7 +120,7 @@ class HotelSetupController extends Controller
 
         $request->validate(['image' => ['required', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120']]);
 
-        return response()->json(['path' => $request->file('image')->store('hotel/'.app(TenantContext::class)->id(), 'public')], 201);
+        return response()->json(['path' => $request->file('image')->store('hotel/'.app(TenantContext::class)->id(), Media::disk())], 201);
     }
 
     /** "101-105, 110" -> ["101", "102", "103", "104", "105", "110"] */
