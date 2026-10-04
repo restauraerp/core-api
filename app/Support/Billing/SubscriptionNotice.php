@@ -150,8 +150,13 @@ class SubscriptionNotice
             // customer being told they are looking at a demo.
             'is_demo' => (bool) config('app.demo_mode')
                 && $tenant->slug === config('app.demo_tenant_slug'),
+            // Any restaurant marked as a demo - for testing or a sales
+            // presentation. Not billed, so the app shows no trial countdown,
+            // upgrade prompt or onboarding tour. Distinct from is_demo, which
+            // is only the public demo visitors are sent to.
+            'demo_restaurant' => (bool) $tenant->is_demo,
             'trial_ends_at' => $tenant->trial_ends_at?->toIso8601String(),
-            'trial_days_remaining' => $tenant->status === 'trialing' && $tenant->trial_ends_at !== null
+            'trial_days_remaining' => ! $tenant->is_demo && $tenant->status === 'trialing' && $tenant->trial_ends_at !== null
                 ? max(0, (int) ceil(now()->diffInDays($tenant->trial_ends_at, absolute: false)))
                 : null,
             // Named for what it is on a live account: the day the paid period

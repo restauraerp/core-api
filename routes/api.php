@@ -286,6 +286,8 @@ Route::prefix('v1')->group(function () {
             Route::post('tenants/{slug}/subscribe', [PlatformTenantController::class, 'subscribe']);
             Route::post('tenants/{slug}/suspend', [PlatformTenantController::class, 'suspend']);
             Route::post('tenants/{slug}/reactivate', [PlatformTenantController::class, 'reactivate']);
+            // A demo restaurant: testing or presentations, never billed.
+            Route::put('tenants/{slug}/demo', [PlatformTenantController::class, 'setDemo']);
             Route::delete('tenants/{slug}', [PlatformTenantController::class, 'trash']);
             Route::post('tenants/{slug}/restore', [PlatformTenantController::class, 'restore']);
             Route::delete('tenants/{slug}/purge', [PlatformTenantController::class, 'purge']);

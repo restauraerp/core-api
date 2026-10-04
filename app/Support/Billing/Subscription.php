@@ -25,6 +25,9 @@ use Illuminate\Support\Facades\Cache;
  *               unpaid week.
  *   BLOCKED   - cancelled. The relationship is over; nothing is served.
  *
+ * A demo restaurant (tenants.is_demo) is FULL with no end date unless it has
+ * been suspended or cancelled.
+ *
  * Resolved on every request, so it is cached in Redis rather than recomputed
  * from dates each time.
  */
@@ -81,6 +84,13 @@ class Subscription
         // below no longer decide anything.
         if ($tenant->status === 'suspended') {
             return self::state(self::READ_ONLY, 'suspended', null, null, $cycle);
+        }
+
+        // A demo restaurant is not a customer: no trial runs out and no
+        // payment falls due. Suspending or cancelling one above still works,
+        // which is how a demo is switched off.
+        if ($tenant->is_demo) {
+            return self::state(self::FULL, null, null, null, $cycle);
         }
 
         if ($tenant->status === 'trialing') {
