@@ -206,4 +206,15 @@ class PublicOrderTest extends TestCase
             ->assertJsonPath('orders.0.status_label', 'Cancelled')
             ->assertJsonPath('orders.0.finished', true);
     }
+
+    public function test_a_returning_customer_can_order_again(): void
+    {
+        $this->postJson('/api/v1/order/online-test', $this->orderPayload())->assertCreated();
+        // Same number, written differently.
+        $this->postJson('/api/v1/order/online-test', $this->orderPayload(['phone' => '+8801711223344']))->assertCreated();
+
+        $orders = $this->orders();
+        $this->assertCount(2, $orders);
+        $this->assertSame($orders[0]->customer_id, $orders[1]->customer_id);
+    }
 }

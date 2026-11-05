@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Image;
 use App\Models\InventoryItem;
+use App\Support\Assets\Media;
 use App\Support\Inventory\SellableInventory;
 use Illuminate\Http\Request;
 
@@ -65,7 +66,7 @@ class InventoryItemController extends Controller
         $featuredIndex = $request->input('featured_image_index');
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $i => $file) {
-                $path = $file->store('inventory', 'public');
+                $path = $file->store('inventory', Media::disk());
                 Image::create([
                     'imageable_id'   => $inventoryItem->id,
                     'imageable_type' => InventoryItem::class,
@@ -122,7 +123,7 @@ class InventoryItemController extends Controller
         $featuredIndex = $request->input('featured_image_index');
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $i => $file) {
-                $path = $file->store('inventory', 'public');
+                $path = $file->store('inventory', Media::disk());
                 Image::create([
                     'imageable_id'   => $inventoryItem->id,
                     'imageable_type' => InventoryItem::class,

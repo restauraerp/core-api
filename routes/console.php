@@ -24,3 +24,19 @@ Artisan::command('inspire', function () {
 Schedule::command('tenants:expire')
     ->dailyAt('00:15')
     ->withoutOverlapping();
+
+/**
+ * Google reviews for restaurants that connected their Business Profile.
+ * Hourly is plenty for reviews and well inside Google's quotas.
+ */
+Schedule::command('site:sync-google-reviews')
+    ->hourly()
+    ->withoutOverlapping();
+
+/**
+ * Facebook and Instagram posts for restaurant websites. Hourly also keeps
+ * their image links fresh - Meta's expire.
+ */
+Schedule::command('site:sync-social-posts')
+    ->hourly()
+    ->withoutOverlapping();

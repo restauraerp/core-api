@@ -17,7 +17,24 @@ class ProductCategory extends Model
         'slug',
         'image_url',
         'is_active',
+        'sort_order',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'sort_order' => 'integer',
+        ];
+    }
+
+    /**
+     * The restaurant's own order - Catalog > Categories - with creation order
+     * breaking ties. What the POS tabs, online order page and storefront show.
+     */
+    public function scopeOrdered($query)
+    {
+        return $query->orderBy('sort_order')->orderBy('id');
+    }
 
     public function parent()
     {

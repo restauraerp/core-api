@@ -2,9 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\Tenancy\RoleDefinitions;
 use App\Support\Tenancy\TenantContext;
 use Spatie\Permission\Models\Role;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Roles are per-tenant, but Spatie's teams feature only scopes permission
@@ -53,6 +55,9 @@ class RoleController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', $this->tenantUnique('roles')],
+            // Whether people given this role sign in to the panel - the
+            // default for new users; each user can still be switched.
+            'requires_login' => 'sometimes|boolean',
             'guard_name' => 'nullable|string|max:255',
             'permissions' => 'nullable|array',
             'permissions.*' => 'exists:permissions,name'
@@ -61,6 +66,7 @@ class RoleController extends Controller
         $role = Role::create([
             'name' => $validated['name'],
             'guard_name' => $validated['guard_name'] ?? 'web',
+            'requires_login' => $request->has('requires_login') ? $request->boolean('requires_login') : true,
             // Stamp the tenant explicitly rather than trusting the team resolver
             // to fill it, so a new role can never land global by accident.
             'tenant_id' => $this->tenantId(),
@@ -86,6 +92,7 @@ class RoleController extends Controller
 
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255', $this->tenantUnique('roles')->ignore($role->id)],
+            'requires_login' => 'sometimes|boolean',
             'guard_name' => 'nullable|string|max:255',
             'permissions' => 'nullable|array',
             'permissions.*' => 'exists:permissions,name'
@@ -96,6 +103,16 @@ class RoleController extends Controller
         }
         if (isset($validated['guard_name'])) {
             $role->guard_name = $validated['guard_name'];
+        }
+        if ($request->has('requires_login')) {
+            // The owner is the one account that can switch everything back on.
+            if ($role->name === RoleDefinitions::RESTAURANT_ADMIN && ! $request->boolean('requires_login')) {
+                throw ValidationException::withMessages([
+                    'requires_login' => ['The owner role must be able to sign in.'],
+                ]);
+            }
+
+            $role->requires_login = $request->boolean('requires_login');
         }
         $role->save();
 

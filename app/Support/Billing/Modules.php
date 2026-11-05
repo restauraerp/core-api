@@ -39,6 +39,9 @@ class Modules
 
     public const WEBSITE = 'website';
 
+    /** Hotel rooms: room types, rooms, room bookings - for restaurants that also run a hotel. */
+    public const HOTEL = 'hotel';
+
     /**
      * The six every tier includes.
      *
@@ -83,7 +86,27 @@ class Modules
         self::KITCHEN_KIOSK,
         self::LOCATIONS,
         self::WEBSITE,
+        self::HOTEL,
     ];
+
+    /**
+     * Modules a restaurant only has when it is given them - in a custom
+     * package - never by its tier: most restaurants have no rooms to let,
+     * and a Hotel menu would only be in their way.
+     *
+     * @var list<string>
+     */
+    public const ADD_ONS = [self::HOTEL];
+
+    /**
+     * What a tier that "includes everything" includes: all but the add-ons.
+     *
+     * @return list<string>
+     */
+    public static function standard(): array
+    {
+        return array_values(array_diff(self::ALL, self::ADD_ONS));
+    }
 
     /**
      * What each module is called on the pricing page and in the admin panel.
@@ -103,6 +126,7 @@ class Modules
             self::KITCHEN_KIOSK => 'Kitchen Kiosk',
             self::LOCATIONS => 'Locations',
             self::WEBSITE => 'Website',
+            self::HOTEL => 'Hotel rooms',
             default => ucfirst(str_replace('_', ' ', $module)),
         };
     }
@@ -125,13 +149,14 @@ class Modules
             self::INVENTORY => ['view_inventory', 'create_inventory_item', 'update_inventory_item', 'delete_inventory_item'],
             self::ACCOUNTING => ['view_accounting', 'manage_ledgers', 'manage_expenses', 'manage_incomes'],
             self::REPORTING => ['view_reporting'],
-            self::CRM => ['view_crm', 'manage_customers', 'manage_loyalty_settings'],
+            self::CRM => ['view_crm', 'manage_customers', 'manage_loyalty_settings', 'manage_reservations', 'manage_venue_bookings'],
             self::HR => ['view_hr', 'manage_employees', 'manage_attendance', 'manage_leaves', 'manage_payroll'],
             // manage_integrations: the Telegram bot riders are notified through.
             self::DELIVERY => ['view_delivery', 'update_delivery_status', 'manage_integrations'],
             self::KITCHEN_KIOSK => ['view_kitchen_kiosk', 'update_kiosk_status'],
             self::LOCATIONS => ['view_locations', 'create_location', 'update_location', 'delete_location'],
             self::WEBSITE => ['view_website', 'manage_website_content'],
+            self::HOTEL => ['manage_hotel'],
         ];
     }
 

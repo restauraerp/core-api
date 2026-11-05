@@ -154,6 +154,11 @@ jobs:
           # what is pending and drops nothing.
           php artisan migrate --force
 
+          # Roles added to RoleDefinitions in this release (e.g. waiter) reach
+          # restaurants created before it. Only adds what is missing; never
+          # touches a restaurant's existing roles or their permissions.
+          php artisan tenants:sync-roles
+
           php artisan optimize
 
           # Atomic cutover.

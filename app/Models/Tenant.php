@@ -6,6 +6,7 @@ use App\Support\Billing\Modules;
 use App\Support\Billing\Plans;
 use App\Support\Billing\Subscription;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -34,6 +35,9 @@ class Tenant extends Model
         'contact_phone',
         'trial_ends_at',
         'subscription_ends_at',
+        // A demo restaurant, for testing and presentations: never billed,
+        // never expires, kept out of the subscription lists.
+        'is_demo',
     ];
 
     /**
@@ -49,11 +53,22 @@ class Tenant extends Model
         return Plans::outletLimits();
     }
 
+    /**
+     * Paying or trialling restaurants - everything but demo restaurants, which
+     * are never billed and so are never counted as business.
+     */
+    public function scopeCustomers(Builder $query): Builder
+    {
+        return $query->where('is_demo', false);
+    }
+
     protected function casts(): array
     {
         return [
             'trial_ends_at' => 'datetime',
             'subscription_ends_at' => 'datetime',
+            'domain_verified_at' => 'datetime',
+            'is_demo' => 'boolean',
         ];
     }
 

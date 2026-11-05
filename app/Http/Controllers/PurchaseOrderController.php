@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Image;
 use App\Models\PurchaseOrder;
+use App\Support\Assets\Media;
 use App\Support\Inventory\PurchaseOrderStock;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -195,7 +196,7 @@ class PurchaseOrderController extends Controller
     {
         foreach ($request->file('receipts', []) as $receipt) {
             $order->receipts()->create([
-                'url' => $receipt->store('receipts', 'public'),
+                'url' => $receipt->store('receipts', Media::disk()),
                 'type' => 'receipt',
             ]);
         }

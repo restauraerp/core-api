@@ -38,6 +38,13 @@ use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\Platform\PlanController as PlatformPlanController;
 use App\Http\Controllers\Platform\PackageController as PlatformPackageController;
+use App\Http\Controllers\PublicSiteController;
+use App\Http\Controllers\SiteBuilderController;
+use App\Http\Controllers\GoogleBusinessController;
+use App\Http\Controllers\MetaPagesController;
+use App\Http\Controllers\SiteAccessTokenController;
+use App\Http\Controllers\SiteDomainController;
+use App\Http\Controllers\SiteIntegrationController;
 use App\Http\Controllers\TelegramIntegrationController;
 use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\Platform\StatsController as PlatformStatsController;
@@ -63,6 +70,12 @@ use App\Http\Controllers\StorageUnitItemController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\TableController;
+use App\Http\Controllers\Hotel\HotelSetupController;
+use App\Http\Controllers\Hotel\RoomBookingController;
+use App\Http\Controllers\PublicHotelController;
+use App\Http\Controllers\Venues\VenueBookingController;
+use App\Http\Controllers\Venues\VenueController;
+use App\Http\Controllers\Venues\VenuePackageController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\TaxRuleController;
 use App\Http\Controllers\UpgradeLinkController;
@@ -81,12 +94,16 @@ Route::get('/user', function (Request $request) {
 })->middleware('auth:sanctum');
 
 Route::prefix('v1')->group(function () {
-    // Locations API
+    // Locations API - reads only. The storefront and the online order page
+    // list branches without signing in; changing them is in the signed-in
+    // group below. These were whole apiResources here, which left creating,
+    // editing and deleting branches, halls, tables and cameras open to anyone
+    // who could name a restaurant code.
     Route::get('location-types', [LocationController::class, 'types']);
-    Route::apiResource('locations', LocationController::class);
-    Route::apiResource('locations.halls', HallController::class)->shallow();
-    Route::apiResource('locations.tables', TableController::class)->shallow();
-    Route::apiResource('locations.cctv-cameras', CctvCameraController::class)->shallow();
+    Route::apiResource('locations', LocationController::class)->only(['index', 'show']);
+    Route::apiResource('locations.halls', HallController::class)->shallow()->only(['index', 'show']);
+    Route::apiResource('locations.tables', TableController::class)->shallow()->only(['index', 'show']);
+    Route::apiResource('locations.cctv-cameras', CctvCameraController::class)->shallow()->only(['index', 'show']);
 
     // Settings API.
     //
@@ -94,15 +111,21 @@ Route::prefix('v1')->group(function () {
     // website_settings holds currency_symbol and site_name, which POS, the
     // catalog and the settings screen all read on load - gating it took the
     // till offline on tiers that had simply not bought a storefront.
-    Route::apiResource('website-settings', WebsiteSettingController::class);
+    //
+    // Reads only here - the storefront and receipts read them unsigned-in.
+    // Writes are in the signed-in group below.
+    Route::apiResource('website-settings', WebsiteSettingController::class)->only(['index', 'show']);
 
     // Website & CMS API - the storefront itself, which is what the Website
     // module actually sells. Gated whole, reads included: a tier without it has
     // no public site to serve, not merely an admin screen it cannot open.
+    //
+    // Reads only here, for the public site. Writes are in the signed-in group
+    // below, behind manage_website_content.
     Route::middleware('module:website')->group(function () {
-        Route::apiResource('social-links', SocialLinkController::class);
-        Route::apiResource('pages', PageController::class);
-        Route::apiResource('google-reviews', GoogleReviewController::class);
+        Route::apiResource('social-links', SocialLinkController::class)->only(['index', 'show']);
+        Route::apiResource('pages', PageController::class)->only(['index', 'show']);
+        Route::apiResource('google-reviews', GoogleReviewController::class)->only(['index', 'show']);
     });
 
     // Public Catalog API
@@ -139,6 +162,43 @@ Route::prefix('v1')->group(function () {
     Route::post('order/{slug}', [PublicOrderController::class, 'store'])
         ->middleware('throttle:10,1')
         ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+    // A restaurant's public website, as data: published pages and the
+    // starter home. The tenant comes from the restaurant code in the URL.
+    // Which restaurant a custom domain belongs to (asked by the front), and
+    // whether a name may get a certificate (asked by Caddy's on-demand TLS).
+    Route::get('site-domains/resolve', [SiteDomainController::class, 'resolve'])
+        ->middleware('throttle:600,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+    Route::get('site-domains/allowed', [SiteDomainController::class, 'allowed'])
+        ->middleware('throttle:120,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+
+    // A hotel's rooms on its website: what is free, and a booking request.
+    Route::get('site/{code}/rooms', [PublicHotelController::class, 'rooms'])
+        ->middleware('throttle:60,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+    Route::post('site/{code}/room-requests', [PublicHotelController::class, 'request'])
+        ->middleware('throttle:10,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+    Route::post('site/{code}/venue-enquiries', [PublicSiteController::class, 'venueEnquiry'])
+        ->middleware('throttle:10,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+    Route::post('site/{code}/reservations', [PublicSiteController::class, 'reserve'])
+        ->middleware('throttle:10,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+    // Google sends the owner back here after connecting their Business
+    // Profile. Public: who it is for travels in the sealed state.
+    Route::get('integrations/meta/callback', [MetaPagesController::class, 'callback'])
+        ->middleware('throttle:30,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+    Route::get('integrations/google/callback', [GoogleBusinessController::class, 'callback'])
+        ->middleware('throttle:30,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+    Route::get('site/{code}/{slug?}', [PublicSiteController::class, 'show'])
+        ->where('slug', '[a-z0-9-]+')
+        ->middleware('throttle:120,1')
+        ->withoutMiddleware([ResolveTenant::class, EnforceSubscription::class]);
+
     // Updates from a restaurant's Telegram bot. Telegram is the caller; it
     // proves itself with the bot's webhook secret, and the bot says which
     // restaurant this is.
@@ -226,6 +286,8 @@ Route::prefix('v1')->group(function () {
             Route::post('tenants/{slug}/subscribe', [PlatformTenantController::class, 'subscribe']);
             Route::post('tenants/{slug}/suspend', [PlatformTenantController::class, 'suspend']);
             Route::post('tenants/{slug}/reactivate', [PlatformTenantController::class, 'reactivate']);
+            // A demo restaurant: testing or presentations, never billed.
+            Route::put('tenants/{slug}/demo', [PlatformTenantController::class, 'setDemo']);
             Route::delete('tenants/{slug}', [PlatformTenantController::class, 'trash']);
             Route::post('tenants/{slug}/restore', [PlatformTenantController::class, 'restore']);
             Route::delete('tenants/{slug}/purge', [PlatformTenantController::class, 'purge']);
@@ -284,8 +346,74 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('payrolls', PayrollController::class);
         });
 
+        // Writes for the public reads registered above, now signed in and
+        // permission-checked.
+        // create_location is checked inside, after the plan's outlet cap.
+        Route::post('locations', [LocationController::class, 'store']);
+        Route::match(['put', 'patch'], 'locations/{location}', [LocationController::class, 'update'])->middleware('can:update_location');
+        Route::delete('locations/{location}', [LocationController::class, 'destroy'])->middleware('can:delete_location');
+        // A branch's halls, tables and cameras are part of editing the branch.
+        Route::middleware('can:update_location')->group(function () {
+            Route::apiResource('locations.halls', HallController::class)->shallow()->except(['index', 'show']);
+            Route::apiResource('locations.tables', TableController::class)->shallow()->except(['index', 'show']);
+            Route::apiResource('locations.cctv-cameras', CctvCameraController::class)->shallow()->except(['index', 'show']);
+        });
+
+        // Settings (Restaurant identity, slips, Facebook page, business day)
+        // and the Website screens both write these.
+        Route::apiResource('website-settings', WebsiteSettingController::class)
+            ->except(['index', 'show'])
+            ->middleware('can:manage_site_settings');
+
+        Route::middleware(['module:website', 'can:manage_website_content'])->group(function () {
+            Route::apiResource('social-links', SocialLinkController::class)->except(['index', 'show']);
+            Route::apiResource('pages', PageController::class)->except(['index', 'show']);
+            Route::apiResource('google-reviews', GoogleReviewController::class)->except(['index', 'show']);
+        });
+
         // Catalog API (Protected Routes)
-        Route::post('website-settings/logo', [WebsiteSettingController::class, 'uploadLogo']);
+        Route::post('website-settings/logo', [WebsiteSettingController::class, 'uploadLogo'])->middleware('can:manage_site_settings');
+        // Site builder: the restaurant's website pages, as drafts and
+        // published versions. Website module, manage_website_content.
+        Route::middleware('module:website')->group(function () {
+            Route::get('site-builder/components', [SiteBuilderController::class, 'components']);
+            Route::put('site-builder/theme', [SiteBuilderController::class, 'updateTheme']);
+            Route::get('site-builder/templates', [SiteBuilderController::class, 'templates']);
+            Route::get('site-builder/starters', [SiteBuilderController::class, 'starters']);
+            Route::post('site-builder/starters/{key}', [SiteBuilderController::class, 'applyStarter'])->where('key', '[a-z_]+');
+            Route::get('site-builder/smart-draft', [SiteBuilderController::class, 'smartDraft']);
+            Route::get('site-builder/domain', [SiteDomainController::class, 'show']);
+            Route::put('site-builder/domain', [SiteDomainController::class, 'update']);
+            Route::post('site-builder/domain/verify', [SiteDomainController::class, 'verify'])->middleware('throttle:10,1');
+            Route::post('site-builder/images', [SiteBuilderController::class, 'uploadImage']);
+            Route::post('site-builder/standard-pages', [SiteBuilderController::class, 'standardPages']);
+            Route::get('site-builder/access-tokens', [SiteAccessTokenController::class, 'index']);
+            Route::post('site-builder/access-tokens', [SiteAccessTokenController::class, 'store'])->middleware('throttle:10,1');
+            Route::delete('site-builder/access-tokens/{id}', [SiteAccessTokenController::class, 'destroy'])->whereNumber('id');
+            Route::get('site-builder/integrations', [SiteIntegrationController::class, 'show']);
+            Route::get('site-builder/meta', [MetaPagesController::class, 'show']);
+            Route::post('site-builder/meta/connect', [MetaPagesController::class, 'connect']);
+            Route::get('site-builder/meta/pages', [MetaPagesController::class, 'pages']);
+            Route::put('site-builder/meta/page', [MetaPagesController::class, 'choosePage']);
+            Route::post('site-builder/meta/sync', [MetaPagesController::class, 'sync'])->middleware('throttle:10,1');
+            Route::delete('site-builder/meta', [MetaPagesController::class, 'disconnect']);
+            Route::get('site-builder/google', [GoogleBusinessController::class, 'show']);
+            Route::post('site-builder/google/connect', [GoogleBusinessController::class, 'connect']);
+            Route::get('site-builder/google/locations', [GoogleBusinessController::class, 'locations']);
+            Route::put('site-builder/google/location', [GoogleBusinessController::class, 'chooseLocation']);
+            Route::post('site-builder/google/sync', [GoogleBusinessController::class, 'sync'])->middleware('throttle:10,1');
+            Route::delete('site-builder/google', [GoogleBusinessController::class, 'disconnect']);
+            Route::put('site-builder/integrations', [SiteIntegrationController::class, 'update']);
+            Route::put('site-builder/page-order', [SiteBuilderController::class, 'reorder']);
+            Route::post('site-builder/publish', [SiteBuilderController::class, 'publish']);
+            Route::get('site-builder/versions', [SiteBuilderController::class, 'versions']);
+            Route::post('site-builder/versions/{siteVersion}/make-live', [SiteBuilderController::class, 'makeLive']);
+            Route::post('site-builder/versions/{siteVersion}/edit', [SiteBuilderController::class, 'loadVersion']);
+            Route::apiResource('site-pages', SiteBuilderController::class)->except(['show']);
+        });
+
+        // Before the resource, so "reorder" is not read as a category id.
+        Route::put('product-categories/reorder', [ProductCategoryController::class, 'reorder']);
         Route::apiResource('product-categories', ProductCategoryController::class)->except(['index', 'show']);
         Route::apiResource('tags', TagController::class);
         Route::apiResource('products', ProductController::class)->except(['index', 'show']);
@@ -341,6 +469,47 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('loyalty-settings', LoyaltySettingController::class);
             Route::apiResource('loyalty-transactions', LoyaltyTransactionController::class);
             Route::apiResource('reservations', ReservationController::class);
+            Route::post('reservations/{reservation}/status', [ReservationController::class, 'status']);
+            Route::post('reservations/{reservation}/called', [ReservationController::class, 'called']);
+
+        });
+
+        // Hotel rooms (the `hotel` add-on module): room types, rooms, room bookings.
+        Route::middleware('module:hotel')->group(function () {
+            Route::get('hotel/room-types', [HotelSetupController::class, 'index']);
+            Route::post('hotel/room-types', [HotelSetupController::class, 'storeType']);
+            Route::put('hotel/room-types/{roomType}', [HotelSetupController::class, 'updateType']);
+            Route::delete('hotel/room-types/{roomType}', [HotelSetupController::class, 'destroyType']);
+            Route::post('hotel/room-types/{roomType}/rooms', [HotelSetupController::class, 'storeRooms']);
+            Route::put('hotel/rooms/{room}', [HotelSetupController::class, 'updateRoom']);
+            Route::delete('hotel/rooms/{room}', [HotelSetupController::class, 'destroyRoom']);
+            Route::post('hotel/photos', [HotelSetupController::class, 'uploadPhoto']);
+            Route::get('hotel/availability', [RoomBookingController::class, 'availability']);
+            Route::post('hotel/bookings/quote', [RoomBookingController::class, 'quote']);
+            Route::get('hotel/bookings', [RoomBookingController::class, 'index']);
+            Route::post('hotel/bookings', [RoomBookingController::class, 'store']);
+            Route::get('hotel/bookings/{roomBooking}', [RoomBookingController::class, 'show']);
+            Route::put('hotel/bookings/{roomBooking}', [RoomBookingController::class, 'update']);
+            Route::delete('hotel/bookings/{roomBooking}', [RoomBookingController::class, 'destroy']);
+            Route::post('hotel/bookings/{roomBooking}/status', [RoomBookingController::class, 'status']);
+            Route::get('hotel/bookings/{roomBooking}/rooms', [RoomBookingController::class, 'rooms']);
+            Route::post('hotel/bookings/{roomBooking}/room', [RoomBookingController::class, 'assignRoom']);
+            Route::post('hotel/bookings/{roomBooking}/payments', [RoomBookingController::class, 'addPayment']);
+            Route::delete('hotel/bookings/{roomBooking}/payments/{payment}', [RoomBookingController::class, 'removePayment']);
+            Route::post('hotel/bookings/{roomBooking}/email', [RoomBookingController::class, 'email'])->middleware('throttle:20,1');
+        });
+
+        Route::middleware('module:crm')->group(function () {
+            // Venue booking: halls hired out for events.
+            Route::apiResource('venues', VenueController::class)->except(['show']);
+            Route::apiResource('venue-packages', VenuePackageController::class)->except(['show'])->parameters(['venue-packages' => 'package']);
+            Route::post('venue-bookings/quote', [VenueBookingController::class, 'quote']);
+            Route::apiResource('venue-bookings', VenueBookingController::class);
+            Route::post('venue-bookings/{venueBooking}/status', [VenueBookingController::class, 'status']);
+            Route::post('venue-bookings/{venueBooking}/called', [VenueBookingController::class, 'called']);
+            Route::post('venue-bookings/{venueBooking}/email', [VenueBookingController::class, 'email'])->middleware('throttle:20,1');
+            Route::post('venue-bookings/{venueBooking}/payments', [VenueBookingController::class, 'addPayment']);
+            Route::delete('venue-bookings/{venueBooking}/payments/{payment}', [VenueBookingController::class, 'removePayment']);
             Route::apiResource('quotations', QuotationController::class);
             Route::apiResource('quotations.items', QuotationItemController::class)->shallow();
         });

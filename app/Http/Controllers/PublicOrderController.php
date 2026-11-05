@@ -2,17 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\Site\SendGa4Conversion;
+use App\Jobs\Site\SendMetaConversion;
 use App\Models\Customer;
 use App\Models\Location;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\SiteIntegration;
 use App\Models\Tenant;
 use App\Rules\PhoneNumber;
 use App\Support\Billing\Modules;
 use App\Support\Billing\Subscription;
 use App\Support\Branding\RestaurantBranding;
 use App\Support\Orders\OrderFlow;
+use App\Support\PhoneNumber as Phone;
+use App\Support\Site\Conversion;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -54,7 +59,17 @@ class PublicOrderController extends Controller
 
             $locations = Location::where('is_active', true)
                 ->orderBy('name')
-                ->get(['id', 'name', 'address', 'phone']);
+                ->get(['id', 'name', 'address', 'phone', 'map_url'])
+                // A map link for the website's Locations page - web addresses
+                // only, so a saved value can never become script there.
+                ->map(fn (Location $l) => [
+                    'id' => $l->id,
+                    'name' => $l->name,
+                    'address' => $l->address,
+                    'phone' => $l->phone,
+                    'map_url' => is_string($l->map_url) && preg_match('#^https?://#i', $l->map_url) ? $l->map_url : null,
+                ])
+                ->values();
 
             $products = Product::with(['images', 'locations'])
                 ->where('is_active', true)
@@ -73,11 +88,13 @@ class PublicOrderController extends Controller
                     'currency' => $branding['currency'] ?? '৳',
                 ],
                 'accepting_orders' => $this->acceptingOrders($tenant),
+                // The restaurant's website tags, so ordering reports to them too.
+                'tracking' => SiteIntegration::publicTags(),
                 'order_types' => $this->orderTypes($tenant),
                 'locations' => $locations,
                 'categories' => ProductCategory::whereIn('id', $categoryIds)
                     ->where('is_active', true)
-                    ->orderBy('name')
+                    ->ordered()
                     ->get(['id', 'name']),
                 'products' => $products->map(fn (Product $product) => [
                     'id' => $product->id,
@@ -117,7 +134,7 @@ class PublicOrderController extends Controller
                 'items.*.product_id' => ['required', 'integer'],
                 'items.*.qty' => ['required', 'integer', 'min:1', 'max:99'],
                 'items.*.notes' => ['nullable', 'string', 'max:200'],
-            ], [
+            ] + Conversion::REQUEST_RULES, [
                 'delivery_address.required_if' => 'Enter the address to deliver to.',
                 'items.required' => 'Add at least one item to your order.',
             ]);
@@ -151,6 +168,8 @@ class PublicOrderController extends Controller
                 'customer_note' => $validated['note'] ?? null,
             ])->save();
 
+            self::reportConversion(Conversion::forOrder($model, $request, $validated['name'], $validated['phone']));
+
             return response()->json([
                 'order_id' => $model->id,
                 'tracking_key' => $this->trackingKey($model),
@@ -163,6 +182,34 @@ class PublicOrderController extends Controller
                 'currency' => RestaurantBranding::current()['currency'] ?? '৳',
             ], 201);
         });
+    }
+
+    /**
+     * Queues a website conversion for each ad platform the restaurant has set
+     * up server-side. Runs in the restaurant's context, after the order or
+     * booking is saved.
+     *
+     * @param  array<string, mixed>  $conversion
+     */
+    public static function reportConversion(array $conversion): void
+    {
+        $integration = SiteIntegration::current();
+        $tenantId = (int) app(TenantContext::class)->id();
+
+        $jobs = array_filter([
+            $integration?->sendsMeta() ? new SendMetaConversion($tenantId, $conversion) : null,
+            $integration?->sendsGa4() ? new SendGa4Conversion($tenantId, $conversion) : null,
+        ]);
+
+        foreach ($jobs as $job) {
+            // Reporting must never cost the guest their order - not even on a
+            // sync queue, where a platform's error would surface right here.
+            try {
+                dispatch($job);
+            } catch (\Throwable $e) {
+                report($e);
+            }
+        }
     }
 
     /**
@@ -384,7 +431,10 @@ class PublicOrderController extends Controller
      */
     private function customerFor(string $name, string $phone, ?string $address): Customer
     {
-        $customer = Customer::firstOrCreate(['phone' => $phone], ['name' => $name, 'address' => $address]);
+        // Looked up by the stored form: Customer normalises phones on write
+        // (01711... is kept as +8801711...), so the raw value never matches and
+        // a returning customer would hit the unique index instead.
+        $customer = Customer::firstOrCreate(['phone' => Phone::normalise($phone) ?? $phone], ['name' => $name, 'address' => $address]);
 
         if ($address && empty($customer->address)) {
             $customer->update(['address' => $address]);

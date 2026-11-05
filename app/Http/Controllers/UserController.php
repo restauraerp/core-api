@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\OneTimeLoginToken;
 use App\Rules\PhoneNumber;
+use App\Support\Assets\Media;
+use App\Support\Tenancy\TenantContext;
+use Spatie\Permission\Models\Role;
 use Illuminate\Http\Request;
 
 use App\Models\User;
@@ -25,14 +28,17 @@ class UserController extends Controller
 
     public function store(Request $request)
     {
-        // Sign-in is on unless the form says otherwise. A no-login user - a
-        // rider to assign deliveries to, a waiter credited with sales - needs
-        // no password at all.
-        $canLogin = $request->has('can_login') ? $request->boolean('can_login') : true;
+        // Sign-in follows the form when it says, otherwise the role: a role
+        // like `waiter` is set not to sign in, so its people are created
+        // without one. A no-login user - a waiter credited with sales, a rider
+        // given deliveries - needs neither an email nor a password.
+        $canLogin = $request->has('can_login')
+            ? $request->boolean('can_login')
+            : $this->roleRequiresLogin($request->input('role'));
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => ['required', 'string', 'email:rfc,strict', 'max:255', $this->tenantUnique('users')],
+            'email' => [Rule::requiredIf($canLogin), 'nullable', 'string', 'email:rfc,strict', 'max:255', $this->tenantUnique('users')],
             'password' => [Rule::requiredIf($canLogin), 'nullable', 'string', 'min:8'],
             'location_id' => ['nullable', $this->tenantExists('locations')],
             'role' => ['nullable', 'string', $this->tenantExists('roles', 'name')],
@@ -41,7 +47,7 @@ class UserController extends Controller
         ]);
 
         if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('users', 'public');
+            $path = $request->file('image')->store('users', Media::disk());
             $validated['image_url'] = $path;
         }
 
@@ -71,7 +77,7 @@ class UserController extends Controller
         $validated = $request->request->all();
         $rules = [
             'name' => 'sometimes|string|max:255',
-            'email' => ['sometimes', 'string', 'email:rfc,strict', 'max:255', $this->tenantUnique('users')->ignore($user->id)],
+            'email' => ['sometimes', 'nullable', 'string', 'email:rfc,strict', 'max:255', $this->tenantUnique('users')->ignore($user->id)],
             'password' => 'nullable|string|min:8',
             'location_id' => ['nullable', $this->tenantExists('locations')],
             'role' => ['nullable', 'string', $this->tenantExists('roles', 'name')],
@@ -109,8 +115,19 @@ class UserController extends Controller
             $validated['can_login'] = $canLogin;
         }
 
+        // Anybody who signs in signs in with an email - whether sign-in was
+        // just switched on, or the email is being cleared from someone who has it.
+        $signsIn = array_key_exists('can_login', $validated) ? $validated['can_login'] : $wasAllowed;
+        $email = array_key_exists('email', $validated) ? $validated['email'] : $user->email;
+
+        if ($signsIn && ($email === null || $email === '')) {
+            throw ValidationException::withMessages([
+                'email' => ['Add an email address to allow this user to sign in.'],
+            ]);
+        }
+
         if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('users', 'public');
+            $path = $request->file('image')->store('users', Media::disk());
             $validated['image_url'] = $path;
         }
 
@@ -133,6 +150,21 @@ class UserController extends Controller
         }
 
         return response()->json($user->load('roles'));
+    }
+
+    /**
+     * Whether people given this role sign in by default (roles.requires_login).
+     * No role, or one this restaurant does not have, means yes.
+     */
+    private function roleRequiresLogin(?string $roleName): bool
+    {
+        if ($roleName === null || $roleName === '') {
+            return true;
+        }
+
+        $role = Role::where('tenant_id', app(TenantContext::class)->id())->where('name', $roleName)->first();
+
+        return $role === null || (bool) $role->requires_login;
     }
 
     /**

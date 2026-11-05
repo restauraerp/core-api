@@ -48,6 +48,8 @@ class ExpireTenants extends Command
         // must be left alone - it has full access, not merely a stale status.
         $lapsed = Tenant::query()
             ->whereIn('status', ['trialing', 'active'])
+            // Demo restaurants have no trial or subscription to run out.
+            ->where('is_demo', false)
             ->where(function ($query) {
                 $query->where(function ($trialing) {
                     $trialing->where('status', 'trialing')

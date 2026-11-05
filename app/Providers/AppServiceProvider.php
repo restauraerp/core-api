@@ -39,6 +39,11 @@ class AppServiceProvider extends ServiceProvider
             return $user->is_platform_admin ? true : null;
         });
 
+        // website_settings hold both the restaurant's identity and settings
+        // (Settings screen) and its website content (Website screen), so
+        // either right may write them.
+        Gate::define('manage_site_settings', fn (User $user) => $user->hasPermissionTo('manage_system_settings') || $user->hasPermissionTo('manage_website_content'));
+
         // Rider notifications: each restaurant's bot sends at most
         // config('telegram.per_second') a second and per_minute a minute.
         // Distinct keys per window - two limits sharing a key would count

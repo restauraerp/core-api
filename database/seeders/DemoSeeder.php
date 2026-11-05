@@ -64,9 +64,11 @@ class DemoSeeder extends Seeder
         if ($tenant === null) {
             $tenant = $provisioner->create($attributes + [
                 'status' => 'active',
+                'is_demo' => true,
                 'contact_email' => config('app.demo_username'),
             ]);
         } else {
+            $tenant->update(['is_demo' => true]);
             $provisioner->provision($tenant);
         }
 

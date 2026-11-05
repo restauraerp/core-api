@@ -50,10 +50,14 @@ class PlanEntitlementTest extends TestCase
 
     private function actingAsOwnerOf(Tenant $tenant): User
     {
-        $user = app(TenantContext::class)->runFor(
-            $tenant,
-            fn () => User::factory()->create(['tenant_id' => $tenant->getKey()]),
-        );
+        // The owner role: creating outlets needs create_location now that the
+        // route is no longer open to anyone.
+        $user = app(TenantContext::class)->runFor($tenant, function () use ($tenant) {
+            $user = User::factory()->create(['tenant_id' => $tenant->getKey()]);
+            $user->assignRole(RoleDefinitions::RESTAURANT_ADMIN);
+
+            return $user;
+        });
 
         Sanctum::actingAs($user);
 

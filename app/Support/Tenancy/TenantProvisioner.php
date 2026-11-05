@@ -128,11 +128,13 @@ class TenantProvisioner
         $allPermissions = Permission::whereIn('name', $entitled)->get();
 
         foreach (RoleDefinitions::tenantRoles() as $roleName => $permissions) {
+            // requires_login is only set when the role is created: afterwards
+            // it is the restaurant's to change, and a re-sync must not undo it.
             $role = Role::firstOrCreate([
                 'name' => $roleName,
                 'guard_name' => 'web',
                 'tenant_id' => $this->context->id(),
-            ]);
+            ], ['requires_login' => RoleDefinitions::requiresLogin($roleName)]);
 
             // null = every permission the tier includes, so the owner role
             // keeps picking up permissions added in later releases.
@@ -142,6 +144,49 @@ class TenantProvisioner
                     : $allPermissions->whereIn('name', $permissions)
             );
         }
+    }
+
+    /**
+     * Adds the predefined roles a restaurant does not have yet - the ones
+     * introduced in a release after it was created - and nothing else.
+     *
+     * Unlike createRoles(), roles that already exist are left exactly as they
+     * are: their permissions and sign-in setting may have been adjusted by the
+     * restaurant, and a new release must not reset them. Run for every
+     * restaurant by `tenants:sync-roles`, which the deploy calls.
+     *
+     * @return list<string> the role names added
+     */
+    public function addMissingRoles(Tenant $tenant): array
+    {
+        return $this->context->runFor($tenant, function () use ($tenant) {
+            $existing = Role::where('tenant_id', $tenant->getKey())->pluck('name')->all();
+            $missing = array_diff_key(RoleDefinitions::tenantRoles(), array_flip($existing));
+
+            if ($missing === []) {
+                return [];
+            }
+
+            $entitled = Plans::exists((string) $tenant->plan) || $tenant->package_id !== null
+                ? $tenant->entitledPermissions()
+                : RoleDefinitions::permissions();
+            $allPermissions = Permission::whereIn('name', $entitled)->get();
+
+            foreach ($missing as $roleName => $permissions) {
+                $role = Role::create([
+                    'name' => $roleName,
+                    'guard_name' => 'web',
+                    'tenant_id' => $tenant->getKey(),
+                    'requires_login' => RoleDefinitions::requiresLogin($roleName),
+                ]);
+
+                $role->syncPermissions(
+                    $permissions === null ? $allPermissions : $allPermissions->whereIn('name', $permissions)
+                );
+            }
+
+            return array_keys($missing);
+        });
     }
 
     private function createOwner(Tenant $tenant, array $owner): User

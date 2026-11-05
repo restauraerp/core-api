@@ -11,7 +11,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 
 /**
- * Billing state, counted, for the marketing site's daily report.
+ * Billing state, counted, for the marketing site's daily report. Demo
+ * restaurants are not customers and are left out of every figure but their own.
  *
  * These numbers only exist here: the website holds orders and customers, but
  * what a subscription is worth, when it runs out and whether it is inside its
@@ -55,16 +56,16 @@ class StatsController extends Controller
                 'generated_at' => $now->toIso8601String(),
 
                 // Forward-looking: what needs attention today or soon.
-                'trials_ending_today' => Tenant::where('status', 'trialing')
+                'trials_ending_today' => Tenant::customers()->where('status', 'trialing')
                     ->whereBetween('trial_ends_at', [$todayStart, $todayEnd])
                     ->count(),
 
-                'subscriptions_ending_today' => Tenant::where('status', 'active')
+                'subscriptions_ending_today' => Tenant::customers()->where('status', 'active')
                     ->whereBetween('subscription_ends_at', [$todayStart, $todayEnd])
                     ->count(),
 
                 'payments_due_within_days' => $dueWithin,
-                'payments_due_soon' => Tenant::where('status', 'active')
+                'payments_due_soon' => Tenant::customers()->where('status', 'active')
                     ->whereBetween('subscription_ends_at', [$now, $now->copy()->addDays($dueWithin)])
                     ->count(),
 
@@ -72,16 +73,19 @@ class StatsController extends Controller
 
                 // Standing totals, for the shape of the business rather than
                 // the shape of the day.
-                'active_subscribers' => Tenant::where('status', 'active')->count(),
-                'on_trial' => Tenant::where('status', 'trialing')->count(),
-                'suspended' => Tenant::where('status', 'suspended')->count(),
-                'cancelled' => Tenant::where('status', 'cancelled')->count(),
-                'restaurants_total' => Tenant::count(),
+                'active_subscribers' => Tenant::customers()->where('status', 'active')->count(),
+                'on_trial' => Tenant::customers()->where('status', 'trialing')->count(),
+                'suspended' => Tenant::customers()->where('status', 'suspended')->count(),
+                'cancelled' => Tenant::customers()->where('status', 'cancelled')->count(),
+                'restaurants_total' => Tenant::customers()->count(),
+                // Testing and presentation restaurants, left out of every
+                // count above.
+                'demo_restaurants' => Tenant::where('is_demo', true)->count(),
 
                 // Trials that have run out and were never paid for. The single
                 // most actionable list on here: they used the product and
                 // stopped, and nobody is chasing them.
-                'trials_expired_unconverted' => Tenant::where('status', 'trialing')
+                'trials_expired_unconverted' => Tenant::customers()->where('status', 'trialing')
                     ->whereNotNull('trial_ends_at')
                     ->where('trial_ends_at', '<', $now)
                     ->count(),
@@ -100,7 +104,7 @@ class StatsController extends Controller
     {
         $now = Carbon::now();
 
-        return Tenant::where('status', 'active')
+        return Tenant::customers()->where('status', 'active')
             ->whereNotNull('subscription_ends_at')
             ->where('subscription_ends_at', '<', $now)
             ->get(['id', 'billing_cycle', 'subscription_ends_at'])

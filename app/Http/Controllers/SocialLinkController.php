@@ -16,7 +16,7 @@ class SocialLinkController extends Controller
     {
         $validated = $request->validate([
             'platform' => 'required|string|max:255',
-            'url' => 'required|url',
+            'url' => 'required|url:http,https',
             'is_active' => 'boolean',
         ]);
 
@@ -33,7 +33,7 @@ class SocialLinkController extends Controller
     {
         $validated = $request->validate([
             'platform' => 'sometimes|string|max:255',
-            'url' => 'sometimes|url',
+            'url' => 'sometimes|url:http,https',
             'is_active' => 'boolean',
         ]);
 

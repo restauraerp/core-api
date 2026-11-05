@@ -1,0 +1,191 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\GoogleReview;
+use App\Models\Location;
+use App\Models\Package;
+use App\Models\Product;
+use App\Models\ProductCategory;
+use App\Models\Tenant;
+use App\Models\User;
+use App\Support\Tenancy\RoleDefinitions;
+use App\Support\Tenancy\TenantContext;
+use App\Support\Tenancy\TenantProvisioner;
+use Database\Seeders\RolePermissionSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
+use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\Test;
+use Tests\TestCase;
+
+/**
+ * The smart first draft: a restaurant's site - a full set of standard pages -
+ * put together from its own data, by rules. Each section appears only when
+ * there is something to show.
+ */
+class SiteDraftTest extends TestCase
+{
+    use RefreshDatabase;
+
+    private Tenant $tenant;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Storage::fake('public');
+        $this->seed(RolePermissionSeeder::class);
+        $this->tenant = app(TenantProvisioner::class)->create([
+            'name' => 'Spice Garden', 'slug' => 'spice', 'plan' => 'growth', 'status' => 'active',
+        ]);
+
+        Sanctum::actingAs($this->inTenant(function () {
+            $user = User::factory()->create(['tenant_id' => $this->tenant->getKey()]);
+            $user->assignRole(RoleDefinitions::RESTAURANT_ADMIN);
+
+            return $user;
+        }));
+        $this->withHeader('X-Tenant-ID', 'spice');
+
+        // Start from an empty menu: provisioning seeds a few categories.
+        $this->inTenant(fn () => ProductCategory::query()->delete());
+    }
+
+    private function inTenant(callable $work): mixed
+    {
+        return app(TenantContext::class)->runFor($this->tenant, $work);
+    }
+
+    /** Adds dishes to a category, with a stored photo each when asked. */
+    private function dishes(string $category, int $count, bool $photos = false): void
+    {
+        $this->inTenant(function () use ($category, $count, $photos) {
+            $cat = ProductCategory::create(['name' => $category, 'is_active' => true]);
+
+            for ($i = 1; $i <= $count; $i++) {
+                $product = Product::create(['name' => "{$category} {$i}", 'price' => 100, 'category_id' => $cat->id, 'is_active' => true]);
+                if ($photos) {
+                    $path = "foods/{$category}-{$i}.jpg";
+                    Storage::disk('public')->put($path, 'jpeg-bytes');
+                    $product->images()->create(['url' => $path]);
+                }
+            }
+        });
+    }
+
+    /** @return list<string> */
+    private function types(): array
+    {
+        return array_column($this->getJson('/api/v1/site-builder/smart-draft')->assertOk()->json('sections'), 'type');
+    }
+
+    #[Test]
+    public function a_restaurant_with_little_data_gets_the_essentials(): void
+    {
+        $this->inTenant(fn () => $this->tenant->update(['package_id' => Package::create([
+            'name' => 'Basic site', 'modules' => ['pos', 'orders', 'catalog', 'website'], 'outlets' => 1,
+        ])->id]));
+
+        $this->assertSame(['hero', 'text', 'button', 'order_button'], $this->types());
+
+        // Without CRM there is no Book a table page.
+        $this->getJson('/api/v1/site-builder/smart-draft?kind=reservations')->assertUnprocessable();
+        $this->assertNotContains('reservations', $this->getJson('/api/v1/site-pages')->json('standard_pages.*.kind'));
+    }
+
+    #[Test]
+    public function sections_appear_when_there_is_something_to_show(): void
+    {
+        $this->dishes('Biryani', 4, photos: true);
+        $this->dishes('Kebab', 2);
+        $this->inTenant(function () {
+            GoogleReview::create(['author_name' => 'Rina', 'rating' => 5, 'text' => 'Lovely', 'is_displayed' => true]);
+            Location::create(['name' => 'Gulshan', 'slug' => 'gulshan', 'is_active' => true]);
+        });
+
+        $draft = $this->getJson('/api/v1/site-builder/smart-draft')->assertOk();
+        $types = array_column($draft->json('sections'), 'type');
+
+        $this->assertSame(['hero', 'text', 'featured', 'button', 'order_button', 'reviews'], $types);
+
+        // The words come from the restaurant's own menu and name.
+        $this->assertSame('Spice Garden', $draft->json('sections.0.props.title'));
+        $this->assertStringContainsString('Biryani and Kebab', $draft->json('sections.0.props.subtitle'));
+        $this->assertStringContainsString('Welcome to Spice Garden', $draft->json('sections.1.props.body'));
+        $this->assertStringContainsString('Spice Garden', $draft->json('meta_description'));
+
+        // The other standard pages are drafted the same way.
+        $page = fn (string $kind) => $this->getJson("/api/v1/site-builder/smart-draft?kind={$kind}")->assertOk();
+        $this->assertSame('online_order', $page('order')->json('sections.0.type'));
+        $this->assertSame('reservations', $page('reservations')->json('sections.0.type'));
+        $this->assertCount(4, $page('gallery')->json('sections.0.props.images'));
+        // Provisioning's branch and Gulshan.
+        $this->assertSame('Our branches', $page('locations')->json('sections.0.props.heading'));
+        $this->assertSame('map', $page('locations')->json('sections.0.type'));
+        $this->assertSame('image_text', $page('about')->json('sections.0.type'));
+        $this->getJson('/api/v1/site-builder/smart-draft?kind=script')->assertUnprocessable();
+    }
+
+    #[Test]
+    public function a_dish_photo_becomes_the_banner_as_a_copy(): void
+    {
+        $this->dishes('Biryani', 3, photos: true);
+
+        $image = $this->getJson('/api/v1/site-builder/smart-draft')->json('sections.0.props.image');
+
+        $this->assertStringStartsWith('site/'.$this->tenant->getKey().'/banner-', $image);
+        Storage::disk('public')->assertExists($image);
+    }
+
+    #[Test]
+    public function a_demo_photo_is_copied_on_the_server_even_with_the_bucket_on(): void
+    {
+        // Demo imagery is a local file shared by every demo restaurant; the
+        // site's copy of it must not be pushed into the bucket.
+        Storage::fake('s3');
+        config(['filesystems.media_disk' => 's3']);
+        $this->dishes('Biryani', 3, photos: true);
+
+        $image = $this->getJson('/api/v1/site-builder/smart-draft')->json('sections.0.props.image');
+
+        Storage::disk('public')->assertExists($image);
+        $this->assertSame([], Storage::disk('s3')->allFiles());
+    }
+
+    #[Test]
+    public function an_uploaded_photo_in_the_bucket_is_copied_within_the_bucket(): void
+    {
+        Storage::fake('s3');
+        config(['filesystems.media_disk' => 's3']);
+        $this->inTenant(function () {
+            $cat = ProductCategory::create(['name' => 'Kebab', 'is_active' => true]);
+            $product = Product::create(['name' => 'Seekh', 'price' => 100, 'category_id' => $cat->id, 'is_active' => true]);
+            Storage::disk('s3')->put('foods/seekh.jpg', 'jpeg-bytes');
+            $product->images()->create(['url' => 'foods/seekh.jpg']);
+        });
+
+        $image = $this->getJson('/api/v1/site-builder/smart-draft')->json('sections.0.props.image');
+
+        $this->assertStringStartsWith('site/'.$this->tenant->getKey().'/banner-', $image);
+        Storage::disk('s3')->assertExists($image);
+        Storage::disk('public')->assertMissing($image);
+    }
+
+    #[Test]
+    public function the_first_builder_visit_drafts_the_site(): void
+    {
+        $this->dishes('Biryani', 3, photos: true);
+
+        // Public, never published: Coming soon, and no files written on a visitor's request.
+        $this->getJson('/api/v1/site/spice')->assertOk()->assertJsonPath('coming_soon', true);
+        $this->assertSame([], Storage::disk('public')->files('site/'.$this->tenant->getKey()));
+
+        // First visit to the builder saves the draft as the home page.
+        $this->getJson('/api/v1/site-pages')
+            ->assertJsonPath('pages.0.sections.2.type', 'featured')
+            ->assertJsonPath('pages.0.is_live', false)
+            ->assertJsonPath('pages.5.kind', 'gallery')
+            ->assertJsonCount(3, 'pages.5.sections.0.props.images');
+    }
+}

@@ -6,6 +6,7 @@ use App\Enums\LocationType;
 use App\Models\Location;
 use App\Models\Order;
 use App\Rules\PhoneNumber;
+use App\Support\Assets\Media;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rules\Enum;
@@ -44,6 +45,14 @@ class LocationController extends Controller
             ], 403);
         }
 
+        // After the plan check, not before: a Starter owner holds no
+        // create_location (Locations is not in Starter), and must still be
+        // told it is the plan's outlet cap - which the front turns into an
+        // upgrade prompt - rather than a bare "forbidden".
+        if (! $request->user()?->can('create_location')) {
+            abort(403, 'You do not have permission to add outlets.');
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'type' => ['nullable', 'string', new Enum(LocationType::class)],
@@ -61,24 +70,24 @@ class LocationController extends Controller
         $location = Location::create($validated);
 
         if ($request->hasFile('featured_image')) {
-            $path = $request->file('featured_image')->store('locations', 'public');
+            $path = $request->file('featured_image')->store('locations', Media::disk());
             $location->featuredImage()->create(['url' => $path, 'type' => 'featured_image']);
         }
 
         if ($request->hasFile('featured_video')) {
-            $path = $request->file('featured_video')->store('locations_videos', 'public');
+            $path = $request->file('featured_video')->store('locations_videos', Media::disk());
             $location->featuredVideo()->create(['url' => $path, 'type' => 'featured_video']);
         }
 
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $file) {
-                $path = $file->store('locations', 'public');
+                $path = $file->store('locations', Media::disk());
                 $location->images()->create(['url' => $path, 'type' => 'image']);
             }
         }
         if ($request->hasFile('videos')) {
             foreach ($request->file('videos') as $file) {
-                $path = $file->store('locations_videos', 'public');
+                $path = $file->store('locations_videos', Media::disk());
                 $location->videos()->create(['url' => $path, 'type' => 'video']);
             }
         }
@@ -115,7 +124,7 @@ class LocationController extends Controller
             if ($location->featuredImage) {
                 $location->featuredImage->delete();
             }
-            $path = $request->file('featured_image')->store('locations', 'public');
+            $path = $request->file('featured_image')->store('locations', Media::disk());
             $location->featuredImage()->create(['url' => $path, 'type' => 'featured_image']);
         }
 
@@ -123,19 +132,19 @@ class LocationController extends Controller
             if ($location->featuredVideo) {
                 $location->featuredVideo->delete();
             }
-            $path = $request->file('featured_video')->store('locations_videos', 'public');
+            $path = $request->file('featured_video')->store('locations_videos', Media::disk());
             $location->featuredVideo()->create(['url' => $path, 'type' => 'featured_video']);
         }
 
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $file) {
-                $path = $file->store('locations', 'public');
+                $path = $file->store('locations', Media::disk());
                 $location->images()->create(['url' => $path, 'type' => 'image']);
             }
         }
         if ($request->hasFile('videos')) {
             foreach ($request->file('videos') as $file) {
-                $path = $file->store('locations_videos', 'public');
+                $path = $file->store('locations_videos', Media::disk());
                 $location->videos()->create(['url' => $path, 'type' => 'video']);
             }
         }

@@ -47,7 +47,7 @@ class RoleDefinitions
 
             'view_delivery', 'update_delivery_status', 'manage_integrations',
 
-            'view_crm', 'manage_customers', 'manage_loyalty_settings',
+            'view_crm', 'manage_customers', 'manage_loyalty_settings', 'manage_reservations', 'manage_venue_bookings',
 
             'view_locations', 'create_location', 'update_location', 'delete_location',
 
@@ -55,10 +55,28 @@ class RoleDefinitions
 
             'view_website', 'manage_website_content',
 
+            'manage_hotel',
+
             'view_settings', 'manage_system_settings',
 
             'view_reporting',
         ];
+    }
+
+    /**
+     * Predefined roles whose members do not sign in to the panel.
+     *
+     * Stored per role as roles.requires_login, which the restaurant can change;
+     * this is only where it starts. A role's setting is the default for new
+     * users given it - each user can still be switched either way.
+     *
+     * @var list<string>
+     */
+    public const WITHOUT_LOGIN = ['waiter'];
+
+    public static function requiresLogin(string $roleName): bool
+    {
+        return ! in_array($roleName, self::WITHOUT_LOGIN, true);
     }
 
     /**
@@ -79,6 +97,7 @@ class RoleDefinitions
                 'view_dashboard', 'view_dashboard_stats',
                 'view_pos', 'create_pos_order',
                 'view_orders', 'update_order_status',
+                'manage_reservations', 'manage_venue_bookings', 'manage_hotel',
                 'view_inventory', 'update_inventory_item',
                 'view_hr', 'manage_employees', 'manage_attendance', 'manage_leaves', 'manage_payroll',
                 'view_reporting',
@@ -88,6 +107,8 @@ class RoleDefinitions
                 'view_dashboard',
                 'view_pos', 'create_pos_order',
                 'view_orders', 'update_order_status',
+                // Front of house takes the table bookings.
+                'manage_reservations',
             ],
 
             'chef' => [
@@ -96,6 +117,14 @@ class RoleDefinitions
 
             'rider' => [
                 'view_delivery', 'update_delivery_status',
+            ],
+
+            // Exists to be credited with sales ("served by") and paid, not to
+            // sign in - see WITHOUT_LOGIN. The POS permissions are for the day
+            // a restaurant gives one waiter a login of their own.
+            'waiter' => [
+                'view_pos', 'create_pos_order',
+                'view_orders',
             ],
 
             'accountant' => [

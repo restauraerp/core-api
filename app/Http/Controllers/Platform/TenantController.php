@@ -49,7 +49,9 @@ class TenantController extends Controller
         $search = trim((string) $request->query('search', ''));
         $perPage = max(1, min(100, (int) $request->query('per_page', 50)));
 
-        $statuses = ['all', 'trialing', 'active', 'suspended', 'cancelled', 'trashed'];
+        // 'demo' is its own list: demo restaurants are for testing and
+        // presentations, so every other tab - 'all' included - leaves them out.
+        $statuses = ['all', 'trialing', 'active', 'suspended', 'cancelled', 'demo', 'trashed'];
 
         if (! in_array($status, $statuses, true)) {
             $status = 'all';
@@ -75,10 +77,12 @@ class TenantController extends Controller
 
             if ($status === 'trashed') {
                 $query->onlyTrashed();
+            } elseif ($status === 'demo') {
+                $query->withoutTrashed()->where('is_demo', true);
             } elseif ($status !== 'all') {
-                $query->withoutTrashed()->where('status', $status);
+                $query->withoutTrashed()->where('is_demo', false)->where('status', $status);
             } else {
-                $query->withoutTrashed();
+                $query->withoutTrashed()->where('is_demo', false);
             }
 
             if ($search !== '') {
@@ -96,8 +100,9 @@ class TenantController extends Controller
         $counts = array_combine($statuses, array_map(
             fn ($tab) => match ($tab) {
                 'trashed' => Tenant::onlyTrashed()->count(),
-                'all' => Tenant::withoutTrashed()->count(),
-                default => Tenant::withoutTrashed()->where('status', $tab)->count(),
+                'demo' => Tenant::withoutTrashed()->where('is_demo', true)->count(),
+                'all' => Tenant::withoutTrashed()->where('is_demo', false)->count(),
+                default => Tenant::withoutTrashed()->where('is_demo', false)->where('status', $tab)->count(),
             },
             $statuses
         ));
@@ -555,6 +560,25 @@ class TenantController extends Controller
         return response()->json(['tenant' => $this->present($tenant->fresh('package'))]);
     }
 
+    /**
+     * PUT /platform/tenants/{slug}/demo - marks a restaurant as a demo (for
+     * testing or presentations) or back as a customer.
+     *
+     * Nothing else about the restaurant changes, so unmarking puts it back
+     * exactly where its own dates say it is: a trial that ran out while it was
+     * a demo is a lapsed trial again.
+     */
+    public function setDemo(Request $request, string $slug): JsonResponse
+    {
+        $validated = $request->validate(['is_demo' => ['required', 'boolean']]);
+
+        $tenant = Tenant::where('slug', $slug)->firstOrFail();
+        $tenant->update(['is_demo' => $validated['is_demo']]);
+        Subscription::forget($tenant);
+
+        return response()->json(['tenant' => $this->present($tenant->fresh('package'))]);
+    }
+
     private function present(Tenant $tenant): array
     {
         return [
@@ -571,6 +595,7 @@ class TenantController extends Controller
             'modules' => $tenant->modules(),
             'outlet_limit' => $tenant->outletLimit(),
             'status' => $tenant->status,
+            'is_demo' => (bool) $tenant->is_demo,
             'billing_cycle' => $tenant->billing_cycle,
             'contact_name' => $tenant->contact_name,
             'contact_email' => $tenant->contact_email,

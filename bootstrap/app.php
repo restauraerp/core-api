@@ -4,6 +4,7 @@ use App\Http\Middleware\EnforceSubscription;
 use App\Http\Middleware\EnsureModuleEnabled;
 use App\Http\Middleware\EnsurePlatformToken;
 use App\Http\Middleware\ResolveTenant;
+use App\Http\Middleware\RestrictScopedTokens;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -25,6 +26,8 @@ return Application::configure(basePath: dirname(__DIR__))
             ResolveTenant::class,
             // After ResolveTenant, which is what puts the tenant in context.
             EnforceSubscription::class,
+            // Narrow tokens (the site builder's, for the MCP server) reach only their own routes.
+            RestrictScopedTokens::class,
         ]);
 
         // Group order is not enough. Laravel sorts the resolved middleware
