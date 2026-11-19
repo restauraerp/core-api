@@ -37,4 +37,17 @@ class OrderApiTest extends TestCase
 
         $response->assertStatus(200);
     }
+
+    public function test_orders_index_accepts_sort_parameters(): void
+    {
+        Schema::disableForeignKeyConstraints();
+
+        $user = User::factory()->create();
+        Sanctum::actingAs($user);
+
+        foreach (['recent', 'oldest', 'token', 'token_desc', 'payment_method'] as $sort) {
+            $this->getJson("/api/v1/orders?completed_only=1&sort={$sort}")
+                ->assertOk();
+        }
+    }
 }

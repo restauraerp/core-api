@@ -150,19 +150,27 @@ class OrderController extends Controller
                     ->orderBy('id')
                     ->limit(1)
             )->orderByDesc('created_at');
-
-            if ($request->has('nopaginate')) {
-                return $this->unpaginated($query);
-            }
-
-            return response()->json($query->paginate(config('pagination.limit')));
+        } elseif ($request->input('sort') === 'token') {
+            $query->orderByRaw('CASE WHEN business_date IS NULL THEN DATE(created_at) ELSE business_date END DESC')
+                ->orderByRaw('CASE WHEN token_number IS NULL THEN 1 ELSE 0 END')
+                ->orderBy('token_number', 'asc')
+                ->orderBy('id', 'asc');
+        } elseif ($request->input('sort') === 'token_desc') {
+            $query->orderByRaw('CASE WHEN business_date IS NULL THEN DATE(created_at) ELSE business_date END DESC')
+                ->orderByRaw('CASE WHEN token_number IS NULL THEN 1 ELSE 0 END')
+                ->orderByDesc('token_number')
+                ->orderByDesc('id');
+        } elseif ($request->input('sort') === 'oldest') {
+            $query->orderBy('created_at', 'asc')->orderBy('id', 'asc');
+        } else {
+            $query->orderByDesc('created_at')->orderByDesc('id');
         }
 
         if ($request->has('nopaginate')) {
-            return $this->unpaginated($query->orderBy('created_at', 'desc'));
+            return $this->unpaginated($query);
         }
 
-        return response()->json($query->orderBy('created_at', 'desc')->paginate(config('pagination.limit')));
+        return response()->json($query->paginate(config('pagination.limit')));
     }
 
     /**
