@@ -31739,6 +31739,12 @@
                                             "null"
                                         ]
                                     },
+                                    "can_deliver": {
+                                        "type": [
+                                            "boolean",
+                                            "null"
+                                        ]
+                                    },
                                     "phone": {
                                         "type": [
                                             "string",
@@ -31869,6 +31875,12 @@
                                     "role": {
                                         "type": [
                                             "string",
+                                            "null"
+                                        ]
+                                    },
+                                    "can_deliver": {
+                                        "type": [
+                                            "boolean",
                                             "null"
                                         ]
                                     },
@@ -38171,6 +38183,9 @@
                             "null"
                         ],
                         "format": "date-time"
+                    },
+                    "can_deliver": {
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -38188,7 +38203,8 @@
                     "updated_at",
                     "tenant_id",
                     "telegram_username",
-                    "telegram_linked_at"
+                    "telegram_linked_at",
+                    "can_deliver"
                 ],
                 "title": "User"
             },
