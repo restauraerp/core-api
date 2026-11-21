@@ -27,6 +27,22 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, HasApiTokens, HasRoles;
 
+    protected $appends = ['can_deliver'];
+
+    /**
+     * Whether this user is eligible to be assigned as a delivery person.
+     * True if the user has the 'deliver_orders' permission (directly or via any role)
+     * or holds the predefined 'rider' role.
+     */
+    public function getCanDeliverAttribute(): bool
+    {
+        try {
+            return $this->hasPermissionTo('deliver_orders') || $this->hasRole('rider');
+        } catch (\Throwable) {
+            return false;
+        }
+    }
+
     public function location()
     {
         return $this->belongsTo(Location::class);
