@@ -7,6 +7,7 @@ use App\Rules\PhoneNumber;
 use App\Support\Assets\Media;
 use App\Support\Tenancy\TenantContext;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Illuminate\Http\Request;
 
 use App\Models\User;
@@ -20,10 +21,11 @@ class UserController extends Controller
     public function index(Request $request)
     {
         $perPage = $request->input('per_page', 15);
+        $query = User::with(['location', 'roles.permissions', 'permissions']);
         if ($request->has('nopaginate')) {
-            return response()->json(User::with(['location', 'roles'])->get());
+            return response()->json($query->get());
         }
-        return response()->json(User::with(['location', 'roles'])->paginate($perPage));
+        return response()->json($query->paginate($perPage));
     }
 
     public function store(Request $request)
@@ -42,6 +44,7 @@ class UserController extends Controller
             'password' => [Rule::requiredIf($canLogin), 'nullable', 'string', 'min:8'],
             'location_id' => ['nullable', $this->tenantExists('locations')],
             'role' => ['nullable', 'string', $this->tenantExists('roles', 'name')],
+            'can_deliver' => 'nullable|boolean',
             'phone' => ['nullable', 'string', 'max:20', PhoneNumber::mobile()],
             'image' => 'nullable|image|max:5120',
         ]);
@@ -63,13 +66,22 @@ class UserController extends Controller
         if (!empty($validated['role'])) {
             $user->syncRoles([$validated['role']]);
         }
+
+        if ($request->has('can_deliver')) {
+            app(PermissionRegistrar::class)->setPermissionsTeamId($user->tenant_id);
+            if ($request->boolean('can_deliver')) {
+                $user->givePermissionTo('deliver_orders');
+            } else {
+                $user->revokePermissionTo('deliver_orders');
+            }
+        }
         
-        return response()->json($user->load('roles'), 201);
+        return response()->json($user->load(['roles.permissions', 'permissions']), 201);
     }
 
     public function show(User $user)
     {
-        return response()->json($user->load(['location', 'roles']));
+        return response()->json($user->load(['location', 'roles.permissions', 'permissions']));
     }
 
     public function update(Request $request, User $user)
@@ -81,6 +93,7 @@ class UserController extends Controller
             'password' => 'nullable|string|min:8',
             'location_id' => ['nullable', $this->tenantExists('locations')],
             'role' => ['nullable', 'string', $this->tenantExists('roles', 'name')],
+            'can_deliver' => 'nullable|boolean',
             'phone' => ['nullable', 'string', 'max:20', PhoneNumber::mobile()],
             'image' => 'nullable|image|max:5120',
         ];
@@ -143,13 +156,22 @@ class UserController extends Controller
             $user->syncRoles($validated['role'] ? [$validated['role']] : []);
         }
 
+        if ($request->has('can_deliver')) {
+            app(PermissionRegistrar::class)->setPermissionsTeamId($user->tenant_id);
+            if ($request->boolean('can_deliver')) {
+                $user->givePermissionTo('deliver_orders');
+            } else {
+                $user->revokePermissionTo('deliver_orders');
+            }
+        }
+
         // Switched off: end every session they already have, rather than
         // leaving them signed in until their token happens to expire.
         if ($wasAllowed && ! $user->canLogIn()) {
             $user->tokens()->delete();
         }
 
-        return response()->json($user->load('roles'));
+        return response()->json($user->load(['location', 'roles.permissions', 'permissions']));
     }
 
     /**
