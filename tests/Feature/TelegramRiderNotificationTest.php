@@ -395,7 +395,80 @@ class TelegramRiderNotificationTest extends TestCase
 
         $this->assign($this->deliveryOrder());
 
-        $this->assertFalse($this->rider->fresh()->hasTelegram());
+        $refreshed = $this->rider->fresh();
+        $this->assertFalse($refreshed->hasTelegram());
+        $this->assertSame('Forbidden: bot was blocked by the user', $refreshed->telegram_last_error);
+
+        // Verification that the API returns the error to the frontend
+        $this->asOwner()->getJson('/api/v1/integrations/telegram')
+            ->assertOk()
+            ->assertJsonPath('riders.0.linked', false)
+            ->assertJsonPath('riders.0.telegram_last_error', 'Forbidden: bot was blocked by the user');
+    }
+
+    #[Test]
+    public function riders_list_includes_users_with_deliver_orders_permission(): void
+    {
+        $this->connectBot();
+
+        $waiter = $this->inTenant(function () {
+            $user = User::factory()->create([
+                'tenant_id' => $this->tenant->getKey(),
+                'name' => 'Waiter Dave',
+            ]);
+            $user->givePermissionTo('deliver_orders');
+
+            return $user;
+        });
+
+        $response = $this->asOwner()->getJson('/api/v1/integrations/telegram')->assertOk();
+        $riderNames = collect($response->json('riders'))->pluck('name');
+
+        $this->assertContains('Karim Rider', $riderNames);
+        $this->assertContains('Waiter Dave', $riderNames);
+
+        $waiterData = collect($response->json('riders'))->firstWhere('name', 'Waiter Dave');
+        $this->assertTrue($waiterData['can_deliver']);
+        $this->assertFalse($waiterData['linked']);
+    }
+
+    #[Test]
+    public function sending_test_message_to_blocked_rider_unlinks_rider_and_records_telegram_last_error(): void
+    {
+        $bot = $this->connectBot();
+        $this->linkRider($bot);
+
+        $this->failSend = ['error_code' => 403, 'description' => 'Forbidden: bot was blocked by the user'];
+
+        $this->asOwner()->postJson("/api/v1/integrations/telegram/riders/{$this->rider->id}/test")
+            ->assertAccepted()
+            ->assertJson(['queued' => true]);
+
+        $refreshed = $this->rider->fresh();
+        $this->assertFalse($refreshed->hasTelegram());
+        $this->assertSame('Forbidden: bot was blocked by the user', $refreshed->telegram_last_error);
+    }
+
+    #[Test]
+    public function reconnecting_rider_clears_telegram_last_error(): void
+    {
+        $bot = $this->connectBot();
+        $this->linkRider($bot);
+
+        // Simulate blocked bot
+        $this->failSend = ['error_code' => 403, 'description' => 'Forbidden: bot was blocked by the user'];
+        $this->assign($this->deliveryOrder());
+
+        $this->rider->refresh();
+        $this->assertSame('Forbidden: bot was blocked by the user', $this->rider->telegram_last_error);
+
+        // Now rider unblocks and reconnects with a fresh link
+        $this->failSend = null;
+        $this->linkRider($bot);
+
+        $this->rider->refresh();
+        $this->assertTrue($this->rider->hasTelegram());
+        $this->assertNull($this->rider->telegram_last_error);
     }
 
     #[Test]

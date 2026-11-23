@@ -62,7 +62,7 @@ class NotifyRiderOfDelivery extends TelegramJob
     protected function chatUnreachable(TelegramError $e): void
     {
         // The rider blocked or deleted the bot. Stop trying to reach them
-        // until they are onboarded again; the dashboard shows them unlinked.
-        Delivery::with('rider')->find($this->deliveryId)?->rider?->unlinkTelegram();
+        // until they are onboarded again; the dashboard shows them unlinked with the reason.
+        Delivery::with('rider')->find($this->deliveryId)?->rider?->unlinkTelegram($e->getMessage());
     }
 }

@@ -55,12 +55,13 @@ class User extends Authenticatable
     }
 
     /** Forget the Telegram link - the rider blocked the bot, or was unlinked. */
-    public function unlinkTelegram(): void
+    public function unlinkTelegram(?string $reason = null): void
     {
         $this->forceFill([
             'telegram_chat_id' => null,
             'telegram_username' => null,
             'telegram_linked_at' => null,
+            'telegram_last_error' => $reason,
         ])->save();
     }
 
