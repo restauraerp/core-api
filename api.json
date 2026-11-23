@@ -27636,6 +27636,9 @@
                                                     "location": {
                                                         "type": "string"
                                                     },
+                                                    "can_deliver": {
+                                                        "type": "string"
+                                                    },
                                                     "linked": {
                                                         "type": "boolean"
                                                     },
@@ -27645,8 +27648,14 @@
                                                             "null"
                                                         ]
                                                     },
-                                                    "linked_at": {
+                                                    "telegram_linked_at": {
                                                         "type": "string"
+                                                    },
+                                                    "telegram_last_error": {
+                                                        "type": [
+                                                            "string",
+                                                            "null"
+                                                        ]
                                                     },
                                                     "link_expires_at": {
                                                         "type": [
@@ -27660,9 +27669,11 @@
                                                     "name",
                                                     "phone",
                                                     "location",
+                                                    "can_deliver",
                                                     "linked",
                                                     "telegram_username",
-                                                    "linked_at",
+                                                    "telegram_linked_at",
+                                                    "telegram_last_error",
                                                     "link_expires_at"
                                                 ]
                                             }
@@ -38184,6 +38195,12 @@
                         ],
                         "format": "date-time"
                     },
+                    "telegram_last_error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
                     "can_deliver": {
                         "type": "string"
                     }
@@ -38204,6 +38221,7 @@
                     "tenant_id",
                     "telegram_username",
                     "telegram_linked_at",
+                    "telegram_last_error",
                     "can_deliver"
                 ],
                 "title": "User"

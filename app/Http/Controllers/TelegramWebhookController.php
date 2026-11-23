@@ -105,6 +105,7 @@ class TelegramWebhookController extends Controller
                 'telegram_chat_id' => $chatId,
                 'telegram_username' => $message['from']['username'] ?? null,
                 'telegram_linked_at' => now(),
+                'telegram_last_error' => null,
             ])->save();
 
             $link->forceFill(['used_at' => now()])->save();

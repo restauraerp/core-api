@@ -36,11 +36,14 @@ class TelegramIntegrationController extends Controller
 
         $bot = TelegramBot::first();
 
-        // Everyone with the rider role, plus anybody else who has been linked -
-        // a manager who also delivers.
-        $riders = User::with(['roles', 'location:id,name'])
+        // Everyone with the rider role, permission to deliver orders (direct or via role),
+        // plus anybody else who has been linked or has a recorded telegram error.
+        $riders = User::with(['roles.permissions', 'permissions', 'location:id,name'])
             ->where(fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', 'rider'))
-                ->orWhereNotNull('telegram_chat_id'))
+                ->orWhereHas('permissions', fn ($p) => $p->where('name', 'deliver_orders'))
+                ->orWhereHas('roles.permissions', fn ($p) => $p->where('name', 'deliver_orders'))
+                ->orWhereNotNull('telegram_chat_id')
+                ->orWhereNotNull('telegram_last_error'))
             ->orderBy('name')
             ->get();
 
@@ -60,9 +63,11 @@ class TelegramIntegrationController extends Controller
                 'name' => $user->name,
                 'phone' => $user->phone,
                 'location' => $user->location?->name,
+                'can_deliver' => $user->can_deliver,
                 'linked' => $user->hasTelegram(),
                 'telegram_username' => $user->telegram_username,
-                'linked_at' => $user->telegram_linked_at?->toIso8601String(),
+                'telegram_linked_at' => $user->telegram_linked_at?->toIso8601String(),
+                'telegram_last_error' => $user->telegram_last_error,
                 'link_expires_at' => isset($pending[$user->id]) ? $pending[$user->id]->toIso8601String() : null,
             ])->values(),
         ]);
@@ -199,8 +204,12 @@ class TelegramIntegrationController extends Controller
 
         $restaurant = e(RestaurantBranding::current()['name'] ?? 'the restaurant');
 
-        SendTelegramText::dispatch((int) $this->context->id(), (string) $user->telegram_chat_id,
-            "👋 Test message from <b>{$restaurant}</b>. Delivery notifications are working.");
+        SendTelegramText::dispatch(
+            (int) $this->context->id(),
+            (string) $user->telegram_chat_id,
+            "👋 Test message from <b>{$restaurant}</b>. Delivery notifications are working.",
+            (int) $user->id,
+        );
 
         return response()->json(['queued' => true], 202);
     }
