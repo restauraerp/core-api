@@ -296,4 +296,25 @@ class DeliveryPersonTest extends TestCase
         $this->assertEquals(50.00, (float) $delivery->delivery_charge);
         $this->assertEquals('Pending', $delivery->status);
     }
+
+    public function test_self_heals_when_corrupted_or_incomplete_class_is_in_cache(): void
+    {
+        $cacheKey = DeliveryPersonService::cacheKey($this->tenant->id);
+
+        // Simulate a corrupted serialized object in cache that results in __PHP_Incomplete_Class
+        $incomplete = unserialize('O:14:"UndefinedClass":0:{}');
+        $this->assertInstanceOf(\__PHP_Incomplete_Class::class, $incomplete);
+
+        Cache::put($cacheKey, $incomplete, 3600);
+        $this->assertTrue(Cache::has($cacheKey));
+
+        // Call getForTenant(): it should detect the corrupted cache, forget it, and re-fetch clean data
+        $riders = DeliveryPersonService::getForTenant($this->tenant->id);
+
+        $this->assertInstanceOf(\Illuminate\Support\Collection::class, $riders);
+        // And cache should now hold clean array data
+        $freshCache = Cache::get($cacheKey);
+        $this->assertIsArray($freshCache);
+        $this->assertNotInstanceOf(\__PHP_Incomplete_Class::class, $freshCache);
+    }
 }
