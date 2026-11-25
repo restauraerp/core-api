@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\DeliveryPersonService;
 use App\Support\Tenancy\RoleDefinitions;
 use App\Support\Tenancy\TenantContext;
-use Spatie\Permission\Models\Role;
+use App\Support\Tenancy\TenantProvisioner;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Role;
 
 /**
  * Roles are per-tenant, but Spatie's teams feature only scopes permission
@@ -45,10 +47,23 @@ class RoleController extends Controller
         $query = $this->ownedByTenant(Role::with('permissions'));
 
         if ($request->has('nopaginate')) {
-            return response()->json($query->get());
+            $roles = $query->get()->map(function ($role) {
+                $role->requires_login = (bool) $role->requires_login;
+
+                return $role;
+            });
+
+            return response()->json($roles);
         }
 
-        return response()->json($query->paginate($perPage));
+        $paginated = $query->paginate($perPage);
+        $paginated->getCollection()->transform(function ($role) {
+            $role->requires_login = (bool) $role->requires_login;
+
+            return $role;
+        });
+
+        return response()->json($paginated);
     }
 
     public function store(Request $request)
@@ -60,7 +75,7 @@ class RoleController extends Controller
             'requires_login' => 'sometimes|boolean',
             'guard_name' => 'nullable|string|max:255',
             'permissions' => 'nullable|array',
-            'permissions.*' => 'exists:permissions,name'
+            'permissions.*' => 'exists:permissions,name',
         ]);
 
         $role = Role::create([
@@ -75,6 +90,8 @@ class RoleController extends Controller
         if (isset($validated['permissions'])) {
             $role->syncPermissions($validated['permissions']);
         }
+
+        DeliveryPersonService::flushForTenant($role->tenant_id);
 
         return response()->json($role->load('permissions'), 201);
     }
@@ -95,7 +112,7 @@ class RoleController extends Controller
             'requires_login' => 'sometimes|boolean',
             'guard_name' => 'nullable|string|max:255',
             'permissions' => 'nullable|array',
-            'permissions.*' => 'exists:permissions,name'
+            'permissions.*' => 'exists:permissions,name',
         ]);
 
         if (isset($validated['name'])) {
@@ -120,6 +137,8 @@ class RoleController extends Controller
             $role->syncPermissions($validated['permissions']);
         }
 
+        DeliveryPersonService::flushForTenant($role->tenant_id);
+
         return response()->json($role->load('permissions'));
     }
 
@@ -127,7 +146,37 @@ class RoleController extends Controller
     {
         $this->assertOwned($role);
 
+        $tenantId = $role->tenant_id;
         $role->delete();
+        DeliveryPersonService::flushForTenant($tenantId);
+
         return response()->json(null, 204);
+    }
+
+    /**
+     * Populates missing predefined roles for the current tenant (e.g. newly introduced
+     * roles like 'waiter' added after the restaurant was originally created).
+     */
+    public function syncPredefined(Request $request)
+    {
+        $tenant = app(TenantContext::class)->get();
+        if (! $tenant) {
+            abort(400, 'Tenant context is missing.');
+        }
+
+        if (! $request->user()->hasRole(RoleDefinitions::RESTAURANT_ADMIN) && ! $request->user()->can('manage_roles_permissions')) {
+            abort(403, 'Unauthorized to sync predefined roles.');
+        }
+
+        $added = app(TenantProvisioner::class)->addMissingRoles($tenant);
+
+        if (! empty($added)) {
+            DeliveryPersonService::flushForTenant($tenant->id);
+        }
+
+        return response()->json([
+            'message' => empty($added) ? 'All predefined roles are already present.' : 'Predefined roles synchronized successfully.',
+            'added' => $added,
+        ]);
     }
 }

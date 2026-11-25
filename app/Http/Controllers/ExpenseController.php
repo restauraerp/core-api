@@ -28,6 +28,7 @@ class ExpenseController extends Controller
         }
 
         $expense = Expense::create($validated);
+
         return response()->json($expense, 201);
     }
 
@@ -48,12 +49,39 @@ class ExpenseController extends Controller
         ]);
 
         $expense->update($validated);
+
         return response()->json($expense);
     }
 
-    public function destroy(Expense $expense)
+    public function destroy(Request $request, Expense $expense)
     {
+        $expense->update(['trashed_by' => $request->user()?->id]);
         $expense->delete();
+
         return response()->json(null, 204);
+    }
+
+    public function trashed(Request $request)
+    {
+        $query = Expense::onlyTrashed()
+            ->with(['location', 'loggedBy', 'header', 'trashedByUser']);
+
+        if ($request->has('location_id') && $request->filled('location_id')) {
+            $query->where('location_id', $request->input('location_id'));
+        }
+
+        return response()->json(
+            $query->orderBy('deleted_at', 'desc')
+                ->paginate(config('pagination.limit'))
+        );
+    }
+
+    public function restore(Request $request, int $id)
+    {
+        $expense = Expense::onlyTrashed()->findOrFail($id);
+        $expense->restore();
+        $expense->update(['trashed_by' => null]);
+
+        return response()->json($expense->load(['location', 'loggedBy', 'header', 'trashedByUser']));
     }
 }

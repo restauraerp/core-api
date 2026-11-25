@@ -34,6 +34,30 @@ class PurchaseOrderController extends Controller
     {
         $query = PurchaseOrder::with(self::RELATIONS)->latest('id');
 
+        if ($search = trim((string) $request->input('search'))) {
+            $cleanId = ltrim($search, '#');
+            $isNumeric = is_numeric($cleanId);
+
+            $query->where(function ($q) use ($search, $isNumeric, $cleanId) {
+                // 1. Search by inventory item name (title) or SKU
+                $q->whereHas('items.inventoryItem', function ($itemQuery) use ($search) {
+                    $itemQuery->where('title', 'like', "%{$search}%")
+                        ->orWhere('sku', 'like', "%{$search}%");
+                })
+                // 2. Search by supplier name
+                    ->orWhereHas('supplier', function ($supplierQuery) use ($search) {
+                        $supplierQuery->where('name', 'like', "%{$search}%");
+                    })
+                // 3. Search by notes
+                    ->orWhere('notes', 'like', "%{$search}%");
+
+                // 4. Search by PO ID / #
+                if ($isNumeric) {
+                    $q->orWhere('id', (int) $cleanId);
+                }
+            });
+        }
+
         if ($request->filled('status')) {
             $query->where('status', $request->input('status'));
         }

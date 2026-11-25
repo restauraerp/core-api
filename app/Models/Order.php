@@ -194,6 +194,12 @@ class Order extends Model
         return $this->belongsTo(Partner::class);
     }
 
+    /** The payout that settled this order, if settled in a partner batch. */
+    public function partnerPayout()
+    {
+        return $this->belongsTo(PartnerPayout::class);
+    }
+
     /**
      * What the restaurant actually keeps on this sale.
      *

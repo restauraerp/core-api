@@ -19,12 +19,26 @@
  * Overwriting both superglobals here - before vendor/autoload.php and long
  * before the framework boots - is the one place that cannot be overridden.
  */
+$token = $_ENV['TEST_TOKEN'] ?? $_SERVER['TEST_TOKEN'] ?? getenv('TEST_TOKEN');
+$database = 'restoraerp_test';
+if (! empty($token)) {
+    $database = "{$database}_test_{$token}";
+    try {
+        $pdo = new PDO("mysql:host=mysql;port=3369", "root", "secret", [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        ]);
+        $pdo->exec("CREATE DATABASE IF NOT EXISTS `{$database}`");
+    } catch (\Throwable $e) {
+        // Silently continue if MySQL connection is deferred
+    }
+}
+
 $testEnvironment = [
     'APP_ENV' => 'testing',
     'DB_CONNECTION' => 'mysql',
     'DB_HOST' => 'mysql',
     'DB_PORT' => '3369',
-    'DB_DATABASE' => 'restoraerp_test',
+    'DB_DATABASE' => $database,
     'DB_USERNAME' => 'root',
     'DB_PASSWORD' => 'secret',
 ];
@@ -37,7 +51,7 @@ foreach ($testEnvironment as $key => $value) {
 
 // Guard rail: if anything downstream still points the suite at a database whose
 // name does not look like a test database, stop rather than destroy it.
-if (! str_ends_with($_ENV['DB_DATABASE'], '_test')) {
+if (! preg_match('/^restoraerp_test(_test_\d+)?$/', (string) $_ENV['DB_DATABASE'])) {
     fwrite(STDERR, "Refusing to run tests against database [{$_ENV['DB_DATABASE']}].\n");
     exit(1);
 }

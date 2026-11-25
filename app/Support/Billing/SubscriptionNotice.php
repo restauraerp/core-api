@@ -73,13 +73,10 @@ class SubscriptionNotice
     private static function expiredMessage(array $subscription, ?string $expired): string
     {
         $cycle = $subscription['cycle'] === 'yearly' ? 'yearly' : 'monthly';
-        $graceDays = Subscription::graceDays($subscription['cycle']);
-        $graceEnded = $subscription['grace_ends_at']?->toFormattedDateString();
 
-        return "Your {$cycle} subscription ended on {$expired} and the {$graceDays}-day "
-            ."grace period ran out on {$graceEnded}, so new data cannot be saved. "
+        return "Your {$cycle} subscription ended on {$expired}, so new data cannot be saved. "
             .'Everything you have already entered is still here and fully readable - '
-            .'renew and saving resumes immediately.';
+            .'renew to restore full access and resume saving immediately.';
     }
 
     /**
@@ -117,13 +114,32 @@ class SubscriptionNotice
     {
         $subscription = $tenant->subscription();
 
+        $daysUntilExpiry = $subscription['expires_at'] === null
+            ? null
+            : (int) ceil(now()->diffInDays($subscription['expires_at'], absolute: false));
+
+        $expiringSoon = false;
+        $expiryNoticeMessage = null;
+        $expiryNoticeError = null;
+
+        if ($daysUntilExpiry !== null && $daysUntilExpiry <= 3 && $daysUntilExpiry >= 0 && $tenant->status !== 'trialing' && ! $tenant->is_demo) {
+            $expiringSoon = true;
+            $expiryNoticeError = 'subscription_expiring_soon';
+            $expiryNoticeMessage = $daysUntilExpiry <= 0
+                ? 'Your subscription ends today. Renew now to continue using the application without interruption.'
+                : ($daysUntilExpiry === 1
+                    ? 'Your subscription ends tomorrow. Renew now to continue using the application without interruption.'
+                    : "Your subscription ends in {$daysUntilExpiry} days. Renew now to continue using the application without interruption.");
+        }
+
         return match ($subscription['state']) {
             Subscription::READ_ONLY => self::readOnly($tenant),
             Subscription::GRACE => self::grace($tenant),
             Subscription::BLOCKED => self::blocked($tenant),
             default => [
-                'error' => null,
-                'message' => null,
+                'error' => $expiryNoticeError,
+                'message' => $expiryNoticeMessage,
+                'expiring_soon' => $expiringSoon,
                 'read_only' => false,
                 'state' => Subscription::FULL,
                 'expired_at' => $subscription['expires_at']?->toIso8601String(),
@@ -139,6 +155,7 @@ class SubscriptionNotice
             ],
         } + [
             'state' => $subscription['state'],
+            'expiring_soon' => $expiringSoon,
             // A running trial reports state `full` - it is not in trouble - so
             // the raw tenant status is the only thing that tells a client it is
             // a trial at all. The upgrade prompt in the app needs to know.
@@ -173,9 +190,7 @@ class SubscriptionNotice
                     ->toIso8601String(),
             'grace_days' => Subscription::graceDays($subscription['cycle']),
             // Whole days until the paid period ends; negative once it has.
-            'days_until_expiry' => $subscription['expires_at'] === null
-                ? null
-                : (int) ceil(now()->diffInDays($subscription['expires_at'], absolute: false)),
+            'days_until_expiry' => $daysUntilExpiry,
         ];
     }
 

@@ -11,6 +11,7 @@ use App\Models\TaxRule;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WebsiteSetting;
+use App\Services\CashStorageService;
 use App\Support\Billing\Plans;
 use App\Support\Orders\KitchenLead;
 use Illuminate\Support\Facades\DB;
@@ -74,6 +75,7 @@ class TenantProvisioner
             $this->createWebsiteContent($tenant);
             $this->createLoyaltySettings();
             $this->createTaxRules();
+            $this->createCashStorages($tenant);
 
             if ($owner !== null) {
                 $this->createOwner($tenant, $owner);
@@ -353,6 +355,14 @@ class TenantProvisioner
             ['name' => 'VAT'],
             ['percentage' => 5, 'is_active' => false],
         );
+    }
+
+    public function createCashStorages(?Tenant $tenant = null): void
+    {
+        $tenant ??= $this->context->get();
+        if ($tenant) {
+            app(CashStorageService::class)->seedDefaultsForTenant($tenant->id);
+        }
     }
 
     private function uniqueSlug(string $name): string

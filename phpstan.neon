@@ -1,0 +1,13 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - app/
+
+    level: 4
+
+    ignoreErrors:
+        - '#Call to an undefined static method Illuminate\\Support\\Facades\\.+::should(Have|NotHave)Received\(\)#'
+        - '#Access to an undefined property App\\Models\\[a-zA-Z0-9_]+::\$[a-zA-Z0-9_]+#'
+        - '#Call to an undefined method App\\Models\\[a-zA-Z0-9_]+::[a-zA-Z0-9_]+\(\)#'

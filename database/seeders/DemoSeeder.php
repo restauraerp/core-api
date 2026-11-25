@@ -41,6 +41,7 @@ class DemoSeeder extends Seeder
         DemoEmployeeSeeder::class,
         ProductSeeder::class,
         CustomerSeeder::class,
+        PartnerSeeder::class,
         TableSeeder::class,
         AccountingSeeder::class,
         OrderSeeder::class,
