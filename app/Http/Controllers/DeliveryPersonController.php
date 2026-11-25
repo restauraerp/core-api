@@ -24,7 +24,8 @@ class DeliveryPersonController extends Controller
         if ($request->has('location_id') && $request->filled('location_id')) {
             $locationId = (int) $request->input('location_id');
             $riders = $riders->filter(function ($rider) use ($locationId) {
-                return $rider->location_id === null || (int) $rider->location_id === $locationId;
+                $location = data_get($rider, 'location_id');
+                return $location === null || (int) $location === $locationId;
             })->values();
         }
 
