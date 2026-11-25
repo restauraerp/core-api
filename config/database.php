@@ -21,6 +21,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Slow Query Threshold (milliseconds)
+    |--------------------------------------------------------------------------
+    |
+    | Any database query that exceeds this execution duration in non-production
+    | environments will trigger a warning log entry for optimization.
+    |
+    */
+    'slow_query_threshold' => env('DB_SLOW_QUERY_THRESHOLD', 200),
+
+    /*
+    |--------------------------------------------------------------------------
     | Database Connections
     |--------------------------------------------------------------------------
     |

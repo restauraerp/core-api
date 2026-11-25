@@ -83,14 +83,28 @@ class TokenNumber
             UPDATE orders o
             JOIN (
                 SELECT
-                    id,
-                    DATE(created_at - INTERVAL {$offset} MINUTE) AS business_date,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY tenant_id, location_id, DATE(created_at - INTERVAL {$offset} MINUTE)
-                        ORDER BY created_at, id
+                    u.id,
+                    u.business_date,
+                    COALESCE(m.max_token, 0) + ROW_NUMBER() OVER (
+                        PARTITION BY u.tenant_id, u.location_id, u.business_date
+                        ORDER BY u.created_at, u.id
                     ) AS token_number
-                FROM orders
-                WHERE token_number IS NULL
+                FROM (
+                    SELECT
+                        id,
+                        tenant_id,
+                        location_id,
+                        created_at,
+                        DATE(created_at - INTERVAL {$offset} MINUTE) AS business_date
+                    FROM orders
+                    WHERE token_number IS NULL
+                ) u
+                LEFT JOIN (
+                    SELECT tenant_id, location_id, business_date, MAX(token_number) AS max_token
+                    FROM orders
+                    WHERE token_number IS NOT NULL
+                    GROUP BY tenant_id, location_id, business_date
+                ) m ON m.tenant_id = u.tenant_id AND m.location_id = u.location_id AND m.business_date = u.business_date
             ) numbered ON numbered.id = o.id
             SET o.business_date = numbered.business_date,
                 o.token_number  = numbered.token_number

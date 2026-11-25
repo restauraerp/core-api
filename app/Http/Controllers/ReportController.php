@@ -13,8 +13,8 @@ use App\Models\Partner;
 use App\Models\PartnerPayout;
 use App\Models\PurchaseOrder;
 use App\Models\RoomBookingPayment;
-use App\Models\VenueBookingPayment;
 use App\Models\User;
+use App\Models\VenueBookingPayment;
 use App\Support\Tenancy\TenantContext;
 use App\Support\Time\BusinessTime;
 use Illuminate\Http\Request;
@@ -76,6 +76,13 @@ class ReportController extends Controller
         $locationId = $request->input('location_id');
         if ($locationId !== null && $locationId !== '' && $locationId !== 'all') {
             $query->where('location_id', $locationId);
+        }
+
+        $channel = $request->input('channel');
+        if ($channel === 'direct') {
+            $query->whereNull('partner_id');
+        } elseif ($channel === 'partner') {
+            $query->whereNotNull('partner_id');
         }
 
         return $query;
@@ -180,6 +187,26 @@ class ReportController extends Controller
         $grossRevenue = (float) $summary->gross_revenue;
         $deliveryTotal = (float) $summary->delivery_total;
 
+        $baseScope = clone $this->scope($request);
+
+        $partnerBreakdown = (clone $baseScope)
+            ->whereNotNull('partner_id')
+            ->selectRaw('
+                COUNT(*)                                                        as orders_count,
+                COALESCE(SUM(total), 0)                                         as gross,
+                COALESCE(SUM(partner_commission_amount), 0)                     as commission,
+                COALESCE(SUM(total - COALESCE(partner_commission_amount, 0)), 0) as net
+            ')
+            ->first();
+
+        $directBreakdown = (clone $baseScope)
+            ->whereNull('partner_id')
+            ->selectRaw('
+                COUNT(*)                as orders_count,
+                COALESCE(SUM(total), 0) as gross
+            ')
+            ->first();
+
         return response()->json([
             'bucket' => $bucket,
             'summary' => [
@@ -200,6 +227,12 @@ class ReportController extends Controller
                 'outstanding_revenue' => (float) $summary->outstanding_revenue,
                 'unpaid_orders' => (int) $summary->unpaid_orders,
                 'avg_order_value' => $ordersCount > 0 ? $grossRevenue / $ordersCount : 0.0,
+                'partner_orders_count' => (int) ($partnerBreakdown->orders_count ?? 0),
+                'partner_gross_revenue' => (float) ($partnerBreakdown->gross ?? 0),
+                'partner_commission_total' => (float) ($partnerBreakdown->commission ?? 0),
+                'partner_net_revenue' => (float) ($partnerBreakdown->net ?? 0),
+                'direct_orders_count' => (int) ($directBreakdown->orders_count ?? 0),
+                'direct_gross_revenue' => (float) ($directBreakdown->gross ?? 0),
             ],
             'series' => $series->map(fn ($row) => [
                 'bucket' => $row->bucket,
@@ -496,13 +529,13 @@ class ReportController extends Controller
                 'is_low' => $quantity <= $minLevel,
             ];
         })
-        ->sortBy([
-            // Anything at or below its reorder level floats to the top, then
-            // by how far below it sits.
-            fn ($a, $b) => ($b['is_low'] <=> $a['is_low']),
-            fn ($a, $b) => ($a['quantity'] - $a['min_stock_level']) <=> ($b['quantity'] - $b['min_stock_level']),
-        ])
-        ->values();
+            ->sortBy([
+                // Anything at or below its reorder level floats to the top, then
+                // by how far below it sits.
+                fn ($a, $b) => ($b['is_low'] <=> $a['is_low']),
+                fn ($a, $b) => ($a['quantity'] - $a['min_stock_level']) <=> ($b['quantity'] - $b['min_stock_level']),
+            ])
+            ->values();
 
         return response()->json([
             'scoped_to_location' => $scoped,
@@ -526,8 +559,12 @@ class ReportController extends Controller
         $locationId = $request->input('location_id');
 
         $query = Expense::query();
-        if ($from) $query->where('created_at', '>=', $from);
-        if ($to)   $query->where('created_at', '<', $to);
+        if ($from) {
+            $query->where('created_at', '>=', $from);
+        }
+        if ($to) {
+            $query->where('created_at', '<', $to);
+        }
         if ($locationId && $locationId !== '' && $locationId !== 'all') {
             $query->where('location_id', $locationId);
         }
@@ -542,8 +579,12 @@ class ReportController extends Controller
             ->map(fn ($r) => ['category' => $r->category, 'total' => (float) $r->total]);
 
         $purchaseQuery = PurchaseOrder::query()->where('status', '!=', PurchaseOrder::CANCELLED);
-        if ($from) $purchaseQuery->where('created_at', '>=', $from);
-        if ($to)   $purchaseQuery->where('created_at', '<', $to);
+        if ($from) {
+            $purchaseQuery->where('created_at', '>=', $from);
+        }
+        if ($to) {
+            $purchaseQuery->where('created_at', '<', $to);
+        }
         if ($locationId && $locationId !== '' && $locationId !== 'all') {
             $purchaseQuery->where('location_id', $locationId);
         }
@@ -581,8 +622,12 @@ class ReportController extends Controller
      */
     private function paymentIncome($query, $from, $to, $locationId): array
     {
-        if ($from) $query->where('paid_at', '>=', $from);
-        if ($to)   $query->where('paid_at', '<', $to);
+        if ($from) {
+            $query->where('paid_at', '>=', $from);
+        }
+        if ($to) {
+            $query->where('paid_at', '<', $to);
+        }
         if ($locationId && $locationId !== '' && $locationId !== 'all') {
             $query->whereHas('booking', fn ($q) => $q->where('location_id', $locationId));
         }
@@ -622,8 +667,12 @@ class ReportController extends Controller
         // the same number their own way, so quietly inflating it here would
         // make two screens disagree about the same period.
         $incomeQuery = Income::query();
-        if ($from) $incomeQuery->where('created_at', '>=', $from);
-        if ($to)   $incomeQuery->where('created_at', '<', $to);
+        if ($from) {
+            $incomeQuery->where('created_at', '>=', $from);
+        }
+        if ($to) {
+            $incomeQuery->where('created_at', '<', $to);
+        }
         if ($locationId && $locationId !== '' && $locationId !== 'all') {
             $incomeQuery->where('location_id', $locationId);
         }
@@ -635,16 +684,24 @@ class ReportController extends Controller
         $roomIncome = $this->paymentIncome(RoomBookingPayment::query(), $from, $to, $locationId);
 
         $expenseQuery = Expense::query();
-        if ($from) $expenseQuery->where('created_at', '>=', $from);
-        if ($to)   $expenseQuery->where('created_at', '<', $to);
+        if ($from) {
+            $expenseQuery->where('created_at', '>=', $from);
+        }
+        if ($to) {
+            $expenseQuery->where('created_at', '<', $to);
+        }
         if ($locationId && $locationId !== '' && $locationId !== 'all') {
             $expenseQuery->where('location_id', $locationId);
         }
         $operationalExpenses = (float) $expenseQuery->sum('amount');
 
         $purchaseQuery = PurchaseOrder::query()->where('status', '!=', PurchaseOrder::CANCELLED);
-        if ($from) $purchaseQuery->where('created_at', '>=', $from);
-        if ($to)   $purchaseQuery->where('created_at', '<', $to);
+        if ($from) {
+            $purchaseQuery->where('created_at', '>=', $from);
+        }
+        if ($to) {
+            $purchaseQuery->where('created_at', '<', $to);
+        }
         if ($locationId && $locationId !== '' && $locationId !== 'all') {
             $purchaseQuery->where('location_id', $locationId);
         }
@@ -706,9 +763,15 @@ class ReportController extends Controller
         $byLocation = $locationId !== null && $locationId !== '' && $locationId !== 'all';
 
         $windowed = function ($query) use ($from, $to, $byLocation, $locationId) {
-            if ($from) $query->where('created_at', '>=', $from);
-            if ($to)   $query->where('created_at', '<', $to);
-            if ($byLocation) $query->where('location_id', $locationId);
+            if ($from) {
+                $query->where('created_at', '>=', $from);
+            }
+            if ($to) {
+                $query->where('created_at', '<', $to);
+            }
+            if ($byLocation) {
+                $query->where('location_id', $locationId);
+            }
 
             return $query;
         };
@@ -845,8 +908,12 @@ class ReportController extends Controller
         // so the page can show what is still owed to them.
         [$from, $to] = $this->window($request);
         $payouts = DeliveryPayout::query();
-        if ($from) $payouts->where('paid_on', '>=', substr($from, 0, 10));
-        if ($to)   $payouts->where('paid_on', '<', substr($to, 0, 10));
+        if ($from) {
+            $payouts->where('paid_on', '>=', substr($from, 0, 10));
+        }
+        if ($to) {
+            $payouts->where('paid_on', '<', substr($to, 0, 10));
+        }
         $locationId = $request->input('location_id');
         if ($locationId !== null && $locationId !== '' && $locationId !== 'all') {
             $payouts->where('location_id', $locationId);
@@ -886,8 +953,12 @@ class ReportController extends Controller
         $locationId = $request->input('location_id');
 
         $query = Expense::query();
-        if ($from) $query->where('created_at', '>=', $from);
-        if ($to)   $query->where('created_at', '<', $to);
+        if ($from) {
+            $query->where('created_at', '>=', $from);
+        }
+        if ($to) {
+            $query->where('created_at', '<', $to);
+        }
         if ($locationId && $locationId !== '' && $locationId !== 'all') {
             $query->where('location_id', $locationId);
         }
@@ -929,8 +1000,12 @@ class ReportController extends Controller
             ')
             ->groupBy('consumption_logs.inventory_item_id', 'inventory_items.title', 'inventory_items.unit');
 
-        if ($from) $query->where('consumption_logs.consumed_at', '>=', substr($from, 0, 10));
-        if ($to)   $query->where('consumption_logs.consumed_at', '<', substr($to, 0, 10));
+        if ($from) {
+            $query->where('consumption_logs.consumed_at', '>=', substr($from, 0, 10));
+        }
+        if ($to) {
+            $query->where('consumption_logs.consumed_at', '<', substr($to, 0, 10));
+        }
         if ($locationId && $locationId !== '' && $locationId !== 'all') {
             $query->where('consumption_logs.location_id', $locationId);
         }
@@ -960,8 +1035,12 @@ class ReportController extends Controller
         $locationId = $request->input('location_id');
 
         $purchaseQuery = PurchaseOrder::query()->where('status', '!=', PurchaseOrder::CANCELLED);
-        if ($from) $purchaseQuery->where('created_at', '>=', $from);
-        if ($to)   $purchaseQuery->where('created_at', '<', $to);
+        if ($from) {
+            $purchaseQuery->where('created_at', '>=', $from);
+        }
+        if ($to) {
+            $purchaseQuery->where('created_at', '<', $to);
+        }
         if ($locationId && $locationId !== '' && $locationId !== 'all') {
             $purchaseQuery->where('location_id', $locationId);
         }
@@ -969,8 +1048,12 @@ class ReportController extends Controller
 
         $consumableQuery = ConsumptionLog::query()
             ->join('inventory_items', 'inventory_items.id', '=', 'consumption_logs.inventory_item_id');
-        if ($from) $consumableQuery->where('consumption_logs.consumed_at', '>=', substr($from, 0, 10));
-        if ($to)   $consumableQuery->where('consumption_logs.consumed_at', '<', substr($to, 0, 10));
+        if ($from) {
+            $consumableQuery->where('consumption_logs.consumed_at', '>=', substr($from, 0, 10));
+        }
+        if ($to) {
+            $consumableQuery->where('consumption_logs.consumed_at', '<', substr($to, 0, 10));
+        }
         if ($locationId && $locationId !== '' && $locationId !== 'all') {
             $consumableQuery->where('consumption_logs.location_id', $locationId);
         }

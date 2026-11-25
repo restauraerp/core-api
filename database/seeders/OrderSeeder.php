@@ -2,10 +2,13 @@
 
 namespace Database\Seeders;
 
+use App\Models\CashStorage;
 use App\Models\Customer;
 use App\Models\InventoryItem;
 use App\Models\Location;
 use App\Models\Order;
+use App\Models\Partner;
+use App\Models\PartnerPayout;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\Table;
@@ -46,6 +49,16 @@ class OrderSeeder extends Seeder
 
     private ?int $purchaseHeaderId = null;
 
+    private $partners = null;
+
+    private ?CashStorage $drawerStorage = null;
+
+    private ?CashStorage $bankStorage = null;
+
+    private ?CashStorage $bkashStorage = null;
+
+    private ?int $adminUserId = null;
+
     /**
      * How much of the purchase history is still on the shelf.
      *
@@ -69,10 +82,17 @@ class OrderSeeder extends Seeder
         $tables = Table::all();
         $locations = Location::all();
         $admin = User::first();
+        $this->adminUserId = $admin?->id;
         // Raw builder query - scope by hand so a tenant's purchase orders never
         // reference another restaurant's supplier.
         $suppliers = DB::table('suppliers')->where('tenant_id', $this->tenantId())->pluck('id')->toArray();
         $inventoryItems = InventoryItem::all();
+        $this->partners = Partner::all();
+
+        $cashStorages = CashStorage::all();
+        $this->drawerStorage = $cashStorages->firstWhere('type', 'cash');
+        $this->bankStorage = $cashStorages->firstWhere('type', 'card');
+        $this->bkashStorage = $cashStorages->firstWhere('type', 'bkash');
 
         if ($products->isEmpty() || $customers->isEmpty() || $tables->isEmpty()) {
             $this->command->warn('Ensure Products, Customers, and Tables are seeded before Orders.');
@@ -92,13 +112,13 @@ class OrderSeeder extends Seeder
             ->where('tenant_id', $this->tenantId())
             ->pluck('id', 'name');
 
-        $this->incomeHeaderId   = $headersByName['Food & Beverage Sales'] ?? null;
-        $this->hallRentalHeaderId = $headersByName['Hall & Event Rental']  ?? null;
-        $this->otherIncomeHeaderId = $headersByName['Other Income']        ?? null;
-        $this->rentHeaderId     = $headersByName['Rent & Property']       ?? null;
-        $this->salaryHeaderId   = $headersByName['Staff & Salaries']      ?? null;
+        $this->incomeHeaderId = $headersByName['Food & Beverage Sales'] ?? null;
+        $this->hallRentalHeaderId = $headersByName['Hall & Event Rental'] ?? null;
+        $this->otherIncomeHeaderId = $headersByName['Other Income'] ?? null;
+        $this->rentHeaderId = $headersByName['Rent & Property'] ?? null;
+        $this->salaryHeaderId = $headersByName['Staff & Salaries'] ?? null;
         $this->utilitiesHeaderId = $headersByName['Utilities & Services'] ?? null;
-        $this->purchaseHeaderId = $headersByName['Inventory Purchases']   ?? null;
+        $this->purchaseHeaderId = $headersByName['Inventory Purchases'] ?? null;
 
         $ordersData = [];
         $orderItemsData = [];
@@ -186,6 +206,8 @@ class OrderSeeder extends Seeder
 
         $this->settleInventoryFromPurchases();
         $this->attachReceiptsToRecentOrders();
+        $this->seedPartnerPayouts();
+        $this->updateCashStorageBalances();
 
         // Counter tokens, in one pass at the end rather than while building the
         // rows. A day's orders are generated at random times within that day,
@@ -260,7 +282,7 @@ class OrderSeeder extends Seeder
 
         $start = max((int) ($row->AUTO_INCREMENT ?? 1), (DB::table($table)->max('id') ?? 0) + 1);
 
-        DB::statement("ALTER TABLE `{$table}` AUTO_INCREMENT = " . ($start + $headroom));
+        DB::statement("ALTER TABLE `{$table}` AUTO_INCREMENT = ".($start + $headroom));
 
         return $start;
     }
@@ -782,9 +804,24 @@ class OrderSeeder extends Seeder
             ];
         }
 
-        $tax = $subtotal * 0.1; // 10% VAT
+        // 1. Discount Generation (~20% chance of receiving a discount)
+        $discountAmount = 0;
+        if (rand(1, 100) <= 20) {
+            $discountRoll = rand(1, 3);
+            if ($discountRoll === 1) {
+                $discountAmount = round($subtotal * 0.10, 2); // 10% promo
+            } elseif ($discountRoll === 2) {
+                $discountAmount = round($subtotal * 0.15, 2); // 15% VIP / Happy Hour
+            } else {
+                $flatOptions = [50, 100, 150, 200];
+                $discountAmount = min(round($subtotal * 0.40, 2), $flatOptions[array_rand($flatOptions)]);
+            }
+        }
+
+        $netSubtotal = max(0, $subtotal - $discountAmount);
+        $tax = round($netSubtotal * 0.1, 2); // 10% VAT
         $deliveryCharge = in_array($type, ['delivery', 'catering']) ? rand(50, 100) : 0;
-        $total = $subtotal + $tax + $deliveryCharge;
+        $total = $netSubtotal + $tax + $deliveryCharge;
         $deliveryTime = in_array($type, ['takeaway', 'delivery', 'catering']) ? (clone $date)->addMinutes(rand(30, 90))->toDateTimeString() : null;
 
         // The same two rules the API applies when a real order is placed: an
@@ -798,19 +835,75 @@ class OrderSeeder extends Seeder
             }
         }
 
+        // 2. 3rd Party Partner Orders (~25% of delivery & takeaway)
+        $partnerId = null;
+        $partnerOrderId = null;
+        $partnerCommissionRate = null;
+        $partnerCommissionAmount = null;
+        $partnerPayoutId = null;
+        $dueNote = null;
+        $isPartnerOrder = false;
+        $partner = null;
+
+        if ($this->partners && $this->partners->isNotEmpty() && in_array($type, ['delivery', 'takeaway']) && rand(1, 100) <= 25) {
+            $isPartnerOrder = true;
+            $partner = $this->partners->random();
+            $partnerId = $partner->id;
+            $partnerOrderId = strtoupper(substr($partner->name, 0, 2)).'-'.rand(10000, 99999);
+            $partnerCommissionRate = (float) $partner->commission_rate;
+            $partnerCommissionAmount = round($total * ($partnerCommissionRate / 100), 2);
+
+            // Recent aggregator orders within the last 14 days are kept due for payout collection
+            if ($date->diffInDays(now()) <= 14) {
+                $paymentStatus = 'due';
+                $dueNote = "Aggregator order #{$partnerOrderId} ({$partner->name}) due for payout";
+            } else {
+                $paymentStatus = 'paid';
+            }
+        } elseif ($isCompleted) {
+            // Direct Customer Orders: ~8% put on account / due
+            if (rand(1, 100) <= 8) {
+                $paymentStatus = 'due';
+                $corporateDues = [
+                    'Monthly corporate credit account for Beximco Tech',
+                    'VIP member credit account #104 - monthly bill',
+                    'Family event catering balance due on final delivery',
+                    'Regular guest account - settle on weekend',
+                    'Corporate lunch tab for Standard Chartered Bank',
+                ];
+                $dueNote = $corporateDues[array_rand($corporateDues)];
+            } else {
+                $paymentStatus = 'paid';
+            }
+        } else {
+            // Active orders today: some due
+            if (rand(1, 100) <= 20) {
+                $paymentStatus = 'due';
+                $dueNote = 'Pending bill settlement on checkout';
+            } else {
+                $paymentStatus = 'unpaid';
+            }
+        }
+
         $ordersData[] = [
             'id' => $orderId,
             'location_id' => $location->id,
-            'user_id' => 1,
+            'user_id' => $this->adminUserId,
             'customer_id' => $customer->id,
             'table_id' => ($type === 'dine_in' && $locationTables->isNotEmpty()) ? $locationTables->random()->id : null,
             'order_type' => $type,
+            'partner_id' => $partnerId,
+            'partner_order_id' => $partnerOrderId,
+            'partner_commission_rate' => $partnerCommissionRate,
+            'partner_commission_amount' => $partnerCommissionAmount,
+            'partner_payout_id' => $partnerPayoutId,
+            'due_note' => $dueNote,
             'status' => $status,
             'needs_cooking' => $needsCooking,
             'payment_status' => $paymentStatus,
             'subtotal' => $subtotal,
             'tax_amount' => $tax,
-            'discount_amount' => 0,
+            'discount_amount' => $discountAmount,
             'delivery_charge' => $deliveryCharge,
             'total' => $total,
             'delivery_time' => $deliveryTime,
@@ -823,11 +916,21 @@ class OrderSeeder extends Seeder
 
         if ($paymentStatus === 'paid') {
             $methods = ['cash', 'cash', 'mfs', 'mfs', 'card'];
+            $method = $methods[array_rand($methods)];
+            $storageId = match ($method) {
+                'cash' => $this->drawerStorage?->id,
+                'card' => $this->bankStorage?->id,
+                'mfs' => $this->bkashStorage?->id,
+                default => null,
+            };
+
             $paymentsData[] = [
                 'order_id' => $orderId,
-                'method' => $methods[array_rand($methods)],
+                'method' => $method,
                 'amount' => $total,
                 'status' => 'completed',
+                'cash_storage_id' => $storageId,
+                'note' => $isPartnerOrder ? "Settled via {$partner?->name} payout" : null,
                 'created_at' => $dateString,
                 'updated_at' => $dateString,
             ];
@@ -842,6 +945,75 @@ class OrderSeeder extends Seeder
                 'created_at' => $dateString,
                 'updated_at' => $dateString,
             ];
+        }
+    }
+
+    private function seedPartnerPayouts(): void
+    {
+        if (! $this->partners || $this->partners->isEmpty()) {
+            return;
+        }
+
+        $months = [1, 2, 3, 4, 5, 6];
+        foreach ($this->partners as $partner) {
+            foreach ($months as $m) {
+                $payoutDate = now()->subMonths($m)->startOfMonth()->addDays(14)->toDateString();
+                $amount = rand(15000, 35000);
+                $ordersCount = rand(20, 50);
+
+                $payout = PartnerPayout::create([
+                    'tenant_id' => $this->tenantId(),
+                    'partner_id' => $partner->id,
+                    'amount' => $amount,
+                    'payment_method' => 'bank_transfer',
+                    'cash_storage_id' => $this->bankStorage?->id,
+                    'orders_count' => $ordersCount,
+                    'received_on' => $payoutDate,
+                    'reference' => 'STMT-'.strtoupper(substr($partner->name, 0, 2)).'-'.now()->subMonths($m)->format('Ym'),
+                    'note' => "Monthly statement settlement for {$partner->name}",
+                ]);
+
+                DB::table('accounting_ledgers')->insert([
+                    'tenant_id' => $this->tenantId(),
+                    'location_id' => null,
+                    'transaction_type' => 'partner_payout',
+                    'amount' => $amount,
+                    'reference_id' => $payout->id,
+                    'description' => "Payout from {$partner->name} [bank_transfer] ({$this->bankStorage?->name}) ({$ordersCount} orders settled) — {$payout->reference}",
+                    'created_at' => $payoutDate.' 12:00:00',
+                    'updated_at' => $payoutDate.' 12:00:00',
+                ]);
+            }
+        }
+    }
+
+    private function updateCashStorageBalances(): void
+    {
+        $tenantId = $this->tenantId();
+        if ($this->drawerStorage) {
+            $cashSum = DB::table('payments')
+                ->where('tenant_id', $tenantId)
+                ->where('cash_storage_id', $this->drawerStorage->id)
+                ->sum('amount');
+            $this->drawerStorage->update(['current_balance' => round(max(2500, $cashSum * 0.05), 2)]);
+        }
+        if ($this->bankStorage) {
+            $payoutsSum = DB::table('partner_payouts')
+                ->where('tenant_id', $tenantId)
+                ->where('cash_storage_id', $this->bankStorage->id)
+                ->sum('amount');
+            $cardSum = DB::table('payments')
+                ->where('tenant_id', $tenantId)
+                ->where('cash_storage_id', $this->bankStorage->id)
+                ->sum('amount');
+            $this->bankStorage->update(['current_balance' => round(max(50000, ($payoutsSum + $cardSum) * 0.45), 2)]);
+        }
+        if ($this->bkashStorage) {
+            $bkashSum = DB::table('payments')
+                ->where('tenant_id', $tenantId)
+                ->where('cash_storage_id', $this->bkashStorage->id)
+                ->sum('amount');
+            $this->bkashStorage->update(['current_balance' => round(max(10000, $bkashSum * 0.15), 2)]);
         }
     }
 }

@@ -28,6 +28,7 @@ class IncomeController extends Controller
         }
 
         $income = Income::create($validated);
+
         return response()->json($income, 201);
     }
 
@@ -48,12 +49,39 @@ class IncomeController extends Controller
         ]);
 
         $income->update($validated);
+
         return response()->json($income);
     }
 
-    public function destroy(Income $income)
+    public function destroy(Request $request, Income $income)
     {
+        $income->update(['trashed_by' => $request->user()?->id]);
         $income->delete();
+
         return response()->json(null, 204);
+    }
+
+    public function trashed(Request $request)
+    {
+        $query = Income::onlyTrashed()
+            ->with(['location', 'loggedBy', 'header', 'trashedByUser']);
+
+        if ($request->has('location_id') && $request->filled('location_id')) {
+            $query->where('location_id', $request->input('location_id'));
+        }
+
+        return response()->json(
+            $query->orderBy('deleted_at', 'desc')
+                ->paginate(config('pagination.limit'))
+        );
+    }
+
+    public function restore(Request $request, int $id)
+    {
+        $income = Income::onlyTrashed()->findOrFail($id);
+        $income->restore();
+        $income->update(['trashed_by' => null]);
+
+        return response()->json($income->load(['location', 'loggedBy', 'header', 'trashedByUser']));
     }
 }

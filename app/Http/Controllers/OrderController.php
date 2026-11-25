@@ -3,15 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\AccountingLedger;
+use App\Models\Discount;
 use App\Models\Order;
 use App\Models\Partner;
 use App\Models\Payment;
+use App\Services\CashStorageService;
 use App\Support\Billing\Modules;
 use App\Support\Inventory\SellableInventory;
 use App\Support\Orders\KitchenLead;
 use App\Support\Orders\OrderFlow;
 use App\Support\Orders\TokenNumber;
-use App\Models\Discount;
 use App\Support\Sales\DiscountCalculator;
 use App\Support\Sales\PartnerCommission;
 use App\Support\Sales\TaxCalculator;
@@ -52,8 +53,8 @@ class OrderController extends Controller
         // amount_paid / amount_outstanding accessors stay a loaded-relation sum
         // rather than a query per row.
         $query = $request->boolean('summary')
-            ? Order::with(['payments'])
-            : Order::with(['items.product.images', 'items.product.comboItems', 'payments', 'customer', 'table', 'partner']);
+            ? Order::with(['payments.cashStorage'])
+            : Order::with(['items.product.images', 'items.product.comboItems', 'payments.cashStorage', 'customer', 'table', 'partner']);
 
         if ($request->has('from')) {
             $query->where('created_at', '>=', $request->from);
@@ -117,6 +118,18 @@ class OrderController extends Controller
             $query->whereNotNull('partner_id');
         }
 
+        if ($request->filled('partner_id')) {
+            $query->where('partner_id', $request->input('partner_id'));
+        }
+
+        if ($request->filled('partner_order_id')) {
+            $query->where('partner_order_id', 'like', '%'.$request->input('partner_order_id').'%');
+        }
+
+        if ($request->filled('payment_status')) {
+            $query->where('payment_status', $request->input('payment_status'));
+        }
+
         // The Completed tab. Deliberately applies no order_type filter - it
         // lists finished orders of every type together.
         //
@@ -124,7 +137,7 @@ class OrderController extends Controller
         // orders accumulate forever (a demo tenant already carries ~50k), and
         // this query eager-loads items, products and images per row.
         if ($request->has('completed_only')) {
-            $query->completed();
+            $query->completed()->whereNull('partner_id');
         }
 
         // Completed orders can be grouped by how they were paid - "show me
@@ -222,7 +235,9 @@ class OrderController extends Controller
             // The third party that sent this order in, if any. Its commission
             // is worked out server-side from the partner's own rate.
             'partner_id' => ['nullable', 'integer', $this->tenantExists('partners')],
+            'partner_order_id' => 'nullable|string|max:255',
             'payment_method' => 'nullable|string',
+            'cash_storage_id' => ['nullable', 'integer', $this->tenantExists('cash_storages')],
             // Why this payment looks the way it does - a bKash transaction id,
             // a card's last four, which guest paid for a shared table.
             'payment_note' => 'nullable|string|max:500',
@@ -275,6 +290,7 @@ class OrderController extends Controller
         // A partner's cut, priced from the partner's own rate rather than from
         // anything the till sent, and stamped onto the order so a later rate
         // change cannot restate what this sale earned.
+        $partner = null;
         if (! empty($validated['partner_id'])) {
             $partner = Partner::findOrFail($validated['partner_id']);
             $commission = PartnerCommission::on($partner, (float) $validated['total']);
@@ -292,12 +308,18 @@ class OrderController extends Controller
         );
         $validated['status'] = $this->flow->openingStatus($deliveryTime, $validated['needs_cooking']);
 
-        $order = DB::transaction(function () use ($validated, $request, $money) {
-            $orderData = collect($validated)->except(['items', 'payment_method', 'payment_note'])->toArray();
+        $order = DB::transaction(function () use ($validated, $request, $money, $partner) {
+            $orderData = collect($validated)->except(['items', 'payment_method', 'payment_note', 'cash_storage_id'])->toArray();
             $orderData['user_id'] = $request->user() ? $request->user()->id : null;
 
             if (! empty($validated['payment_method'])) {
                 $orderData['payment_status'] = 'paid';
+            } elseif (! empty($validated['partner_id'])) {
+                // Aggregators collect from the diner and settle with the restaurant later in batches.
+                // An order that arrives through a partner is owed by the partner and starts as due.
+                $orderData['payment_status'] = Order::PAYMENT_DUE;
+                $orderData['due_note'] = 'Partner: '.($partner?->name ?? '3rd Party').
+                    (! empty($validated['partner_order_id']) ? " (Ref: {$validated['partner_order_id']})" : '');
             }
 
             // The counter number, claimed inside the transaction so a failed
@@ -307,6 +329,15 @@ class OrderController extends Controller
             $orderData['token_number'] = $token['token_number'];
 
             $order = Order::create($orderData);
+
+            if ($order->order_type === OrderFlow::DELIVERY) {
+                $order->deliveries()->create([
+                    'rider_id' => $order->served_by_user_id,
+                    'address' => $order->delivery_address,
+                    'delivery_charge' => $order->delivery_charge,
+                    'status' => 'Pending',
+                ]);
+            }
 
             foreach ($validated['items'] as $index => $item) {
                 $order->items()->create([
@@ -328,22 +359,34 @@ class OrderController extends Controller
             $this->sellable->deductForOrder($order);
 
             if (! empty($validated['payment_method'])) {
+                $storage = app(CashStorageService::class)->resolveStorage(
+                    $validated['payment_method'],
+                    $validated['cash_storage_id'] ?? null,
+                    $order->location_id
+                );
+
                 $order->payments()->create([
                     'method' => $validated['payment_method'],
                     'amount' => $validated['total'],
                     'status' => 'completed',
+                    'note' => $validated['payment_note'] ?? null,
+                    'cash_storage_id' => $storage?->id,
                 ]);
 
+                if ($storage) {
+                    $storage->increment('current_balance', $validated['total']);
+                }
+
                 AccountingLedger::create([
-                    'location_id'      => $order->location_id,
+                    'location_id' => $order->location_id,
                     'transaction_type' => 'order_payment',
-                    'amount'           => $order->total,
-                    'reference_id'     => $order->id,
-                    'description'      => "Order #{$order->id} — {$validated['payment_method']}",
+                    'amount' => $order->total,
+                    'reference_id' => $order->id,
+                    'description' => "Order #{$order->id} — {$validated['payment_method']}".($storage ? " [{$storage->name}]" : ''),
                 ]);
             }
 
-            return $order->load(['items', 'payments']);
+            return $order->load(['items', 'payments.cashStorage']);
         });
 
         return response()->json($order, 201);
@@ -351,7 +394,7 @@ class OrderController extends Controller
 
     public function show(Order $order)
     {
-        return response()->json($order->load(['items.product.comboItems', 'payments', 'table', 'customer', 'deliveries.rider']));
+        return response()->json($order->load(['items.product.comboItems', 'payments.cashStorage', 'table', 'customer', 'deliveries.rider']));
     }
 
     public function update(Request $request, Order $order)
@@ -360,6 +403,7 @@ class OrderController extends Controller
             if (! $request->user()->can('edit_order')) {
                 abort(403, 'You do not have permission to edit orders.');
             }
+
             return $this->fullEdit($request, $order);
         }
 
@@ -397,6 +441,8 @@ class OrderController extends Controller
             // it up - tills are often shared logins. user_id keeps recording
             // the account that created the order; this records the employee.
             'served_by_user_id' => ['nullable', 'integer', $this->tenantExists('users')],
+            'partner_id' => ['sometimes', 'nullable', 'integer', $this->tenantExists('partners')],
+            'partner_order_id' => 'sometimes|nullable|string|max:255',
             'subtotal' => 'required|numeric',
             'discount_amount' => 'required|numeric',
             'delivery_charge' => 'nullable|numeric',
@@ -463,8 +509,27 @@ class OrderController extends Controller
                 'delivery_address' => $validated['delivery_address'] ?? null,
                 'latitude' => $validated['latitude'] ?? null,
                 'longitude' => $validated['longitude'] ?? null,
+                'served_by_user_id' => $validated['served_by_user_id'] ?? null,
                 'needs_cooking' => $needsCooking,
             ]);
+
+            if ($order->order_type === OrderFlow::DELIVERY) {
+                $latestDelivery = $order->deliveries()->first();
+                if ($latestDelivery) {
+                    $latestDelivery->update([
+                        'rider_id' => $order->served_by_user_id,
+                        'address' => $order->delivery_address,
+                        'delivery_charge' => $order->delivery_charge,
+                    ]);
+                } else {
+                    $order->deliveries()->create([
+                        'rider_id' => $order->served_by_user_id,
+                        'address' => $order->delivery_address,
+                        'delivery_charge' => $order->delivery_charge,
+                        'status' => 'Pending',
+                    ]);
+                }
+            }
 
             $order->items()->delete();
 
@@ -493,6 +558,7 @@ class OrderController extends Controller
             'payment_status' => 'sometimes|string',
             'payment_method' => 'sometimes|string',
             'payment_note' => 'sometimes|nullable|string|max:500',
+            'cash_storage_id' => ['sometimes', 'nullable', 'integer', $this->tenantExists('cash_storages')],
             'discount_id' => ['sometimes', 'nullable', 'integer', $this->tenantExists('discounts')],
             'discount_amount' => 'sometimes|numeric',
             'delivery_charge' => 'sometimes|numeric',
@@ -502,6 +568,9 @@ class OrderController extends Controller
             'delivery_address' => 'sometimes|nullable|string',
             'latitude' => 'sometimes|nullable|numeric',
             'longitude' => 'sometimes|nullable|numeric',
+            'served_by_user_id' => ['sometimes', 'nullable', 'integer', $this->tenantExists('users')],
+            'partner_id' => ['sometimes', 'nullable', 'integer', $this->tenantExists('partners')],
+            'partner_order_id' => 'sometimes|nullable|string|max:255',
         ]);
 
         if (array_key_exists('status', $validated)) {
@@ -526,7 +595,7 @@ class OrderController extends Controller
         }
 
         $payload = collect($validated)
-            ->except(['payment_method', 'payment_note', 'tax_amount', 'total'])
+            ->except(['payment_method', 'payment_note', 'cash_storage_id', 'tax_amount', 'total'])
             ->toArray();
 
         if ($request->filled('payment_method')) {
@@ -554,6 +623,13 @@ class OrderController extends Controller
 
         $order->update($payload);
 
+        if ($order->order_type === OrderFlow::DELIVERY && array_key_exists('served_by_user_id', $validated)) {
+            $delivery = $order->deliveries()->first();
+            if ($delivery) {
+                $delivery->update(['rider_id' => $order->served_by_user_id]);
+            }
+        }
+
         if (! $wasCancelled && $this->isCancelled($order->status)) {
             $this->sellable->restoreForOrder($order);
         } elseif ($wasCancelled && ! $this->isCancelled($order->status)) {
@@ -564,12 +640,23 @@ class OrderController extends Controller
             $order->update(['payment_status' => 'paid']);
             $existingPayment = $order->payments()->where('status', 'completed')->first();
             if (! $existingPayment) {
+                $storage = app(CashStorageService::class)->resolveStorage(
+                    $validated['payment_method'],
+                    $validated['cash_storage_id'] ?? null,
+                    $order->location_id
+                );
+
                 $order->payments()->create([
                     'method' => $validated['payment_method'],
                     'amount' => $order->total,
                     'status' => 'completed',
                     'note' => $validated['payment_note'] ?? null,
+                    'cash_storage_id' => $storage?->id,
                 ]);
+
+                if ($storage) {
+                    $storage->increment('current_balance', $order->total);
+                }
 
                 $alreadyPosted = AccountingLedger::where('transaction_type', 'order_payment')
                     ->where('reference_id', $order->id)
@@ -577,17 +664,17 @@ class OrderController extends Controller
 
                 if (! $alreadyPosted) {
                     AccountingLedger::create([
-                        'location_id'      => $order->location_id,
+                        'location_id' => $order->location_id,
                         'transaction_type' => 'order_payment',
-                        'amount'           => $order->total,
-                        'reference_id'     => $order->id,
-                        'description'      => "Order #{$order->id} — {$validated['payment_method']}",
+                        'amount' => $order->total,
+                        'reference_id' => $order->id,
+                        'description' => "Order #{$order->id} — {$validated['payment_method']}".($storage ? " [{$storage->name}]" : ''),
                     ]);
                 }
             }
         }
 
-        return response()->json($order->load(['items', 'payments']));
+        return response()->json($order->load(['items', 'payments.cashStorage']));
     }
 
     public function destroy(Request $request, Order $order)
@@ -653,11 +740,11 @@ class OrderController extends Controller
             if (! $alreadyPosted) {
                 $payment = $order->payments()->where('status', 'completed')->first();
                 AccountingLedger::create([
-                    'location_id'      => $order->location_id,
+                    'location_id' => $order->location_id,
                     'transaction_type' => 'order_payment',
-                    'amount'           => $order->total,
-                    'reference_id'     => $order->id,
-                    'description'      => "Order #{$order->id} — " . ($payment?->method ?? 'restored'),
+                    'amount' => $order->total,
+                    'reference_id' => $order->id,
+                    'description' => "Order #{$order->id} — ".($payment?->method ?? 'restored'),
                 ]);
             }
         }

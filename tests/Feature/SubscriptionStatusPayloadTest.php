@@ -59,7 +59,7 @@ class SubscriptionStatusPayloadTest extends TestCase
     }
 
     #[Test]
-    public function it_says_when_saving_would_actually_stop(): void
+    public function it_says_saving_stops_immediately_when_period_ends_with_no_grace(): void
     {
         Carbon::setTestNow('2026-08-10 09:00:00');
 
@@ -69,13 +69,45 @@ class SubscriptionStatusPayloadTest extends TestCase
             'subscription_ends_at' => '2026-08-22 00:00:00',
         ]);
 
-        // The due date plus the grace period - sent while still healthy so a
-        // client can warn ahead of the deadline rather than after it.
+        $this->assertSame(0, $status['grace_days']);
         $this->assertSame(
-            Carbon::parse('2026-08-22')->addDays($status['grace_days'])->toDateString(),
+            Carbon::parse('2026-08-22')->toDateString(),
             Carbon::parse($status['grace_ends_at'])->toDateString(),
         );
-        $this->assertGreaterThan(0, $status['grace_days']);
+    }
+
+    #[Test]
+    public function it_warns_before_three_days_when_subscription_is_ending_soon(): void
+    {
+        Carbon::setTestNow('2026-08-19 09:00:00');
+
+        $status = $this->statusFor([
+            'status' => 'active',
+            'billing_cycle' => 'monthly',
+            'subscription_ends_at' => '2026-08-22 00:00:00',
+        ]);
+
+        $this->assertTrue($status['expiring_soon']);
+        $this->assertSame('subscription_expiring_soon', $status['error']);
+        $this->assertStringContainsString('3 days', $status['message']);
+        $this->assertSame(3, $status['days_until_expiry']);
+    }
+
+    #[Test]
+    public function it_does_not_warn_when_expiry_is_more_than_three_days_away(): void
+    {
+        Carbon::setTestNow('2026-08-10 09:00:00');
+
+        $status = $this->statusFor([
+            'status' => 'active',
+            'billing_cycle' => 'monthly',
+            'subscription_ends_at' => '2026-08-22 00:00:00',
+        ]);
+
+        $this->assertFalse($status['expiring_soon']);
+        $this->assertNull($status['error']);
+        $this->assertNull($status['message']);
+        $this->assertSame(12, $status['days_until_expiry']);
     }
 
     #[Test]

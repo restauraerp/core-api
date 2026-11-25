@@ -2,8 +2,9 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\Customer;
+use App\Support\PhoneNumber;
+use Illuminate\Database\Seeder;
 
 class CustomerSeeder extends Seeder
 {
@@ -21,16 +22,21 @@ class CustomerSeeder extends Seeder
 
         // Always keep the first few specific ones if needed, or just generate 50.
         for ($i = 1; $i <= 50; $i++) {
-            $name = $firstNames[array_rand($firstNames)] . ' ' . $lastNames[array_rand($lastNames)];
-            $phone = '017' . str_pad((string)(11000000 + $i), 8, '0', STR_PAD_LEFT);
-            $email = strtolower(str_replace(' ', '.', $name)) . $i . '@example.com';
+            $name = $firstNames[array_rand($firstNames)].' '.$lastNames[array_rand($lastNames)];
+            $rawPhone = '017'.str_pad((string) (11000000 + $i), 8, '0', STR_PAD_LEFT);
+            $phone = PhoneNumber::normalise($rawPhone);
+            $email = strtolower(str_replace(' ', '.', $name)).$i.'@example.com';
             $address = $locations[array_rand($locations)];
             $loyalty = rand(0, 2000);
-            
+
             $tier = 'Bronze';
-            if ($loyalty > 1000) $tier = 'Platinum';
-            elseif ($loyalty > 500) $tier = 'Gold';
-            elseif ($loyalty > 200) $tier = 'Silver';
+            if ($loyalty > 1000) {
+                $tier = 'Platinum';
+            } elseif ($loyalty > 500) {
+                $tier = 'Gold';
+            } elseif ($loyalty > 200) {
+                $tier = 'Silver';
+            }
 
             $customers[] = [
                 'name' => $name,
@@ -47,4 +53,3 @@ class CustomerSeeder extends Seeder
         }
     }
 }
-

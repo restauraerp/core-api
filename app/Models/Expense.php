@@ -2,13 +2,15 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\TracksUploadedAssets;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Expense extends Model
 {
     use BelongsToTenant;
+    use SoftDeletes;
     use TracksUploadedAssets;
 
     protected $guarded = [];
@@ -21,6 +23,11 @@ class Expense extends Model
     public function loggedBy()
     {
         return $this->belongsTo(User::class, 'logged_by');
+    }
+
+    public function trashedByUser()
+    {
+        return $this->belongsTo(User::class, 'trashed_by');
     }
 
     public function header()

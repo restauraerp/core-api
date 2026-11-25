@@ -8,6 +8,7 @@ use App\Support\Billing\Subscription;
 use App\Support\Tenancy\TenantContext;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -28,6 +29,13 @@ class SubscriptionLifecycleTest extends TestCase
         parent::setUp();
 
         $this->seed(RolePermissionSeeder::class);
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+
+        parent::tearDown();
     }
 
     private function tenant(array $attributes): Tenant
@@ -92,24 +100,29 @@ class SubscriptionLifecycleTest extends TestCase
             ->assertJsonPath('writes_allowed', false);
     }
 
-    public function test_a_monthly_subscription_keeps_full_access_inside_its_seven_day_grace(): void
+    public function test_a_monthly_subscription_goes_read_only_immediately_when_expired_with_no_grace(): void
     {
         $tenant = $this->tenant([
             'status' => 'active',
             'billing_cycle' => 'monthly',
-            'subscription_ends_at' => now()->subDays(6),
+            'subscription_ends_at' => now()->subSecond(),
         ]);
         $this->actingAsUserOf($tenant);
 
-        $this->write($tenant)->assertCreated();
+        $this->read($tenant)->assertOk();
+        $this->write($tenant)
+            ->assertForbidden()
+            ->assertJsonPath('error', 'subscription_expired')
+            ->assertJsonPath('reads_allowed', true)
+            ->assertJsonPath('writes_allowed', false);
     }
 
-    public function test_a_monthly_subscription_goes_read_only_after_its_grace(): void
+    public function test_a_yearly_subscription_goes_read_only_immediately_when_expired_with_no_grace(): void
     {
         $tenant = $this->tenant([
             'status' => 'active',
-            'billing_cycle' => 'monthly',
-            'subscription_ends_at' => now()->subDays(8),
+            'billing_cycle' => 'yearly',
+            'subscription_ends_at' => now()->subSecond(),
         ]);
         $this->actingAsUserOf($tenant);
 
@@ -119,29 +132,18 @@ class SubscriptionLifecycleTest extends TestCase
             ->assertJsonPath('error', 'subscription_expired');
     }
 
-    public function test_a_yearly_subscription_gets_fourteen_days_of_grace(): void
+    public function test_grace_period_can_still_be_opted_into_via_config(): void
     {
-        // Day 9 would already be read-only on monthly.
+        config(['billing.grace_days.monthly' => 7]);
+
         $tenant = $this->tenant([
             'status' => 'active',
-            'billing_cycle' => 'yearly',
-            'subscription_ends_at' => now()->subDays(9),
+            'billing_cycle' => 'monthly',
+            'subscription_ends_at' => now()->subDays(3),
         ]);
         $this->actingAsUserOf($tenant);
 
         $this->write($tenant)->assertCreated();
-    }
-
-    public function test_a_yearly_subscription_goes_read_only_after_fourteen_days(): void
-    {
-        $tenant = $this->tenant([
-            'status' => 'active',
-            'billing_cycle' => 'yearly',
-            'subscription_ends_at' => now()->subDays(15),
-        ]);
-        $this->actingAsUserOf($tenant);
-
-        $this->write($tenant)->assertForbidden();
     }
 
     public function test_a_suspended_tenant_is_read_only_not_locked_out(): void
@@ -191,6 +193,8 @@ class SubscriptionLifecycleTest extends TestCase
 
     public function test_a_grace_period_warning_rides_along_with_successful_writes(): void
     {
+        config(['billing.grace_days.monthly' => 7]);
+
         $tenant = $this->tenant([
             'status' => 'active',
             'billing_cycle' => 'monthly',
@@ -272,8 +276,31 @@ class SubscriptionLifecycleTest extends TestCase
         $this->assertSame(Subscription::FULL, $tenant->subscription()['state']);
     }
 
-    public function test_the_expiry_sweep_leaves_tenants_inside_their_grace_alone(): void
+    public function test_the_expiry_sweep_suspends_expired_subscription_immediately_when_no_grace(): void
     {
+        $expired = $this->tenant([
+            'slug' => 'expired-sub',
+            'status' => 'active',
+            'billing_cycle' => 'monthly',
+            'subscription_ends_at' => now()->subDay(),
+        ]);
+        $active = $this->tenant([
+            'slug' => 'active-sub',
+            'status' => 'active',
+            'billing_cycle' => 'monthly',
+            'subscription_ends_at' => now()->addDays(10),
+        ]);
+
+        $this->artisan('tenants:expire')->assertSuccessful();
+
+        $this->assertSame('suspended', $expired->fresh()->status);
+        $this->assertSame('active', $active->fresh()->status);
+    }
+
+    public function test_the_expiry_sweep_leaves_tenants_inside_their_grace_alone_when_grace_is_configured(): void
+    {
+        config(['billing.grace_days.monthly' => 7]);
+
         $inGrace = $this->tenant([
             'slug' => 'in-grace',
             'status' => 'active',
@@ -291,6 +318,31 @@ class SubscriptionLifecycleTest extends TestCase
 
         $this->assertSame('active', $inGrace->fresh()->status);
         $this->assertSame('suspended', $pastGrace->fresh()->status);
+    }
+
+    public function test_resubscribing_after_expiry_starts_from_now_with_no_grace_period_time(): void
+    {
+        config(['platform.token' => 'test-secret']);
+        Carbon::setTestNow('2026-11-23 12:00:00');
+
+        $tenant = $this->tenant([
+            'slug' => 'resubscribe-test',
+            'status' => 'suspended',
+            'billing_cycle' => 'monthly',
+            'subscription_ends_at' => Carbon::parse('2026-11-10 00:00:00'),
+        ]);
+
+        $response = $this->postJson("/api/v1/platform/tenants/{$tenant->slug}/subscribe", [
+            'cycle' => 'monthly',
+            'plan' => 'growth',
+        ], [
+            'Authorization' => 'Bearer '.config('platform.token'),
+        ]);
+
+        $response->assertOk();
+        $fresh = $tenant->fresh();
+        $this->assertSame('active', $fresh->status);
+        $this->assertSame('2026-12-23 12:00:00', $fresh->subscription_ends_at->format('Y-m-d H:i:s'));
     }
 
     public function test_a_new_tenant_gets_a_seven_day_trial(): void

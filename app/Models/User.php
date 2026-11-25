@@ -4,8 +4,10 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
+use App\Observers\UserObserver;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -16,6 +18,7 @@ use App\Models\Concerns\BelongsToTenant;
 use App\Models\Concerns\NormalisesPhone;
 use App\Models\Concerns\TracksUploadedAssets;
 
+#[ObservedBy(UserObserver::class)]
 #[Fillable(['name', 'email', 'password', 'location_id', 'phone', 'image_url', 'can_login'])]
 // telegram_chat_id is hidden: it is only ever needed server-side, to send.
 #[Hidden(['password', 'remember_token', 'telegram_chat_id'])]

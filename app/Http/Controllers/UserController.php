@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\OneTimeLoginToken;
 use App\Rules\PhoneNumber;
+use App\Services\DeliveryPersonService;
 use App\Support\Assets\Media;
 use App\Support\Tenancy\TenantContext;
 use Spatie\Permission\Models\Role;
@@ -75,6 +76,8 @@ class UserController extends Controller
                 $user->revokePermissionTo('deliver_orders');
             }
         }
+
+        DeliveryPersonService::flushForTenant($user->tenant_id);
         
         return response()->json($user->load(['roles.permissions', 'permissions']), 201);
     }
@@ -171,6 +174,8 @@ class UserController extends Controller
             $user->tokens()->delete();
         }
 
+        DeliveryPersonService::flushForTenant($user->tenant_id);
+
         return response()->json($user->load(['location', 'roles.permissions', 'permissions']));
     }
 
@@ -241,7 +246,9 @@ class UserController extends Controller
 
     public function destroy(User $user)
     {
+        $tenantId = $user->tenant_id;
         $user->delete();
+        DeliveryPersonService::flushForTenant($tenantId);
         return response()->json(null, 204);
     }
 }

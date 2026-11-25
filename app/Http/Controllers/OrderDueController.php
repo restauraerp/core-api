@@ -4,11 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\AccountingLedger;
 use App\Models\Order;
+use App\Services\CashStorageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
-use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Letting an order leave without being paid for, and collecting it later.
@@ -48,9 +48,9 @@ class OrderDueController extends Controller
             ]);
         }
 
-        if ($order->customer_id === null) {
+        if ($order->customer_id === null && $order->partner_id === null) {
             throw ValidationException::withMessages([
-                'customer_id' => 'Attach a customer before putting an order on account - an unnamed debt cannot be collected.',
+                'customer_id' => 'Attach a customer or partner before putting an order on account - an unnamed debt cannot be collected.',
             ]);
         }
 
@@ -75,6 +75,7 @@ class OrderDueController extends Controller
             'amount' => ['required', 'numeric', 'min:0.01'],
             'method' => ['required', 'string', 'max:255'],
             'note' => ['nullable', 'string', 'max:500'],
+            'cash_storage_id' => ['nullable', 'integer', $this->tenantExists('cash_storages')],
         ]);
 
         $outstanding = $order->amount_outstanding;
@@ -94,12 +95,23 @@ class OrderDueController extends Controller
         }
 
         $order = DB::transaction(function () use ($order, $validated) {
+            $storage = app(CashStorageService::class)->resolveStorage(
+                $validated['method'],
+                $validated['cash_storage_id'] ?? null,
+                $order->location_id
+            );
+
             $order->payments()->create([
                 'method' => $validated['method'],
                 'amount' => $validated['amount'],
                 'status' => 'completed',
                 'note' => $validated['note'] ?? null,
+                'cash_storage_id' => $storage?->id,
             ]);
+
+            if ($storage) {
+                $storage->increment('current_balance', $validated['amount']);
+            }
 
             // Posted per settlement, not per order: a tab paid in three
             // instalments is three movements of money, and the books should
@@ -109,7 +121,7 @@ class OrderDueController extends Controller
                 'transaction_type' => 'order_payment',
                 'amount' => $validated['amount'],
                 'reference_id' => $order->id,
-                'description' => "Order #{$order->id} — settlement ({$validated['method']})",
+                'description' => "Order #{$order->id} — settlement ({$validated['method']})".($storage ? " [{$storage->name}]" : ''),
             ]);
 
             $order->refresh();

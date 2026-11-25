@@ -19,19 +19,14 @@ return [
     | Grace periods
     |--------------------------------------------------------------------------
     |
-    | Days of continued full access after a paid subscription's end date, per
-    | billing cycle. A yearly renewal usually goes through an invoice and a
-    | bank transfer rather than a card charge, so it gets longer.
-    |
-    | Grace applies only to tenants who have paid at least once. Trials get
-    | none - that is the difference between "your payment is late" and "you
-    | never started".
+    | Days of continued full access after a paid subscription's end date.
+    | Set to 0 so subscriptions drop to read-only immediately upon expiration.
     |
     */
 
     'grace_days' => [
-        'monthly' => (int) env('BILLING_GRACE_MONTHLY', 7),
-        'yearly' => (int) env('BILLING_GRACE_YEARLY', 14),
+        'monthly' => (int) env('BILLING_GRACE_MONTHLY', 0),
+        'yearly' => (int) env('BILLING_GRACE_YEARLY', 0),
     ],
 
     /*

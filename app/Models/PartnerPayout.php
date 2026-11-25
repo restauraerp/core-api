@@ -4,15 +4,13 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Money actually received from a partner.
  *
- * Recorded as it arrives rather than matched to particular orders. An
- * aggregator pays a fortnight of trading in one transfer, net of its own
- * adjustments, and insisting each payout be reconciled line by line against
- * individual orders would be bookkeeping the restaurant does not do and cannot
- * check. What matters is the running balance: earned, less received.
+ * Can be recorded as a lump sum or linked directly to a batch of settled orders.
  */
 class PartnerPayout extends Model
 {
@@ -21,6 +19,9 @@ class PartnerPayout extends Model
     protected $fillable = [
         'partner_id',
         'amount',
+        'payment_method',
+        'cash_storage_id',
+        'orders_count',
         'received_on',
         'reference',
         'note',
@@ -30,12 +31,23 @@ class PartnerPayout extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'orders_count' => 'integer',
             'received_on' => 'date',
         ];
     }
 
-    public function partner()
+    public function partner(): BelongsTo
     {
         return $this->belongsTo(Partner::class);
+    }
+
+    public function cashStorage(): BelongsTo
+    {
+        return $this->belongsTo(CashStorage::class);
+    }
+
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
     }
 }

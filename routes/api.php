@@ -4,18 +4,23 @@ use App\Http\Controllers\AccountingHeaderController;
 use App\Http\Controllers\AccountingLedgerController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CashStorageController;
 use App\Http\Controllers\CctvCameraController;
 use App\Http\Controllers\ChatMessageController;
 use App\Http\Controllers\ConsumptionLogController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DeliveryController;
 use App\Http\Controllers\DeliveryPayoutController;
+use App\Http\Controllers\DeliveryPersonController;
 use App\Http\Controllers\DemoController;
 use App\Http\Controllers\DemoLeadController;
 use App\Http\Controllers\DiscountController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\GoogleBusinessController;
 use App\Http\Controllers\GoogleReviewController;
 use App\Http\Controllers\HallController;
+use App\Http\Controllers\Hotel\HotelSetupController;
+use App\Http\Controllers\Hotel\RoomBookingController;
 use App\Http\Controllers\IncomeController;
 use App\Http\Controllers\InventoryItemController;
 use App\Http\Controllers\InvoiceController;
@@ -23,6 +28,7 @@ use App\Http\Controllers\LeaveController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\LoyaltySettingController;
 use App\Http\Controllers\LoyaltyTransactionController;
+use App\Http\Controllers\MetaPagesController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OneTimeLoginController;
 use App\Http\Controllers\OrderController;
@@ -36,23 +42,16 @@ use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\PermissionController;
-use App\Http\Controllers\Platform\PlanController as PlatformPlanController;
 use App\Http\Controllers\Platform\PackageController as PlatformPackageController;
-use App\Http\Controllers\PublicSiteController;
-use App\Http\Controllers\SiteBuilderController;
-use App\Http\Controllers\GoogleBusinessController;
-use App\Http\Controllers\MetaPagesController;
-use App\Http\Controllers\SiteAccessTokenController;
-use App\Http\Controllers\SiteDomainController;
-use App\Http\Controllers\SiteIntegrationController;
-use App\Http\Controllers\TelegramIntegrationController;
-use App\Http\Controllers\TelegramWebhookController;
+use App\Http\Controllers\Platform\PlanController as PlatformPlanController;
 use App\Http\Controllers\Platform\StatsController as PlatformStatsController;
 use App\Http\Controllers\Platform\TenantController as PlatformTenantController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductMediaController;
+use App\Http\Controllers\PublicHotelController;
 use App\Http\Controllers\PublicOrderController;
+use App\Http\Controllers\PublicSiteController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseOrderItemController;
 use App\Http\Controllers\PurchaseReturnController;
@@ -62,6 +61,10 @@ use App\Http\Controllers\RecipeController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\RoleController;
+use App\Http\Controllers\SiteAccessTokenController;
+use App\Http\Controllers\SiteBuilderController;
+use App\Http\Controllers\SiteDomainController;
+use App\Http\Controllers\SiteIntegrationController;
 use App\Http\Controllers\SocialLinkController;
 use App\Http\Controllers\StockTransferController;
 use App\Http\Controllers\StockTransferItemController;
@@ -70,17 +73,16 @@ use App\Http\Controllers\StorageUnitItemController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\SupportTicketController;
 use App\Http\Controllers\TableController;
-use App\Http\Controllers\Hotel\HotelSetupController;
-use App\Http\Controllers\Hotel\RoomBookingController;
-use App\Http\Controllers\PublicHotelController;
-use App\Http\Controllers\Venues\VenueBookingController;
-use App\Http\Controllers\Venues\VenueController;
-use App\Http\Controllers\Venues\VenuePackageController;
 use App\Http\Controllers\TagController;
 use App\Http\Controllers\TaxRuleController;
+use App\Http\Controllers\TelegramIntegrationController;
+use App\Http\Controllers\TelegramWebhookController;
 use App\Http\Controllers\UpgradeLinkController;
 use App\Http\Controllers\UsageLogController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\Venues\VenueBookingController;
+use App\Http\Controllers\Venues\VenueController;
+use App\Http\Controllers\Venues\VenuePackageController;
 use App\Http\Controllers\WalkthroughProgressController;
 use App\Http\Controllers\WasteLogController;
 use App\Http\Controllers\WebsiteSettingController;
@@ -334,8 +336,10 @@ Route::prefix('v1')->group(function () {
 
         Route::apiResource('users', UserController::class);
         Route::post('users/{user}/login-link', [UserController::class, 'loginLink']);
+        Route::get('delivery-persons', [DeliveryPersonController::class, 'index']);
 
         // Roles & Permissions API
+        Route::post('roles/sync-predefined', [RoleController::class, 'syncPredefined']);
         Route::apiResource('roles', RoleController::class);
         Route::apiResource('permissions', PermissionController::class);
 
@@ -446,7 +450,11 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('purchase-returns', PurchaseReturnController::class);
         Route::apiResource('accounting-headers', AccountingHeaderController::class);
         Route::apiResource('accounting-ledgers', AccountingLedgerController::class);
+        Route::get('expenses-trashed', [ExpenseController::class, 'trashed']);
+        Route::post('expenses-trashed/{id}/restore', [ExpenseController::class, 'restore']);
         Route::apiResource('expenses', ExpenseController::class);
+        Route::get('incomes-trashed', [IncomeController::class, 'trashed']);
+        Route::post('incomes-trashed/{id}/restore', [IncomeController::class, 'restore']);
         Route::apiResource('incomes', IncomeController::class);
         Route::apiResource('tax-rules', TaxRuleController::class);
 
@@ -525,7 +533,7 @@ Route::prefix('v1')->group(function () {
 
         // Third parties that send the restaurant orders and keep a cut.
         Route::apiResource('partners', PartnerController::class);
-        Route::apiResource('partner-payouts', PartnerPayoutController::class)->only(['index', 'store', 'destroy']);
+        Route::apiResource('partner-payouts', PartnerPayoutController::class)->only(['index', 'store', 'show', 'destroy']);
 
         // Owed money: putting an order on account, and collecting it later.
         Route::post('orders/{order}/due', [OrderDueController::class, 'markDue']);
@@ -535,6 +543,8 @@ Route::prefix('v1')->group(function () {
         Route::post('orders-trashed/{id}/restore', [OrderController::class, 'restore']);
         Route::apiResource('orders.items', OrderItemController::class)->shallow();
         Route::apiResource('payments', PaymentController::class);
+        Route::get('cash-storages/summary', [CashStorageController::class, 'summary']);
+        Route::apiResource('cash-storages', CashStorageController::class);
 
         // Delivery API
         Route::middleware('module:delivery')->group(function () {

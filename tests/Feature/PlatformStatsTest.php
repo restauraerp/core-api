@@ -130,6 +130,8 @@ class PlatformStatsTest extends TestCase
     #[Test]
     public function grace_is_measured_against_the_billing_cycle(): void
     {
+        config(['billing.grace_days.monthly' => 7]);
+
         // One day past its end: inside any grace period.
         Tenant::factory()->create([
             'status' => 'active',
